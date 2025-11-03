@@ -15,14 +15,18 @@ end
 # - `available` {Integer} Memory in KiB available for the guest OS. Inside the Linux kernel this is named MemTotal. This is
 #   the maximum allowed memory, which is slightly less than the currently configured
 #   memory size, as the Linux kernel and BIOS need some space for themselves.
+#   `nil` if ballooning is unavailable.
 # - `unused` {Integer}  Inside the Linux kernel this actually is named MemFree.
 #   That memory is available for immediate use as it is currently neither used by processes
 #   or the kernel for caching. So it is really unused (and is just eating energy and provides no benefit).
+#   `nil` if ballooning is unavailable.
 # - `usable` {Integer} Inside the Linux kernel this is named MemAvailable. This consists
 #   of the free space plus the space, which can be easily reclaimed. This for example includes
 #   read caches, which contain data read from IO devices, from which the data can be read
 #   again if the need arises in the future.
-# - `disk_caches` {Integer} disk cache size in KiB
+#   `nil` if ballooning is unavailable.
+# - `disk_caches` {Integer} disk cache size in KiB.
+#   `nil` if ballooning is unavailable.
 # - `rss` {Integer} The resident set size in KiB, which is the number of pages currently
 #   "actively" used by the QEMU process on the host system. QEMU by default
 #   only allocates the pages on demand when they are first accessed. A newly started VM actually
@@ -30,6 +34,9 @@ end
 #
 # More info here: https://pmhahn.github.io/virtio-balloon/
 class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches, :rss)
+  def ballooning_available?
+    !(available.nil? or unused.nil? or usable.nil? or disk_caches.nil?)
+  end
 end
 
 # VM information
@@ -63,16 +70,20 @@ class VirtCmd
     list
   end
   
+  # Runtime memory stats. Only available when the VM is running.
+  #
   # @param domain [Domain] domain
   # @return [MemStat]
   def memstat(domain)
     lines = `virsh dommemstat #{domain.id}`.lines
     values = lines.filter { |it| !it.strip.empty? } .map { |it| it.strip.split } .to_h
-    MemStat.new(actual: values['actual'].to_i, unused: values['unused'].to_i,
-      available: values['available'].to_i, usable: values["usable"].to_i,
-      disk_caches: values["disk_caches"].to_i, rss: values["rss"].to_i)
+    MemStat.new(actual: values['actual'].to_i, unused: values['unused']&.to_i,
+      available: values['available']&.to_i, usable: values["usable"]&.to_i,
+      disk_caches: values["disk_caches"]&.to_i, rss: values["rss"].to_i)
   end
   
+  # Domain (VM) information. Also available when VM is shut off.
+  #
   # @param domain [Domain] domain
   # @return [DomainInfo]
   def dominfo(domain)
