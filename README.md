@@ -9,5 +9,5 @@ Future plans:
 ## Running
 
 ```
-ruby lazyvirt.rb
+ruby lazyvirt
 ```
