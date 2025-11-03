@@ -1,4 +1,5 @@
 require_relative 'virt'
+require 'tty-box'
 
 virt = VirtCmd.new
 domains = virt.domains
