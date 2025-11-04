@@ -4,8 +4,8 @@ require 'pastel'
 
 $p = Pastel.new
 
-# A rectangle, with {Integer} `top`, `left`, `width` and `height`.
-class Rect < Data.define(:top, :left, :width, :height)
+# A rectangle, with {Integer} `left`, `top`, `width` and `height`.
+class Rect < Data.define(:left, :top, :width, :height)
   def empty?
     width <= 0 || height <= 0
   end
@@ -44,6 +44,12 @@ class Window
     raise 'lines must be Array' unless lines.is_a? Array
     @lines = lines
     repaint_content
+  end
+  
+  def content
+    lines = []
+    yield lines
+    self.content = lines
   end
   
   private def repaint
