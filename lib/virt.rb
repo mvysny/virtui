@@ -2,7 +2,7 @@ require 'sysinfo'
 
 # A virt domain (=VM).
 #
-# - `id` {Integer | nil} - temporary ID, only available when running
+# - `id` {Integer} - temporary ID, only available when running. May be `nil`
 # - `name` {String} - displayable name
 # - `state` {Symbol} - one of `:running`, `:shut_off`, `:paused`, `:other`
 class Domain < Data.define(:id, :name, :state)
@@ -39,10 +39,6 @@ end
 #
 # More info here: https://pmhahn.github.io/virtio-balloon/
 class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches, :rss)
-  def ballooning_available?
-    !(available.nil? or unused.nil? or usable.nil? or disk_caches.nil?)
-  end
-  
   # @return [MemoryUsage | nil] the guest memory stats or nil if unavailable.
   def guest_mem
     guest_data_available? ? MemoryUsage.new(available, usable) : nil
