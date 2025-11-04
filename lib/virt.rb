@@ -1,4 +1,4 @@
-require 'sysinfo'
+require_relative 'sysinfo'
 
 # A virt domain (=VM).
 #
@@ -132,7 +132,22 @@ class VirtCmd
       persistent: values['Persistent'] == 'yes',
       security_model: values['Security model'])
   end
+  
+  # @return [Boolean] whether this virt client is available
+  def self.available?
+    !(`which virsh`.strip.empty?)
+  end
 end
+
+def library_available?(name)
+  # Gem::Specification.find_by_name(gem_name) is cleaner, but doesn't work with apt-installed gems
+  require name
+  true
+rescue LoadError
+  false
+end
+
+LIBVIRT_GEM_AVAILABLE = library_available? 'libvirt'
 
 # Accessess libvirt via libvirt Ruby bindings. Way faster than [VirtCmd], and recommended.
 # Install the bindings via `sudo apt install ruby-libvirt`.
@@ -140,6 +155,37 @@ end
 # - RubyDoc: https://ruby.libvirt.org/api/index.html
 # - Library homepage: https://ruby.libvirt.org/
 class LibVirt
-  # TODO
+  def initialize
+    raise 'libvirt gem not available' unless LIBVIRT_GEM_AVAILABLE
+    @conn = Libvirt::open("qemu:///system")
+  end
+  
+  def close
+    @conn.close
+  end
+  
+  # Returns all domains, in all states.
+  # @return [Array<Domain>] domains
+  def domains()
+    running_vm_ids = @conn.list_domains
+    stopped_vm_names = @conn.list_defined_domains
+    states = {Libvirt::Domain::PAUSED => :paused, Libvirt::Domain::RUNNING => :running, 5 => :shut_off}
+    running = running_vm_ids.map do |id|
+      d = @conn.lookup_domain_by_id(id)    # Libvirt::Domain
+      state = states[d.state[0]] || :other
+      Domain.new(id, d.name, state)
+    end
+    stopped = stopped_vm_names.map do |name|
+      d = @conn.lookup_domain_by_name(name)    # Libvirt::Domain
+      state = states[d.state[0]] || :other
+      Domain.new(nil, name, state)
+    end
+    running + stopped
+  end
+  
+  # @return [Boolean] whether this virt client is available
+  def self.available?
+    LIBVIRT_GEM_AVAILABLE
+  end
 end
 
