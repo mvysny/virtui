@@ -7,7 +7,7 @@ Currently only tested on Linux host: probably won't work on Windows nor MacOS.
 
 Install Ruby:
 ```bash
-$ sudo apt install ruby bundler
+$ sudo apt install ruby ruby-bundler
 ```
 
 Run these commands in this project folder, to install project dependencies:
