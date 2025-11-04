@@ -193,7 +193,7 @@ class LibVirtClient
 
   # Runtime memory stats. Only available when the VM is running.
   #
-  # WARNING: RETURNS INCOMPLETE DATA!!!
+  # WARNING: RETURNS INCOMPLETE DATA!!! Reported upstream: https://gitlab.com/libvirt/libvirt-ruby/-/issues/13
   #
   # @param domain [Domain] domain
   # @return [MemStat]
