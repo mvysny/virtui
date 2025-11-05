@@ -6,7 +6,11 @@ require_relative 'sysinfo'
 # - `name` {String} - displayable name
 class DomainId < Data.define(:id, :name)
   def to_s
-    id.nil? ? name : "#{id}: #{name}"
+    running? ? "#{id}: #{name}" : name
+  end
+  # @return [Boolean]
+  def running?
+    !id.nil?
   end
 end
 
@@ -132,7 +136,7 @@ class VirtCmd
   
   # Runtime memory stats. Only available when the VM is running.
   #
-  # @param domain [Domain] domain
+  # @param domain [DomainId] domain
   # @param virsh_dommemstat [String | nil] output of `virsh dommemstat`, for testing only
   # @return [MemStat]
   def memstat(domain, virsh_dommemstat = nil)
@@ -145,7 +149,7 @@ class VirtCmd
   
   # Domain (VM) information. Also available when VM is shut off.
   #
-  # @param domain [Domain] domain
+  # @param domain [DomainId] domain
   # @param virsh_dominfo [String | nil] output of `virsh dominfo`, for testing only
   # @return [DomainInfo]
   def dominfo(domain, virsh_dominfo = nil)
@@ -230,7 +234,7 @@ class LibVirtClient
   #
   # WARNING: RETURNS INCOMPLETE DATA!!! Reported upstream: https://gitlab.com/libvirt/libvirt-ruby/-/issues/13
   #
-  # @param domain [Domain] domain
+  # @param domain [DomainId] domain
   # @return [MemStat]
   def memstat(domain)
     raise 'domain not running' if domain.id.nil?
@@ -247,7 +251,7 @@ class LibVirtClient
 
   # Domain (VM) information. Also available when VM is shut off.
   #
-  # @param domain [Domain] domain
+  # @param domain [DomainId] domain
   # @return [DomainInfo]
   def dominfo(domain)
     d = @conn.lookup_domain_by_id(domain.id) unless domain.id.nil?

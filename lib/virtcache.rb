@@ -1,0 +1,47 @@
+require_relative 'sysinfo'
+require_relative 'virt'
+
+# Caches all VM runtime info for speedy access.
+class VirtCache
+  # @property [MemoryStat]
+  attr_reader :host_mem_stat
+  # @property [CpuInfo]
+  attr_reader :cpu_info
+  
+  # @param virt [VirtCmd | LibVirtClient] virt client
+  def initialize(virt)
+    @virt = virt
+    # Hash{DomainId => Symbol}
+    @domains = {}
+    # Hash{DomainId => MemStat}
+    @mem_stats = {}
+    @cpu_info = virt.hostinfo
+    update
+  end
+
+  # @return [Set<DomainId>]
+  def domains
+    @domains.keys
+  end
+  
+  # @param domain [DomainId]
+  # @return [MemStat | nil] nil if domain isn't running
+  def memstat(domain)
+    @mem_stats[domain]
+  end
+  
+  # @param domain [DomainId]
+  # @return [Symbol] one of `:running`, `:shut_off`, `:paused`, `:other`
+  def state(domain)
+    @domains[domain] || :other
+  end
+
+  # Updates the cache
+  def update
+    domains = @virt.domains
+    @domains = domains.map { |d| [d.id, d.state] } .to_h
+    @mem_stats = @domains.keys.map { |id| [id, id.running? ? @virt.memstat(id) : nil] } .to_h
+    @host_mem_stat = SysInfo.new.memory_stats
+  end
+end
+
