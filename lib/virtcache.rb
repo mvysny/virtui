@@ -40,10 +40,19 @@ class VirtCache
   end
 
   # Updates the cache
-  def update
+  def update_slow
     domains = @virt.domains
     @domains = domains.map { |d| [d.id, d.state] }.to_h
     @mem_stats = @domains.keys.map { |id| [id, id.running? ? @virt.memstat(id) : nil] }.to_h
+    @host_mem_stat = @sysinfo.memory_stats
+    @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
+  end
+  
+  def update
+    domain_data = @virt.domain_data
+    domain_data = domain_data.map { |domain_name, data| [DomainId.new(data.running? ? domain_name.hash : nil, domain_name), data] }.to_h 
+    @domains = domain_data.map { |did, data| [did, data.info.state] }.to_h
+    @mem_stats = @domains.keys.map { |id| [id, id.running? ? domain_data[id].mem_stat : nil] }.to_h
     @host_mem_stat = @sysinfo.memory_stats
     @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
   end

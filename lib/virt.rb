@@ -41,13 +41,13 @@ end
 # VM memory stats
 #
 # - `actual` {Integer} The actual memory size in bytes available with ballooning enabled.
-# - `available` {Integer} Memory in bytes available for the guest OS. Inside the Linux kernel this is named `MemTotal`. This is
-#   the maximum allowed memory, which is slightly less than the currently configured
-#   memory size, as the Linux kernel and BIOS need some space for themselves.
-#   `nil` if ballooning is unavailable.
 # - `unused` {Integer}  Inside the Linux kernel this actually is named `MemFree`.
 #   That memory is available for immediate use as it is currently neither used by processes
 #   or the kernel for caching. So it is really unused (and is just eating energy and provides no benefit).
+#   `nil` if ballooning is unavailable.
+# - `available` {Integer} Memory in bytes available for the guest OS. Inside the Linux kernel this is named `MemTotal`. This is
+#   the maximum allowed memory, which is slightly less than the currently configured
+#   memory size, as the Linux kernel and BIOS need some space for themselves.
 #   `nil` if ballooning is unavailable.
 # - `usable` {Integer} Inside the Linux kernel this is named `MemAvailable`. This consists
 #   of the free space plus the space, which can be easily reclaimed. This for example includes
@@ -119,6 +119,9 @@ end
 # - `cpu_time` {Integer} milliseconds of used CPU time (user + system)
 # - `mem_stat` {MemStat} memory stats, nil if not running.
 class DomainData < Data.define(:info, :sampled_at, :cpu_time, :mem_stat)
+  def running?
+    info.state == :running
+  end
   # Calculates average CPU usage in the time period between older data and this data.
   # @param older_data [DomainData]
   # @return [Float] CPU usage in %; 100% means one CPU core was fully utilized. 0 or greater, may be greater than 100.
@@ -190,11 +193,10 @@ class VirtCmd
       domain_info = DomainInfo.new(nil, state, values['vcpu.maximum'].to_i,
                                    values['balloon.maximum'].to_i * 1024, mem_current)
       cpu_time = values['cpu.time'].to_i / 1_000_000
-      mem_stat = MemStat.new(
-        mem_current,
-        values['balloon.available']&.to_i&.*(1024),
-        values['balloon.unused']&.to_i&.*(1024),
-        values['balloon.usable']&.to_i&.*(1024),
+      mem_unused = values['balloon.unused']&.to_i&.*(1024)
+      mem_usable = values['balloon.usable']&.to_i&.*(1024)
+      mem_available = values['balloon.available']&.to_i&.*(1024)
+      mem_stat = MemStat.new(mem_current, mem_unused, mem_available, mem_usable,
         values['balloon.disk_caches']&.to_i&.*(1024),
         values['balloon.rss'].to_i * 1024
       )
