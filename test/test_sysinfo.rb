@@ -15,6 +15,24 @@ class TestSysInfo < Minitest::Test
     s = SysInfo.new.memory_stats PROC_MEMINFO
     assert_equal 'RAM: 5.9 G/58 G (10%), SWAP: 0/8.0 G (0%)', s.to_s
   end
+
+  def test_cpu_usage
+    usage = SysInfo.new.cpu_usage(nil, PROC_STAT0)
+    assert_equal 0.0, usage.usage_percent
+    usage = SysInfo.new.cpu_usage(usage, PROC_STAT1)
+    assert_equal 4.09, usage.usage_percent
+  end
+end
+
+class TestCpuStat < Minitest::Test
+  def test_parse
+    s = CpuStat.parse(PROC_STAT0)
+    assert_equal 'cpu: user=3222 nice=76 system=2433 idle=78684 iowait=416 irq=0 softirq=15 steal=26 guest=0 guest_nice=0',
+                 s.to_s
+    s = CpuStat.parse(PROC_STAT1)
+    assert_equal 'cpu: user=3394 nice=76 system=2673 idle=88408 iowait=420 irq=0 softirq=17 steal=27 guest=0 guest_nice=0',
+                 s.to_s
+  end
 end
 
 PROC_MEMINFO = <<~EOF
