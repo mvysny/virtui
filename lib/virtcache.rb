@@ -13,12 +13,11 @@ class VirtCache
   # @param virt [VirtCmd | LibVirtClient] virt client
   def initialize(virt)
     @virt = virt
-    # Hash{DomainId => Symbol}
-    @domains = {}
-    # Hash{DomainId => MemStat}
-    @mem_stats = {}
     @cpu_info = virt.hostinfo
     @sysinfo = SysInfo.new
+    @cpu_count = @cpu_info.cpus
+    # Hash{DomainId => DomainData}
+    @domain_data = {}
     update
   end
 
@@ -39,10 +38,22 @@ class VirtCache
     @domain_data[domain].info.state || :other
   end
 
+  # @param domain [DomainId]
+  # @return [Float] CPU usage 0..100%, 100%=full usage of all host CPU cores.
+  def cpu_usage(domain)
+    @guest_cpu[domain] || 0.0
+  end
+
   # Updates the cache
   def update
-    @domain_data = @virt.domain_data
-    @domain_data = @domain_data.map { |domain_name, data| [DomainId.new(data.running? ? domain_name.hash : nil, domain_name), data] }.to_h
+    # guest stats
+    domain_data = @virt.domain_data
+    domain_data = domain_data.map { |domain_name, data| [DomainId.new(data.running? ? domain_name.hash : nil, domain_name), data] }.to_h
+    # guest CPU
+    @guest_cpu = domain_data.map { |did, data| [did, data.cpu_usage(@domain_data[did]) / @cpu_count] } .to_h
+    @domain_data = domain_data
+    
+    # host stats
     @host_mem_stat = @sysinfo.memory_stats
     @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
   end
