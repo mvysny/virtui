@@ -18,6 +18,7 @@ class VirtCache
     # Hash{DomainId => MemStat}
     @mem_stats = {}
     @cpu_info = virt.hostinfo
+    @sysinfo = SysInfo.new
     update
   end
 
@@ -43,11 +44,17 @@ class VirtCache
     domains = @virt.domains
     @domains = domains.map { |d| [d.id, d.state] }.to_h
     @mem_stats = @domains.keys.map { |id| [id, id.running? ? @virt.memstat(id) : nil] }.to_h
-    @host_mem_stat = SysInfo.new.memory_stats
+    @host_mem_stat = @sysinfo.memory_stats
+    @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
   end
 
   # @return [Integer] a sum of RSS usage of all running VMs
   def total_vm_rss_usage
     @mem_stats.values.sum { |mem_stat| mem_stat&.rss || 0 }
+  end
+
+  # @return [Float] recent CPU usage, 0..100%
+  def host_cpu_usage
+    @host_cpu_usage.usage_percent
   end
 end
