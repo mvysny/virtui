@@ -107,8 +107,13 @@ end
 
 # https://github.com/jmettraux/rufus-scheduler
 scheduler.every '3s' do
-  virt_cache.update
-  screen.update_data
+  begin
+    virt_cache.update
+    screen.update_data
+  rescue => exception
+    screen.clear
+    puts exception, exception.backtrace
+  end
 end
 
 loop do
@@ -121,3 +126,4 @@ end
 
 scheduler.shutdown
 screen.clear
+
