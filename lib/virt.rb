@@ -8,6 +8,7 @@ class DomainId < Data.define(:id, :name)
   def to_s
     running? ? "#{id}: #{name}" : name
   end
+
   # @return [Boolean]
   def running?
     !id.nil?
@@ -23,10 +24,12 @@ class Domain < Data.define(:id, :state)
   def name
     id.name
   end
+
   # @return [Boolean]
   def running?
     state == :running
   end
+
   def to_s
     "#{id}: #{state}"
   end
@@ -61,24 +64,26 @@ class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches,
   def guest_mem
     guest_data_available? ? MemoryUsage.new(available, usable) : nil
   end
-  
+
   # @return [MemoryUsage] the host memory stat: `rss` of `actual`
   def host_mem
     MemoryUsage.new(actual, actual - rss)
   end
-  
+
   # Returns true if the guest memory data is available. false if the VM doesn't report guest data,
   # probably because ballooning service isn't running, or virt guest tools aren't installed,
   # or the VM lacks the ballooning device.
   # @return [Boolean] true if the guest data is available
   def guest_data_available?
-    available != nil && usable != nil && disk_caches != nil && unused != nil
+    !available.nil? && !usable.nil? && !disk_caches.nil? && !unused.nil?
   end
-  
+
   def to_s
     result = "#{format_byte_size(actual)}"
-    result += "(rss=#{format_byte_size(rss)})" if !rss.nil?
-    result += "; guest: #{guest_mem} (unused=#{format_byte_size(unused)}, disk_caches=#{format_byte_size(disk_caches)})" if guest_data_available?
+    result += "(rss=#{format_byte_size(rss)})" unless rss.nil?
+    if guest_data_available?
+      result += "; guest: #{guest_mem} (unused=#{format_byte_size(unused)}, disk_caches=#{format_byte_size(disk_caches)})"
+    end
     result
   end
 end
@@ -96,11 +101,11 @@ class DomainInfo < Data.define(:os_type, :state, :cpus, :max_memory, :used_memor
   def running?
     state == :running
   end
-  
+
   def configured_memory
     MemoryUsage.new(max_memory, max_memory - used_memory)
   end
-  
+
   def to_s
     "#{os_type}: #{state}; CPUs: #{cpus}; configured mem: #{configured_memory}; persistent=#{persistent}; security_model=#{security_model}"
   end
@@ -114,6 +119,7 @@ class CpuInfo < Data.define(:model, :sockets, :cores_per_socket, :threads_per_co
   def cpus
     sockets * cores_per_socket * threads_per_core
   end
+
   def to_s
     "#{model}: #{sockets}/#{cores_per_socket}/#{threads_per_core}"
   end
@@ -126,32 +132,33 @@ class VirtCmd
   # @param virsh_list [String | nil] Output of `virsh list --all`, for testing only
   # @return [Array<Domain>] domains
   def domains(virsh_list = nil)
-    virsh_list = virsh_list || `virsh list --all`
-    list = virsh_list.lines.drop(2)  # Drop the table header and underline
+    virsh_list ||= `virsh list --all`
+    list = virsh_list.lines.drop(2) # Drop the table header and underline
     list.map!(&:strip).filter! { |it| !it.empty? }
     list.map! do |line|
       m = /(\d+|-)\s+(.+)\s+(running|shut off|paused|other)/.match line
       raise "Unparsable line: #{line}" if m.nil?
+
       id = m[1] == '-' ? nil : m[1].to_i
       state = m[3].gsub(' ', '_').to_sym
       Domain.new(DomainId.new(id, m[2].strip), state)
     end
     list
   end
-  
+
   # Runtime memory stats. Only available when the VM is running.
   #
   # @param domain [DomainId] domain
   # @param virsh_dommemstat [String | nil] output of `virsh dommemstat`, for testing only
   # @return [MemStat]
   def memstat(domain, virsh_dommemstat = nil)
-    virsh_dommemstat = virsh_dommemstat || `virsh dommemstat #{domain.id}`
-    values = virsh_dommemstat.lines.filter { |it| !it.strip.empty? } .map { |it| it.strip.split } .to_h
+    virsh_dommemstat ||= `virsh dommemstat #{domain.id}`
+    values = virsh_dommemstat.lines.filter { |it| !it.strip.empty? }.map { |it| it.strip.split }.to_h
     MemStat.new(actual: values['actual'].to_i * 1024, unused: values['unused']&.to_i&.*(1024),
-      available: values['available']&.to_i&.*(1024), usable: values["usable"]&.to_i&.*(1024),
-      disk_caches: values["disk_caches"]&.to_i&.*(1024), rss: values["rss"].to_i * 1024)
+                available: values['available']&.to_i&.*(1024), usable: values['usable']&.to_i&.*(1024),
+                disk_caches: values['disk_caches']&.to_i&.*(1024), rss: values['rss'].to_i * 1024)
   end
-  
+
   # Domain (VM) information. Also available when VM is shut off.
   #
   # @param domain [DomainId] domain
@@ -159,28 +166,29 @@ class VirtCmd
   # @return [DomainInfo]
   def dominfo(domain, virsh_dominfo = nil)
     did = domain.id || domain.name
-    virsh_dominfo = virsh_dominfo || `virsh dominfo "#{did}"`
-    values = virsh_dominfo.lines.filter { |it| !it.strip.empty? } .map { |it| it.split ':' } .to_h
+    virsh_dominfo ||= `virsh dominfo "#{did}"`
+    values = virsh_dominfo.lines.filter { |it| !it.strip.empty? }.map { |it| it.split ':' }.to_h
     values = values.transform_values(&:strip)
     state = values['State'].gsub(' ', '_').to_sym
     DomainInfo.new(os_type: values['OS Type'], state: state, cpus: values['CPU(s)'].to_i,
-      max_memory: values['Max memory'].to_i * 1024,
-      used_memory: values['Used memory'].to_i * 1024,
-      persistent: values['Persistent'] == 'yes',
-      security_model: values['Security model'])
+                   max_memory: values['Max memory'].to_i * 1024,
+                   used_memory: values['Used memory'].to_i * 1024,
+                   persistent: values['Persistent'] == 'yes',
+                   security_model: values['Security model'])
   end
-  
+
   # @return [Boolean] whether this virt client is available
   def self.available?
-    !(`which virsh`.strip.empty?)
+    !`which virsh`.strip.empty?
   end
-  
+
   # @return [CpuInfo]
   def hostinfo(virsh_nodeinfo = nil)
-    virsh_nodeinfo = virsh_nodeinfo || `virsh nodeinfo`
-    values = virsh_nodeinfo.lines.filter { |it| !it.strip.empty? } .map { |it| it.split ':' } .to_h
+    virsh_nodeinfo ||= `virsh nodeinfo`
+    values = virsh_nodeinfo.lines.filter { |it| !it.strip.empty? }.map { |it| it.split ':' }.to_h
     values = values.transform_values(&:strip)
-    CpuInfo.new(values['CPU model'], values['CPU socket(s)'].to_i, values['Core(s) per socket'].to_i, values['Thread(s) per core'].to_i)
+    CpuInfo.new(values['CPU model'], values['CPU socket(s)'].to_i, values['Core(s) per socket'].to_i,
+                values['Thread(s) per core'].to_i)
   end
 end
 
@@ -204,32 +212,33 @@ LIBVIRT_GEM_AVAILABLE = library_available? 'libvirt'
 class LibVirtClient
   def initialize
     raise 'libvirt gem not available' unless LIBVIRT_GEM_AVAILABLE
-    @conn = Libvirt::open("qemu:///system")
-    @states = {Libvirt::Domain::PAUSED => :paused, Libvirt::Domain::RUNNING => :running, 5 => :shut_off}
+
+    @conn = Libvirt.open('qemu:///system')
+    @states = { Libvirt::Domain::PAUSED => :paused, Libvirt::Domain::RUNNING => :running, 5 => :shut_off }
   end
-  
+
   def close
     @conn.close
   end
-  
+
   # Returns all domains, in all states.
   # @return [Array<Domain>] domains
   def domains
     running_vm_ids = @conn.list_domains
     stopped_vm_names = @conn.list_defined_domains
     running = running_vm_ids.map do |id|
-      d = @conn.lookup_domain_by_id(id)    # Libvirt::Domain
+      d = @conn.lookup_domain_by_id(id) # Libvirt::Domain
       state = @states[d.state[0]] || :other
       Domain.new(DomainId.new(id, d.name), state)
     end
     stopped = stopped_vm_names.map do |name|
-      d = @conn.lookup_domain_by_name(name)    # Libvirt::Domain
+      d = @conn.lookup_domain_by_name(name) # Libvirt::Domain
       state = @states[d.state[0]] || :other
       Domain.new(nil, name, state)
     end
     running + stopped
   end
-  
+
   # @return [Boolean] whether this virt client is available
   def self.available?
     LIBVIRT_GEM_AVAILABLE
@@ -243,15 +252,16 @@ class LibVirtClient
   # @return [MemStat]
   def memstat(domain)
     raise 'domain not running' if domain.id.nil?
+
     # Array<Libvirt::Domain::MemoryStats>
     mstats = @conn.lookup_domain_by_id(domain.id).memory_stats
-    values = mstats.map { |it| [it.tag, it.instance_variable_get(:@val)] } .to_h
+    values = mstats.map { |it| [it.tag, it.instance_variable_get(:@val)] }.to_h
     MemStat.new(actual: values[Libvirt::Domain::MemoryStats::ACTUAL_BALLOON].to_i * 1024,
-      unused: values[Libvirt::Domain::MemoryStats::UNUSED]&.to_i&.*(1024),
-      available: values[Libvirt::Domain::MemoryStats::AVAILABLE]&.to_i&.*(1024),
-      usable: nil, #values[Libvirt::Domain::MemoryStats::USABLE]&.to_i&.*(1024),
-      disk_caches: nil, #values[Libvirt::Domain::MemoryStats::DISK_CACHES]&.to_i&.*(1024),
-      rss: values[Libvirt::Domain::MemoryStats::RSS]&.to_i&.*(1024))
+                unused: values[Libvirt::Domain::MemoryStats::UNUSED]&.to_i&.*(1024),
+                available: values[Libvirt::Domain::MemoryStats::AVAILABLE]&.to_i&.*(1024),
+                usable: nil, # values[Libvirt::Domain::MemoryStats::USABLE]&.to_i&.*(1024),
+                disk_caches: nil, # values[Libvirt::Domain::MemoryStats::DISK_CACHES]&.to_i&.*(1024),
+                rss: values[Libvirt::Domain::MemoryStats::RSS]&.to_i&.*(1024))
   end
 
   # Domain (VM) information. Also available when VM is shut off.
@@ -260,14 +270,13 @@ class LibVirtClient
   # @return [DomainInfo]
   def dominfo(domain)
     d = @conn.lookup_domain_by_id(domain.id) unless domain.id.nil?
-    d = d || @conn.lookup_domain_by_name(domain.name)
+    d ||= @conn.lookup_domain_by_name(domain.name)
     # Libvirt::Domain::Info
     info = d.info
     DomainInfo.new(os_type: nil, state: @states[info.state] || :other, cpus: info.nr_virt_cpu,
-      max_memory: info.max_mem * 1024,
-      used_memory: info.memory * 1024,
-      persistent: nil,
-      security_model: nil)
+                   max_memory: info.max_mem * 1024,
+                   used_memory: info.memory * 1024,
+                   persistent: nil,
+                   security_model: nil)
   end
 end
-
