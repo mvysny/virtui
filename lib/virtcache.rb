@@ -43,5 +43,10 @@ class VirtCache
     @mem_stats = @domains.keys.map { |id| [id, id.running? ? @virt.memstat(id) : nil] } .to_h
     @host_mem_stat = SysInfo.new.memory_stats
   end
+  
+  # @return [Integer] a sum of RSS usage of all running VMs
+  def total_vm_rss_usage
+    @mem_stats.values.sum { |mem_stat| mem_stat&.rss || 0 }
+  end
 end
 

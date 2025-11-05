@@ -1,28 +1,3 @@
-# Pretty-format bytes with suffixes like k, m, g (for KiB, MiB, GiB), showing one decimal place when needed.
-# @param bytes [Integer] size in bytes
-# @return [String] "1.0K", "23.8M", "8.0G" and such
-def format_byte_size(bytes)
-  return '0' if bytes.zero?
-  return '-' + format_byte_size(-bytes) if bytes.negative?
-  
-  units = ['', 'K', 'M', 'G', 'T', 'P']
-
-  # Use 1024-based units (KiB, MiB, etc.)
-  exp = (Math.log(bytes, 1024)).floor
-  exp = 5 if exp > 5 # Cap at petabytes
-
-  value = bytes.to_f / (1024 ** exp)
-  
-  # Show one decimal if it's not a whole number, otherwise none
-  formatted = if value >= 10 || value.truncate == value
-                value.round.to_s
-              else
-                value.round(1)
-              end
-
-  "#{formatted} #{units[exp]}".strip
-end
-
 # Memory usage: `total` and `available`, in bytes, both {Integer}
 class MemoryUsage < Data.define(:total, :available)
   def used

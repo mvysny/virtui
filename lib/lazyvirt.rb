@@ -10,6 +10,7 @@ require_relative 'formatter'
 
 scheduler = Rufus::Scheduler.new
 
+$p = Pastel.new
 virt = VirtCmd.new
 # virt = LibVirtClient.new
 virt_cache = VirtCache.new(virt)
@@ -28,6 +29,10 @@ class SystemWindow < Window
     content do |lines|
       lines << @cpu
       lines << @f.format(@virt_cache.host_mem_stat)
+      total_ram = @virt_cache.host_mem_stat.ram.total
+      total_vm_rss_usage = @virt_cache.total_vm_rss_usage
+      ram_use = { total_vm_rss_usage => :magenta, @virt_cache.host_mem_stat.ram.used => :bright_red }
+      lines << "     [#{@f.progress_bar(20, total_ram, ram_use)}]  #{$p.magenta(format_byte_size(total_vm_rss_usage))} used by VMs"
     end
   end
 end
@@ -76,8 +81,8 @@ class Screen
     clear
     _, sw = TTY::Screen.size
     left_pane_w = sw / 2
-    @system.rect = Rect.new(0, 0, left_pane_w, 4)
-    @vms.rect = Rect.new(0, 4, left_pane_w, 10)
+    @system.rect = Rect.new(0, 0, left_pane_w, 5)
+    @vms.rect = Rect.new(0, 5, left_pane_w, 10)
   end
 
   def update_data
