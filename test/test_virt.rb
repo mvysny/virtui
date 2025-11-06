@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'minitest/autorun'
 require 'virt'
 
@@ -99,7 +101,7 @@ class TestVirt < Minitest::Test
   end
 
   def test_domain_data_cpu_usage
-    millis_since_epoch = 1762378459933
+    millis_since_epoch = 1_762_378_459_933
     result0 = VirtCmd.new.domain_data(File.read('test/domstats0.txt'), millis_since_epoch)['ubuntu']
     result1 = VirtCmd.new.domain_data(File.read('test/domstats1.txt'), millis_since_epoch + 10 * 1000)['ubuntu']
     assert_equal 22.51, result1.cpu_usage(result0).round(2)
