@@ -36,14 +36,29 @@ Without ballooning properly enabled in your guest OS, lazyvirt can't control the
 available to the guest OS. To enable ballooning:
 
 - Make sure your VM libvirt xml file contains the `<memballoon>` device
-- Your guest has QEMU guest agent installed: `sudo apt install qemu-guest-agent`
-- Guest agent is running: TODO
+- Guest agent is installed and running:
+  - Linux: `sudo apt install qemu-guest-agent`; `systemctl status qemu-guest-agent` shows that the service is running.
+  - Windows: Download and install `virtio-win-guest-tools.exe` from [windows virtio repo](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/?C=M;O=D).
+- Most modern Linux distros have the `virtio_balloon` kernel module baked in, and so `modprobe virtio_balloon` isn't necessary.
+
+If the memory data isn't updated:
+
+- Either make sure your VM libvirt xml `<memballoon>` device contains the `<stats period='5' /> ` child element, OR
+- in the Virtual Machine Manager (`sudo apt install virt-manager`) preferences, polling, make sure "Poll Memory stats" is checked.
 
 More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/).
 
+# Developing
+
+Run tests via:
+```
+$ bundle exec rake test
+```
+
 # Future plans
 
-- Implement a full-blown TUI (using `tty-box` and `tty-screen`)
 - Automatic balloon control (needs to be enabled)
-- Add [libvirt](https://ruby.libvirt.org/) client and a dummy virt client
+- Add [libvirt](https://ruby.libvirt.org/) client
+- Add dummy virt client
+- disk usage
 
