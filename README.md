@@ -13,7 +13,6 @@ $ sudo apt install ruby ruby-bundler
 Run these commands in this project folder, to install project dependencies:
 ```
 $ bundle install
-$ bundle exec rake test
 ```
 
 If `bundle install` fails, try running `bundle config set --global path '~/.gem'`.
