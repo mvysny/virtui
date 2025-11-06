@@ -45,7 +45,8 @@ end
 #   That memory is available for immediate use as it is currently neither used by processes
 #   or the kernel for caching. So it is really unused (and is just eating energy and provides no benefit).
 #   `nil` if ballooning is unavailable.
-# - `available` {Integer} Memory in bytes available for the guest OS. Inside the Linux kernel this is named `MemTotal`. This is
+# - `available` {Integer} Memory in bytes available for the guest OS. Inside the Linux kernel this is
+#   named `MemTotal`. This is
 #   the maximum allowed memory, which is slightly less than the currently configured
 #   memory size, as the Linux kernel and BIOS need some space for themselves.
 #   `nil` if ballooning is unavailable.
@@ -61,7 +62,7 @@ end
 #   only allocates the pages on demand when they are first accessed. A newly started VM actually
 #   uses only very few pages, but the number of pages increases with each new memory allocation.
 #
-# More info here: https://pmhahn.github.io/virtio-balloon/
+# More info here: https://pmhahn.github.io/virtio-balloon
 class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches, :rss)
   # @return [MemoryUsage | nil] the guest memory stats or nil if unavailable.
   def guest_mem
@@ -82,7 +83,7 @@ class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches,
   end
 
   def to_s
-    result = "#{format_byte_size(actual)}"
+    result = format_byte_size(actual).to_s
     result += "(rss=#{format_byte_size(rss)})" unless rss.nil?
     if guest_data_available?
       result += "; guest: #{guest_mem} (unused=#{format_byte_size(unused)}, disk_caches=#{format_byte_size(disk_caches)})"
@@ -122,12 +123,15 @@ class DomainData < Data.define(:info, :sampled_at, :cpu_time, :mem_stat)
   def state
     info.state
   end
+
   def running?
     state == :running
   end
+
   def balloon?
     mem_stat.guest_data_available?
   end
+
   # Calculates average CPU usage in the time period between older data and this data.
   # @param older_data [DomainData | nil]
   # @return [Float] CPU usage in %; 100% means one CPU core was fully utilized. 0 or greater, may be greater than 100.
@@ -204,9 +208,8 @@ class VirtCmd
       mem_usable = values['balloon.usable']&.to_i&.*(1024)
       mem_available = values['balloon.available']&.to_i&.*(1024)
       mem_stat = MemStat.new(mem_current, mem_unused, mem_available, mem_usable,
-        values['balloon.disk_caches']&.to_i&.*(1024),
-        values['balloon.rss'].to_i * 1024
-      )
+                             values['balloon.disk_caches']&.to_i&.*(1024),
+                             values['balloon.rss'].to_i * 1024)
       ddata = DomainData.new(domain_info, sampled_at, cpu_time, mem_stat)
       result[domain] = ddata
     end
