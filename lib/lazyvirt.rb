@@ -59,9 +59,10 @@ class VMWindow < Window
         data = @virt_cache.data(domain_id)
         state = data.state
         line = "#{@f.format_domain_state(state)} #{$p.white(domain_id.name)}"
-        memstat =data.mem_stat
+        memstat = data.mem_stat
         if data.running?
-          line += "   #{$p.bright_red('host RSS MEM')}: #{@f.format(memstat.host_mem)}"
+          line += " \u{1F388}" if data.balloon?
+          line += "   #{$p.bright_red('Host RSS RAM')}: #{@f.format(memstat.host_mem)}"
         end
         lines << line
         if data.running?

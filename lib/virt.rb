@@ -125,6 +125,9 @@ class DomainData < Data.define(:info, :sampled_at, :cpu_time, :mem_stat)
   def running?
     state == :running
   end
+  def balloon?
+    mem_stat.guest_data_available?
+  end
   # Calculates average CPU usage in the time period between older data and this data.
   # @param older_data [DomainData | nil]
   # @return [Float] CPU usage in %; 100% means one CPU core was fully utilized. 0 or greater, may be greater than 100.
