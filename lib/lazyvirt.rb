@@ -67,15 +67,16 @@ class VMWindow < Window
           line += "   #{$p.bright_red('Host RSS RAM')}: #{@f.format(memstat.host_mem)}"
         end
         lines << line
-        next unless data.running?
+        if data.running?
 
-        cpu_usage = @virt_cache.cpu_usage(domain_id).round(2)
-        guest_mem_usage = memstat.guest_mem
-        lines << "    #{$p.bright_blue('Guest CPU')}: [#{@f.progress_bar(20, 100,
-                                                                         [[cpu_usage.to_i, :bright_blue]])}] #{$p.bright_blue(cpu_usage)}%; #{data.info.cpus} #cpus"
-        unless guest_mem_usage.nil?
-          lines << "    #{$p.bright_red('Guest RAM')}: [#{@f.progress_bar(20, guest_mem_usage.total,
-                                                                          [[guest_mem_usage.used, :bright_red]])}] #{@f.format(guest_mem_usage)}"
+          cpu_usage = @virt_cache.cpu_usage(domain_id).round(2)
+          guest_mem_usage = memstat.guest_mem
+          lines << "    #{$p.bright_blue('Guest CPU')}: [#{@f.progress_bar(20, 100,
+                                                                           [[cpu_usage.to_i, :bright_blue]])}] #{$p.bright_blue(cpu_usage)}%; #{data.info.cpus} #cpus"
+          unless guest_mem_usage.nil?
+            lines << "    #{$p.bright_red('Guest RAM')}: [#{@f.progress_bar(20, guest_mem_usage.total,
+                                                                            [[guest_mem_usage.used, :bright_red]])}] #{@f.format(guest_mem_usage)}"
+          end
         end
         data.disk_stat.each do |ds|
           lines << "    #{ds}"
