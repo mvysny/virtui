@@ -23,6 +23,15 @@ If `bundle install` fails, try running `bundle config set --global path '~/.gem'
   `sudo usermod -aG libvirt $USER` and log out/log in.
 - To setup VMs, install `sudo apt install virt-manager`
 
+Install [Nerd Fonts](https://www.nerdfonts.com/):
+```bash
+curl -fLo "JetBrainsMono.zip" https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+unzip -x JetBrainsMono.zip -d ~/.local/share/fonts/
+rm JetBrainsMono.zip
+fc-cache -fv
+fc-list | grep -i "JetBrainsMono.*Nerd"
+```
+
 ## Running
 
 ```
