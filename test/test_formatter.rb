@@ -24,6 +24,16 @@ class TestFormatter < Minitest::Test
                  @f.progress_bar(10, 10, { 15 => :green, 5 => :red, 2 => :blue }, 'a')
   end
 
+  def test_progress_bar_inl_empty
+    assert_equal '', @f.progress_bar_inl(0, 100, {}, :red, 'Hello')
+    assert_equal '', @f.progress_bar_inl(100, 0, {}, :red, 'Hello')
+  end
+
+  def test_progress_bar_inl_simple
+    assert_equal "\e[30m\e[41ma\e[0;31mb\e[0m", @f.progress_bar_inl(2, 100, { 50 => :on_red }, :red, 'ab')
+    assert_equal "\e[30m\e[0;31mab\e[0m", @f.progress_bar_inl(2, 100, { 0 => :on_red }, :red, 'ab')
+  end
+
   def test_format_byte_size
     assert_equal '0', format_byte_size(0)
     assert_equal '999', format_byte_size(999)
