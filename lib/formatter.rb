@@ -121,7 +121,7 @@ class Formatter
     return '' if max_value.zero? || width.zero?
 
     # make 'caption' exactly the 'width' characters long, padding it with spaces
-    caption = caption.rjust(width, ' ')[0...width]
+    caption = caption.ljust(width, ' ')[0...width]
 
     values = values.sort_by { |value, _color| value }
     values += [[max_value, [:reset, color]]]

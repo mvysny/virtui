@@ -39,8 +39,8 @@ class SystemWindow < Window
       total_ram = @virt_cache.host_mem_stat.ram.total
       total_vm_rss_usage = @virt_cache.total_vm_rss_usage
       ram_use = [[total_vm_rss_usage, :magenta], [@virt_cache.host_mem_stat.ram.used, :bright_red]]
-      lines << "     [#{@f.progress_bar(20, total_ram,
-                                        ram_use)}] #{$p.magenta(format_byte_size(total_vm_rss_usage))} used by VMs"
+      pb = @f.progress_bar(20, total_ram, ram_use)
+      lines << "     [#{pb}] #{$p.magenta(format_byte_size(total_vm_rss_usage))} used by VMs"
     end
   end
 end
