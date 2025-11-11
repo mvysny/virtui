@@ -83,7 +83,7 @@ class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches,
   end
 
   def to_s
-    result = format_byte_size(actual).to_s
+    result = "actual #{format_byte_size(actual)}"
     result += "(rss=#{format_byte_size(rss)})" unless rss.nil?
     if guest_data_available?
       result += "; guest: #{guest_mem} (unused=#{format_byte_size(unused)}, disk_caches=#{format_byte_size(disk_caches)})"
@@ -119,22 +119,16 @@ end
 
 # VM information
 #
-# - `os_type` {String} e.g. `hvm`
 # - `state` {Symbol} one of `:running`, `:shut_off`, `:paused`, `:other`
 # - `cpus` {Integer} number of CPUs allocated
 # - `max_memory` {Integer} maximum memory allocated to a VM, in bytes. {MemStat.actual} can never be more than this.
-# - `used_memory` {Integer} Current value of {MemStat.actual}, in bytes.
-class DomainInfo < Data.define(:os_type, :state, :cpus, :max_memory, :used_memory)
+class DomainInfo < Data.define(:state, :cpus, :max_memory)
   def running?
     state == :running
   end
 
-  def configured_memory
-    MemoryUsage.new(max_memory, max_memory - used_memory)
-  end
-
   def to_s
-    "#{os_type}: #{state}; CPUs: #{cpus}; configured mem: #{configured_memory}"
+    "#{state}, CPUs: #{cpus}, RAM: #{format_byte_size(max_memory)}"
   end
 end
 
@@ -171,7 +165,7 @@ class DomainData < Data.define(:info, :sampled_at, :cpu_time, :mem_stat, :disk_s
   end
 
   def to_s
-    "#{info}, #{mem_stat}"
+    "#{info}; #{mem_stat}"
   end
 end
 
@@ -227,8 +221,8 @@ class VirtCmd
     data.each do |domain, values|
       state = @states[values['state.state'].to_i] || :other
       mem_current = values['balloon.current'].to_i * 1024
-      domain_info = DomainInfo.new(nil, state, values['vcpu.maximum'].to_i,
-                                   values['balloon.maximum'].to_i * 1024, mem_current)
+      domain_info = DomainInfo.new(state, values['vcpu.maximum'].to_i,
+                                   values['balloon.maximum'].to_i * 1024)
       cpu_time = values['cpu.time'].to_i / 1_000_000
       mem_unused = values['balloon.unused']&.to_i&.*(1024)
       mem_usable = values['balloon.usable']&.to_i&.*(1024)
@@ -361,13 +355,20 @@ class LibVirtClient
     d ||= @conn.lookup_domain_by_name(domain.name)
     # Libvirt::Domain::Info
     info = d.info
-    DomainInfo.new(os_type: nil, state: @states[info.state] || :other, cpus: info.nr_virt_cpu,
-                   max_memory: info.max_mem * 1024,
-                   used_memory: info.memory * 1024)
+    DomainInfo.new(state: @states[info.state] || :other, cpus: info.nr_virt_cpu,
+                   max_memory: info.max_mem * 1024)
   end
 end
 
+# Produces random data
 class FakeVirtClient
+  def initialize
+    @vms = { 'BASE': random_vm_info(:shut_off),
+             'Ubuntu': random_vm_info(:running),
+             'win11': random_vm_info(:running),
+             'Fedora': random_vm_info(:paused) }
+  end
+
   # @return [Boolean] `true` - always available
   def self.available?
     true
@@ -376,5 +377,17 @@ class FakeVirtClient
   # @return [CpuInfo] cpu info
   def hostinfo
     CpuInfo.new('x86_fake', 1, 8, 2)
+  end
+
+  # @return [Hash{String => DomainData}]
+  def domain_data
+  end
+
+  private
+
+  # @param name [String]
+  # @return [DomainInfo]
+  def random_vm_info(state)
+    DomainInfo.new(state, rand(1..4), rand(1024 * 1024 * 1024..20 * 1024 * 1024 * 1024))
   end
 end

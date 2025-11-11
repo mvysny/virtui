@@ -28,9 +28,9 @@ class TestVirt < Minitest::Test
   def test_domain_data_parse
     result = VirtCmd.new.domain_data(File.read('test/domstats0.txt'), 0)
     assert_equal 2, result.size
-    assert_equal ': running; CPUs: 8; configured mem: 12G/12G (100%), 12G(rss=3.4G); guest: 241M/11G (2%) (unused=11G, disk_caches=37M)',
+    assert_equal 'running, CPUs: 8, RAM: 12G; actual 12G(rss=3.4G); guest: 241M/11G (2%) (unused=11G, disk_caches=37M)',
                  result['ubuntu'].to_s
-    assert_equal ': shut_off; CPUs: 4; configured mem: 8G/8G (100%), 8G(rss=0)', result['win11'].to_s
+    assert_equal 'shut_off, CPUs: 4, RAM: 8G; actual 8G(rss=0)', result['win11'].to_s
     assert_equal 'sda: 18G/128G (13.99%); physical 18G (2.88% overhead)', result['win11'].disk_stat.join(',')
     assert_equal 'vda: 23G/64G (36.02%); physical 25G (9.31% overhead)', result['ubuntu'].disk_stat.join(',')
   end
