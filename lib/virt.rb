@@ -102,6 +102,7 @@ class DiskStat < Data.define(:name, :allocation, :capacity, :physical)
   # @return [Float] how much data is allocated vs the max capacity. 0..100
   def percent_used
     return 0.0 if capacity.zero?
+
     (allocation.to_f / capacity * 100).clamp(0.0, 100.0).round(2)
   end
 
@@ -253,7 +254,10 @@ class VirtCmd
       allocation = data["block.#{block_index}.allocation"]&.to_i
       capacity = data["block.#{block_index}.capacity"]&.to_i
       physical = data["block.#{block_index}.physical"]&.to_i
-      result << DiskStat.new(name, allocation, capacity, physical) unless allocation.nil? or capacity.nil? or physical.nil? or name.nil?
+      unless allocation.nil? or capacity.nil? or physical.nil? or name.nil?
+        result << DiskStat.new(name, allocation, capacity,
+                               physical)
+      end
     end
     result
   end
@@ -360,5 +364,17 @@ class LibVirtClient
     DomainInfo.new(os_type: nil, state: @states[info.state] || :other, cpus: info.nr_virt_cpu,
                    max_memory: info.max_mem * 1024,
                    used_memory: info.memory * 1024)
+  end
+end
+
+class FakeVirtClient
+  # @return [Boolean] `true` - always available
+  def self.available?
+    true
+  end
+
+  # @return [CpuInfo] cpu info
+  def hostinfo
+    CpuInfo.new('x86_fake', 1, 8, 2)
   end
 end

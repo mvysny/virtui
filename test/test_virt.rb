@@ -53,3 +53,9 @@ class TestDiskStat < Minitest::Test
     assert_equal 'sda: 17G/128G (13.11%); physical 22G (30.43% overhead)', ds.to_s
   end
 end
+
+class TestVirtFakeClient < Minitest::Test
+  def test_hostinfo_smoke
+    assert_equal 'x86_fake: 1/8/2', FakeVirtClient.new.hostinfo.to_s
+  end
+end
