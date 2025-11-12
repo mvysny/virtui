@@ -74,7 +74,7 @@ class VMWindow < Window
         lines << line
         if data.running?
 
-          cpu_usage = @virt_cache.cpu_usage(domain_id).round(2)
+          cpu_usage = @virt_cache.cpu_usage(domain_name).round(2)
           guest_mem_usage = memstat.guest_mem
           lines << "    #{$p.bright_blue('Guest CPU')}: [#{@f.progress_bar(20, 100,
                                                                            [[cpu_usage.to_i, :bright_blue]])}] #{$p.bright_blue(cpu_usage)}%; #{data.info.cpus} #cpus"
