@@ -11,7 +11,7 @@ class MemoryUsage < Data.define(:total, :available)
   end
 
   def to_s
-    "#{format_byte_size(used)}/#{format_byte_size(total)} (#{percent_used}%)"
+    "#{format_byte_size(used)}/#{format_byte_size(total)} (#{percent_used.round(2)}%)"
   end
 end
 
