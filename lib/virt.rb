@@ -209,12 +209,15 @@ class VirtCmd
       domain_info = DomainInfo.new(domain, values['vcpu.maximum'].to_i,
                                    values['balloon.maximum'].to_i * 1024)
       cpu_time = values['cpu.time'].to_i / 1_000_000
-      mem_unused = values['balloon.unused']&.to_i&.*(1024)
-      mem_usable = values['balloon.usable']&.to_i&.*(1024)
-      mem_available = values['balloon.available']&.to_i&.*(1024)
-      mem_stat = MemStat.new(mem_current, mem_unused, mem_available, mem_usable,
+      mem_stat = nil
+      if values.include? 'balloon.rss'
+        mem_unused = values['balloon.unused']&.to_i&.*(1024)
+        mem_usable = values['balloon.usable']&.to_i&.*(1024)
+        mem_available = values['balloon.available']&.to_i&.*(1024)
+        mem_stat = MemStat.new(mem_current, mem_unused, mem_available, mem_usable,
                              values['balloon.disk_caches']&.to_i&.*(1024),
                              values['balloon.rss'].to_i * 1024)
+      end
 
       disk_stat = parse_disk_data(values)
       ddata = DomainData.new(domain_info, state, sampled_at, cpu_time, mem_stat, disk_stat)
