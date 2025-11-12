@@ -7,6 +7,7 @@ require 'tty-screen'
 require 'rufus-scheduler'
 require 'io/console'
 require_relative 'formatter'
+require_relative 'ballooning'
 
 scheduler = Rufus::Scheduler.new
 
@@ -123,6 +124,7 @@ end
 
 screen = Screen.new(virt_cache)
 screen.calculate_window_sizes
+ballooning = Ballooning.new(virt_cache)
 
 # Trap the WINCH signal (sent on terminal resize)
 trap('WINCH') do
@@ -133,8 +135,10 @@ end
 scheduler.every '2s' do
   virt_cache.update
   screen.update_data
+  # ballooning.update
+  $log.info 'data updated'
 rescue StandardError => e
-  $log.error 'Failed to update VM data', e
+  $log.error 'Failed to update VM data', e: e
 end
 
 loop do
