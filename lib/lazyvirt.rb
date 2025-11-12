@@ -59,12 +59,12 @@ class VMWindow < Window
   end
 
   def update
-    domains = @virt_cache.domains.sort_by(&:name) # Array<DomainId>
+    domains = @virt_cache.domains.sort # Array<String>
     content do |lines|
-      domains.each do |domain_id|
-        data = @virt_cache.data(domain_id)
+      domains.each do |domain_name|
+        data = @virt_cache.data(domain_name)
         state = data.state
-        line = "#{@f.format_domain_state(state)} #{$p.white(domain_id.name)}"
+        line = "#{@f.format_domain_state(state)} #{$p.white(domain_name)}"
         memstat = data.mem_stat
         if data.running?
           line += " \u{1F388}" if data.balloon?
@@ -136,7 +136,6 @@ scheduler.every '2s' do
   virt_cache.update
   screen.update_data
   #  ballooning.update
-  $log.info 'data updated'
 rescue StandardError => e
   $log.error 'Failed to update VM data', e: e
 end
