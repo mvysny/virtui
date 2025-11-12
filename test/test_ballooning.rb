@@ -5,17 +5,18 @@ require 'ballooning'
 require 'virt'
 require 'virtcache'
 require 'timecop'
-require_relative 'fakevirt'
+require 'vm_emulator'
 
 class TestBallooningVM < Minitest::Test
   def test_ballooning_does_nothing_on_stopped_machine
-    virt = FakeVirt.new
-    id = virt.dummy_stopped
-    virt_cache = VirtCache.new(FakeVirt.new)
+    virt = VMEmulator.new
+    virt.allow_set_active = false
+    virt.add(VMEmulator::VM.simple('vm0'))
+    virt_cache = VirtCache.new(virt)
 
-    b = BallooningVM.new(virt_cache, id)
+    b = BallooningVM.new(virt_cache, 'vm0')
     b.update
-    Timecop.travel(Time.now + 200) do
+    Timecop.freeze(Time.now + 200) do
       b.update
     end
   end

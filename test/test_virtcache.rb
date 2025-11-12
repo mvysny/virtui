@@ -2,12 +2,10 @@
 
 require 'minitest/autorun'
 require 'virtcache'
-require_relative 'fakevirt'
+require 'vm_emulator'
 
 class TestVirtCache < Minitest::Test
   def test_smoke
-    fv = FakeVirt.new
-    fv.dummy_stopped
-    VirtCache.new(fv)
+    VirtCache.new(VMEmulator.new)
   end
 end
