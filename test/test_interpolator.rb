@@ -15,6 +15,7 @@ class TestInterpolator < Minitest::Test
     # Fix `Time.now` during the duration of the test
     Timecop.travel(now) do
       assert_equal 6.0, Interpolator::Linear.new(2.0, 10.0, now - 5, now + 5).value.round(2)
+      assert_equal 12.0, Interpolator::Linear.new(10.0, 20.0, now - 2, now + 8).value.round(2)
       assert_equal 0.0, Interpolator::Linear.new(2.0, -2.0, now - 5, now + 5).value.round(2)
     end
   end

@@ -20,6 +20,13 @@ module Interpolator
       raise "#{time_from} can't be later than #{time_to}" if time_from > time_to
     end
 
+    def self.from_now(value_from, value_to, duration_seconds)
+      return Const.new(value_from) if value_from == value_to
+
+      now = Time.now
+      Linear.new(value_from, value_to, now, now + duration_seconds)
+    end
+
     def value
       now = Time.now
       return value_from if now < time_from
