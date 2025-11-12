@@ -15,11 +15,6 @@ VIRSH_NODEINFO = <<~EOF
 EOF
 
 class TestVirt < Minitest::Test
-  def initialize(arg)
-    super(arg)
-    @dummy_domain = Domain.new(DomainId.new(5, 'dummy'), :running)
-  end
-
   def test_hostinfo
     info = VirtCmd.new.hostinfo(VIRSH_NODEINFO)
     assert_equal 'x86_64: 1/8/2', info.to_s

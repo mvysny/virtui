@@ -32,9 +32,11 @@ class VirtCache
     data(domain)&.mem_stat
   end
 
-  # @param domain [DomainId]
+  # @param domain [String] domain name
   # @return [DomainData | nil]
   def data(domain)
+    raise "Domain name must be String but was #{domain}" unless domain.is_a? String
+
     @domain_data[domain]
   end
 

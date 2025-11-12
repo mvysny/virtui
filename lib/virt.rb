@@ -3,21 +3,6 @@
 require_relative 'sysinfo'
 require 'date'
 
-# A virt domain (=VM) identifier.
-#
-# - `id` {Integer} - temporary ID, only available when running. May be `nil`
-# - `name` {String} - displayable name
-class DomainId < Data.define(:id, :name)
-  def to_s
-    running? ? "#{id}: #{name}" : name
-  end
-
-  # @return [Boolean]
-  def running?
-    !id.nil?
-  end
-end
-
 # A virt domain (=VM).
 #
 # - `id` {DomainId} - temporary ID, only available when running. May be `nil`
