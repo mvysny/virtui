@@ -17,14 +17,17 @@ class VMEmulator
 
     # Creates the VM.
     # @param info [DomainInfo]
+    # @param initial_actual [Integer] the value of [MemStat.actual] when the VM is started.
     # @param started_initial_apps [Integer] when the VM is started, it pretends that its app will use this amount of memory.
     #   Once started, the VM mem usage slowly climbs to this value. You can call {:set_used} to set a new usage value.
-    def initialize(info, started_initial_apps)
+    def initialize(info, initial_actual, started_initial_apps)
       raise "max_memory must be #{MIN_ACTUAL} or higher" if info.max_memory < 128 * 1024 * 1024
+      raise "initial_actual must be #{MIN_ACTUAL} or higher" if initial_actual < 128 * 1024 * 1024
       raise "initial mem for apps must be at least #{MIN_APP_MEMORY}" if started_initial_apps < MIN_APP_MEMORY
 
       @info = info
       @started_initial_apps = started_initial_apps
+      @initial_actual = initial_actual
       @disk_caches = 1 * 1024 * 1024 * 1024
       @startup_seconds = 10
       @shutdown_seconds = 5
@@ -32,10 +35,10 @@ class VMEmulator
 
     # Creates a simple VM with 1 CPU, given amount of max_memory and `started_initial_usage` half of given memory.
     # @param name [String]
-    # @param max_memory [Integer] max value of [MemStat.actual].
+    # @param actual [Integer] initial value of [MemStat.actual].
     # @return [VM]
-    def self.simple(name, max_memory: 2 * 1024 * 1024 * 1024)
-      VM.new(DomainInfo.new(name, 1, max_memory), max_memory / 2)
+    def self.simple(name, actual: 2 * 1024 * 1024 * 1024)
+      VM.new(DomainInfo.new(name, 1, actual * 256), actual, actual / 2)
     end
 
     def name
@@ -54,7 +57,7 @@ class VMEmulator
 
       @started_at = Time.now
       @shut_down_at = nil
-      @actual = info.max_memory
+      @actual = Interpolator::Const.new(@initial_actual)
       # Mem used by guest apps. This doesn't include disk_caches.
       # This can be higher than 'MemStat.available' - we pretend that the rest of the app memory
       # is swapped out.
@@ -87,7 +90,13 @@ class VMEmulator
       raise "Must be #{info.max_memory} at most" if actual > info.max_memory
 
       check_running
-      @actual = actual.to_i
+      actual = actual.to_i
+      current = @actual.value
+      @actual = if current <= actual
+                  Interpolator::Const.new(actual)
+                else
+                  Interpolator::Linear.from_now(current, actual, 5)
+                end
     end
 
     # Returns current {MemStat} of the VM. Returns nil if not running.
@@ -95,7 +104,7 @@ class VMEmulator
     def to_mem_stat
       return nil unless running?
 
-      actual = @actual
+      actual = @actual.value
       available = actual - BIOS_KERNEL
       apps = @mem_apps.value.clamp(0, available)
       usable = available - apps

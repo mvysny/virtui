@@ -90,4 +90,35 @@ class TestVM < Minitest::Test
       assert_nil ms
     end
   end
+
+  def test_increase_actual
+    vm = VMEmulator::VM.simple('a')
+    now = Time.now
+    Timecop.freeze(now) do
+      vm.start
+    end
+    Timecop.freeze(now + 10) do
+      vm.memory_actual = 4 * 1024 * 1024 * 1024
+      assert_equal 'actual 4G(rss=2.1G); guest: 1G/3.9G (25.81%) (unused=1.9G, disk_caches=1G)', vm.to_mem_stat.to_s
+    end
+  end
+
+  def test_decrease_actual
+    vm = VMEmulator::VM.simple('a')
+    now = Time.now
+    Timecop.freeze(now) do
+      vm.start
+    end
+    Timecop.freeze(now + 10) do
+      vm.memory_actual = 1 * 1024 * 1024 * 1024
+      assert_equal 'actual 2G(rss=2G); guest: 1G/1.9G (53.33%) (unused=0, disk_caches=896M)', vm.to_mem_stat.to_s
+    end
+    # actual slowly decreases over 5 seconds
+    Timecop.freeze(now + 12.5) do
+      assert_equal 'actual 1.5G(rss=1.5G); guest: 1G/1.4G (72.73%) (unused=0, disk_caches=384M)', vm.to_mem_stat.to_s
+    end
+    Timecop.freeze(now + 15) do
+      assert_equal 'actual 1G(rss=1G); guest: 896M/896M (100.0%) (unused=0, disk_caches=0)', vm.to_mem_stat.to_s
+    end
+  end
 end
