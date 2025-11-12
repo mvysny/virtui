@@ -104,15 +104,25 @@ class LogWindow < Window
     log 'D', text, e
   end
 
+  private def ellipsize(str, max_length)
+    str.length <= max_length ? str : str[0..(max_length - 2)] + '..'
+  end
+
   private def log(level, text, exception)
     text = "#{Time.now.strftime('%H:%M:%S')} #{level} #{text}"
     text_lines = text.lines(chomp: true)
     unless exception.nil?
       text_lines << exception.message
-      text_lines += exception.backtrace unless exception.backtrace.nil?
+      text_lines += exception.backtrace.first(3) unless exception.backtrace.nil?
     end
     @log_lines += text_lines
     @log_lines = @log_lines.last((rect.height - 2).clamp(0..100))
-    self.content = @log_lines
+    content_width = rect.width - 2
+    if content_width < 0
+      self.content = []
+    else
+      @log_lines.map! { |it| ellipsize(it, content_width) }
+      self.content = @log_lines
+    end
   end
 end
