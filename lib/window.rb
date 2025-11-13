@@ -86,6 +86,20 @@ class LogWindow < Window
   def initialize
     super('Log')
     @log_lines = []
+    log_level = 'W'
+  end
+
+  # @param new_log_level [String] one of 'D', 'I', 'W', 'E'.
+  def log_level=(new_log_level)
+    @log_level = 'DIWE'.index new_log_level || 3
+  end
+
+  def debug_enabled?
+    @log_level <= 0
+  end
+
+  def info_enabled?
+    @log_level <= 1
   end
 
   def error(text, e: nil)
@@ -97,11 +111,11 @@ class LogWindow < Window
   end
 
   def info(text, e: nil)
-    log 'I', text, e
+    log 'I', text, e if info_enabled?
   end
 
   def debug(text, e: nil)
-    log 'D', text, e
+    log 'D', text, e if debug_enabled?
   end
 
   private def ellipsize(str, max_length)
