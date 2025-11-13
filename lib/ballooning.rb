@@ -13,6 +13,13 @@ class Ballooning
       [domainid, @ballooning[domainid] || BallooningVM.new(@virt_cache, domainid)]
     end.to_h
     @ballooning.values.each(&:update)
+    log_statuses
+  end
+
+  # log statuses
+  def log_statuses
+    statuses = @ballooning.filter { |vmid, ballooning| ballooning.was_running? } .map { |vmid, ballooning| "#{vmid}: #{ballooning.status}" } .join ', '
+    $log.debug 'Ballooning: ' + statuses
   end
 end
 
@@ -38,9 +45,15 @@ class BallooningVM
     # start by backing off. We don't know what state the VM is in - it could have been
     # just started seconds ago.
     back_off
+
+    @was_running = false
   end
 
   attr_reader :status
+
+  def was_running?
+    @was_running
+  end
 
   # Call every 2 seconds, to control the VM
   def update
@@ -50,8 +63,11 @@ class BallooningVM
       # Mark as back_off - this way we'll back off from the VM until it boots up.
       back_off
       @status = 'vm stopped, doing nothing'
+      @was_running = false
       return
     end
+
+    @was_running = true
 
     # If the VM has no support for ballooning, do nothing
     unless mem_stat.guest_data_available?
@@ -61,11 +77,12 @@ class BallooningVM
 
     # 0..100
     percent_used = mem_stat.guest_mem.percent_used
+    used_mem = mem_stat.guest_mem.used
 
     # 0..100
     memory_delta = 0
 
-    if percent_used >= 80
+    if percent_used >= 70
       # Increase memory immediately
       memory_delta = 20
     elsif percent_used <= 60
@@ -103,7 +120,7 @@ class BallooningVM
 
     back_off
 
-    @status = "Setting actual to #{new_actual}"
+    @status = "VM reports #{format_byte_size(used_mem)} (#{percent_used}%), updating actual by #{memory_delta}% to #{format_byte_size(new_actual)}"
     @virt_cache.set_actual(@vmid, new_actual)
   end
 
