@@ -43,9 +43,6 @@ class BallooningVM
   # Call every 2 seconds, to control the VM
   def update
     mem_stat = @virt_cache.memstat(@vmid)
-    puts mem_stat
-    puts @vmid
-    puts @virt_cache.running?(@vmid)
     if mem_stat.nil? || !@virt_cache.running?(@vmid)
       # VM is shut off. Don't fiddle with the memory.
       # Mark as back_off - this way we'll back off from the VM until it boots up.
