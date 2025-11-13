@@ -72,13 +72,13 @@ class BallooningVM
     min_memory = (max_memory * 0.25).to_i
     return if @min_active > max_memory
 
-    min_memory = min_memory.clamp(min_memory_floor, max_memory)
+    min_memory = min_memory.clamp(@min_active, max_memory)
     new_active = mem_stat.actual * (memory_delta + 100) / 100
     new_active = new_active.clamp(min_memory..max_memory)
     return if new_active == mem_stat.actual
 
     back_off
-    @virt_cache.set_active(@vmid, new_active)
+    @virt_cache.set_actual(@vmid, new_active)
   end
 
   private

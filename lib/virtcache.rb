@@ -59,16 +59,16 @@ class VirtCache
   end
 
   # @param domain [String]
-  # @param new_active [Integer] the new active parameter.
-  def set_active(domain, new_active)
+  # @param new_actual [Integer] the new `actual` memory parameter.
+  def set_actual(domain, new_actual)
     info = info(domain)
     raise "#{domain} not existing" if info.nil?
 
     # sanity check the new_active
-    raise "#{new_active} must be at least 128m" if new_active < 128 * 1024 * 1024
-    raise "#{new_active} can not go over max #{info.max_memory}" if new_active > info.max_memory
+    raise "#{new_actual} must be at least 128m" if new_actual < 128 * 1024 * 1024
+    raise "#{new_actual} can not go over max #{info.max_memory}" if new_actual > info.max_memory
 
-    @virt.set_active(domain, new_active)
+    @virt.set_actual(domain, new_actual)
   end
 
   # Returns the CPU usage of a VM.

@@ -158,11 +158,11 @@ class VMEmulator
   end
 
   # @param vmid [String]
-  # @param active [Integer]
-  def set_active(vmid, active)
-    raise 'set_active not allowed' unless allow_set_active
+  # @param actual [Integer]
+  def set_actual(vmid, actual)
+    raise 'set_actual not allowed' unless allow_set_active
 
-    @vms[vmid].memory_active = active
+    @vms[vmid].memory_actual = actual
   end
 end
 

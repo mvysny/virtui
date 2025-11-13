@@ -141,4 +141,11 @@ class TestVMEmulator < Minitest::Test
     c = VirtCache.new(e)
     assert_equal %w[vm0 vm1], c.domains
   end
+
+  def test_set_active_on_running_vm
+    e = VMEmulator.new
+    e.add(VMEmulator::VM.simple('vm0')).start
+    e.set_actual 'vm0', 3 * 1024 * 1024 * 1024
+    assert_equal 3 * 1024 * 1024 * 1024, e.vm('vm0').to_mem_stat.actual
+  end
 end
