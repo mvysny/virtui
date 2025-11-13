@@ -86,7 +86,7 @@ class LogWindow < Window
   def initialize
     super('Log')
     @log_lines = []
-    log_level = 'W'
+    self.log_level = 'W'
   end
 
   # @param new_log_level [String] one of 'D', 'I', 'W', 'E'.

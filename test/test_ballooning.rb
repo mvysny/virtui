@@ -42,7 +42,7 @@ class TestBallooningVM < Minitest::Test
       # ballooning should issue the memory_resize command immediately
       b.update
 
-      assert_equal 'Setting actual to 2576980377', b.status
+      assert_equal 'VM reports 1.9G (100%), updating actual by 20% to 2.4G', b.status
       assert_equal 2_576_980_377, vm.to_mem_stat.actual
     end
   end
