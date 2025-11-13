@@ -29,9 +29,11 @@ class BallooningVM
     # After Ballooning decreases active memory, it will back off for 20 seconds
     # before trying to decrease the memory again. Observation shows that
     # the effects of the memory decrease command in Linux guest isn't instant: instead it is gradual, and takes
-    # some time (~15 second) to fully be applied. Let's not bother the VM with further
+    # some time (5..15 seconds, depending on the difference in memory) to fully be applied. Let's not bother the VM with further
     # memory decrease commands until the VM fully settles in.
-    @back_off_seconds = 20
+    #
+    # 20 seconds is a safe bet, but we can use 10 seconds since we decrease memory gently, by 10% tops, which is fast.
+    @back_off_seconds = 10
 
     # start by backing off. We don't know what state the VM is in - it could have been
     # just started seconds ago.
