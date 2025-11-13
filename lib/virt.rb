@@ -120,7 +120,7 @@ end
 # - `sampled_at` {Integer} milliseconds since the epoch; you can use [:millis_now]
 # - `cpu_time` {Integer} milliseconds of used CPU time (user + system) since last sampling.
 #   Used to calculate CPU usage.
-# - `mem_stat` {MemStat} memory stats, nil if not running.
+# - `mem_stat` {MemStat} memory stats, `nil` if not running.
 # - `disk_stat` {Array<DiskStat>} disk stats, one per every connected disk
 class DomainData < Data.define(:info, :state, :sampled_at, :cpu_time, :mem_stat, :disk_stat)
   def running?
@@ -217,8 +217,8 @@ class VirtCmd
         mem_usable = values['balloon.usable']&.to_i&.*(1024)
         mem_available = values['balloon.available']&.to_i&.*(1024)
         mem_stat = MemStat.new(mem_current, mem_unused, mem_available, mem_usable,
-                             values['balloon.disk_caches']&.to_i&.*(1024),
-                             values['balloon.rss'].to_i * 1024)
+                               values['balloon.disk_caches']&.to_i&.*(1024),
+                               values['balloon.rss'].to_i * 1024)
       end
 
       disk_stat = parse_disk_data(values)
