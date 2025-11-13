@@ -261,11 +261,12 @@ class VirtCmd
   end
 
   # @param domain_name [String]
-  # @param new_active [Integer]
-  def set_active(domain_name, new_active)
-    raise "#{new_active} must be at least 128m" if new_active < 128 * 1024 * 1024
+  # @param new_actual [Integer]
+  def set_actual(domain_name, new_actual)
+    raise "#{new_actual} must be at least 256m" if new_actual < 256 * 1024 * 1024
 
-    `virsh setmem "#{domain_name}" "#{new_active / 1024}"`
+    `virsh setmem "#{domain_name}" "#{new_actual / 1024}"`
+    $log.info "#{domain_name}: setting new actual memory to #{format_byte_size(new_actual)}"
   end
 end
 
