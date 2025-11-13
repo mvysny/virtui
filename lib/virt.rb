@@ -3,26 +3,6 @@
 require_relative 'sysinfo'
 require 'date'
 
-# A virt domain (=VM).
-#
-# - `id` {DomainId} - temporary ID, only available when running. May be `nil`
-# - `state` {Symbol} - one of `:running`, `:shut_off`, `:paused`, `:other`
-class Domain < Data.define(:id, :state)
-  # @return [String] displayable domain name
-  def name
-    id.name
-  end
-
-  # @return [Boolean]
-  def running?
-    state == :running
-  end
-
-  def to_s
-    "#{id}: #{state}"
-  end
-end
-
 # VM memory stats
 #
 # - `actual` {Integer} The actually configured memory size in bytes, given to the VM by host.
