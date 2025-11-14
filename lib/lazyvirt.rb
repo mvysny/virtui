@@ -159,9 +159,10 @@ end
 # https://github.com/jmettraux/rufus-scheduler
 scheduler.every '2s' do
   virt_cache.update
-  screen.update_data
   # Needs to go after virt_cache.update so that it reads up-to-date values
   ballooning.update
+  # Needs to go last, to correctly update current ballooning status
+  screen.update_data
 rescue StandardError => e
   $log.error 'Failed to update VM data', e: e
 end
