@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# Controls all VMs.
 class Ballooning
   # @param virt_cache [VirtCache]
   def initialize(virt_cache)
@@ -8,22 +9,24 @@ class Ballooning
     @ballooning = {}
   end
 
+  # Polls new data from {VirtCache} and controls the VMs.
   def update
     @ballooning = @virt_cache.domains.map do |domainid|
       [domainid, @ballooning[domainid] || BallooningVM.new(@virt_cache, domainid)]
     end.to_h
-    @ballooning.values.each(&:update)
+    @ballooning.each_value(&:update)
     log_statuses
   end
 
-  # log statuses
+  # debug-logs statuses
   def log_statuses
     return unless $log.debug_enabled?
 
     statuses = @ballooning.filter do |_vmid, ballooning|
       ballooning.was_running?
-    end.map { |vmid, ballooning| "#{vmid}: #{ballooning.status}" }.join ', '
-    $log.debug 'Ballooning: ' + statuses
+    end
+    statuses = statuses.map { |vmid, ballooning| "#{vmid}: #{ballooning.status.text}" }.join ', '
+    $log.debug "Ballooning: #{statuses}"
   end
 end
 
@@ -49,6 +52,12 @@ class BallooningVM
     # It takes ~15 seconds for a VM to start.
     @boot_back_off_seconds = 15
 
+    # When increasing memory, increase by how much
+    @increase_memory_percent = 30
+
+    # When decreasing memory, decrease by how much
+    @decrease_memory_percent = 10
+
     # start by backing off. We don't know what state the VM is in - it could have been
     # just started seconds ago.
     back_off duration_seconds: @boot_back_off_seconds
@@ -56,6 +65,15 @@ class BallooningVM
     @was_running = false
   end
 
+  # - `text` [String] textual representation of the change, useful for debug purposes.
+  # - `memory_delta` [Integer] no change applied to memory if zero; memory increased if positive; memory decreased if negative.
+  class Status < Data.define(:text, :memory_delta)
+    def to_s
+      "#{text}; d=#{memory_delta}"
+    end
+  end
+
+  # @return [Status | nil]
   attr_reader :status
 
   def was_running?
@@ -69,7 +87,7 @@ class BallooningVM
       # VM is shut off. Don't fiddle with the memory.
       # Mark as back_off - this way we'll back off from the VM until it boots up.
       back_off
-      @status = 'vm stopped, doing nothing'
+      @status = Status.new('vm stopped, doing nothing', 0)
       @was_running = false
       return
     end
@@ -78,7 +96,7 @@ class BallooningVM
 
     # If the VM has no support for ballooning, do nothing
     unless mem_stat.guest_data_available?
-      @status = 'ballooning unsupported by the VM'
+      @status = Status.new('ballooning unsupported by the VM', 0)
       return
     end
 
@@ -91,19 +109,19 @@ class BallooningVM
 
     if percent_used >= 70
       # Increase memory immediately
-      memory_delta = 20
+      memory_delta = @increase_memory_percent
     elsif percent_used <= 60
       # decrease memory if not in back_off period
       if backing_off?
-        @status = "only #{percent_used}% memory used, but backing off at the moment"
+        @status = Status.new("only #{percent_used}% memory used, but backing off at the moment", 0)
         return
       end
-      memory_delta = -10
+      memory_delta = -@decrease_memory_percent
     end
 
     # Return early if nothing to do
     if memory_delta.zero?
-      @status = "app memory in sweet spot (#{percent_used}), doing nothing"
+      @status = Status.new("app memory in sweet spot (#{percent_used}), doing nothing")
       return
     end
 
@@ -113,7 +131,7 @@ class BallooningVM
     # calculate min/max memory
     max_memory = info.max_memory
     if @min_active > max_memory
-      @status = "VM max memory #{max_memory} is below min_active #{@min_active}, doing nothing"
+      @status = Status.new("VM max memory #{max_memory} is below min_active #{@min_active}, doing nothing", 0)
       return
     end
 
@@ -121,13 +139,15 @@ class BallooningVM
     new_actual = mem_stat.actual * (memory_delta + 100) / 100
     new_actual = new_actual.clamp(min_memory..max_memory)
     if new_actual == mem_stat.actual
-      @status = "New actual #{new_actual} is the same as current one #{mem_stat.actual}, doing nothing"
+      @status = Status.new("New actual #{new_actual} is the same as current one #{mem_stat.actual}, doing nothing", 0)
       return
     end
 
     back_off
 
-    @status = "VM reports #{format_byte_size(used_mem)} (#{percent_used}%), updating actual by #{memory_delta}% to #{format_byte_size(new_actual)}"
+    @status = Status.new(
+      "VM reports #{format_byte_size(used_mem)} (#{percent_used}%), updating actual by #{memory_delta}% to #{format_byte_size(new_actual)}", memory_delta
+    )
     @virt_cache.set_actual(@vmid, new_actual)
   end
 
