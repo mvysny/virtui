@@ -68,6 +68,9 @@ and can quickly ramp up RAM when it's needed. Actually, regardless of the settin
 
 When ballooning is enabled properly in a VM, 🎈 is shown next to the VM name in lazyvirt. If the balloon data is stale (not being refreshed), 🐢 is shown.
 
+When lazyvirt controls the app memory, an arrow is shown next to 🎈: up arrow indicates a memory increase,
+down arrow indicates memory decrease, and a flat dash `-` indicates no change.
+
 More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/).
 
 ## Automatic Balloon inflate/deflate
