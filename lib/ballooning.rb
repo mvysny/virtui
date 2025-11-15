@@ -102,7 +102,7 @@ class BallooningVM
     if mem_stat.nil? || !@virt_cache.running?(@vmid)
       # VM is shut off. Don't fiddle with the memory.
       # Mark as back_off - this way we'll back off from the VM until it boots up.
-      back_off
+      back_off duration_seconds: @boot_back_off_seconds
       @status = Status.new('vm stopped, doing nothing', 0)
       @was_running = false
       @last_update_at = nil
