@@ -111,6 +111,7 @@ class VirtCache
     def stale?
       # No matter what I do, virsh refreshes data once every 5 seconds.
       # Even if I use <memballoon ...><stats period="1"/></memballoon>
+      # I wanted to consider data aged 3 seconds stale, but I have to go with 7 seconds instead.
       !mem_data_age_seconds.nil? && mem_data_age_seconds >= 7
     end
   end
