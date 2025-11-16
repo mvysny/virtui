@@ -4,6 +4,7 @@ require 'tty-box'
 require 'tty-cursor'
 require 'pastel'
 require 'unicode/display_width'
+require 'strings-truncation'
 
 # A rectangle, with {Integer} `left`, `top`, `width` and `height`.
 class Rect < Data.define(:left, :top, :width, :height)
@@ -74,9 +75,16 @@ class Window
 
     (0..(@rect.height - 3)).each do |line_no|
       line = (@lines[line_no] || '').to_s
-      # strip the formatting before counting printable characters
-      length = Unicode::DisplayWidth.of(@p.strip(line))
-      line += ' ' * (width - length) if length < width
+      truncated_line = Strings::Truncation.truncate(line, omission: '', length: width)
+
+      if truncated_line == line
+        # nothing was truncated, perhaps we need to add whitespaces.
+        # strip the formatting before counting printable characters
+        length = Unicode::DisplayWidth.of(@p.strip(line))
+        line += ' ' * (width - length) if length < width
+      else
+        line = truncated_line
+      end
 
       print TTY::Cursor.move_to(@rect.left + 2, line_no + @rect.top + 1), line
     end
