@@ -177,10 +177,10 @@ end
 
 def vm_emulator_demo
   e = VMEmulator.new
-  e.add(VMEmulator::VM.simple('BASE', actual: 8 * 1024 * 1024 * 1024, max_actual: 8 * 1024 * 1024 * 1024))
-  e.add(VMEmulator::VM.simple('Ubuntu', actual: 8 * 1024 * 1024 * 1024, max_actual: 16 * 1024 * 1024 * 1024))
-  e.add(VMEmulator::VM.simple('win11', actual: 8 * 1024 * 1024 * 1024, max_actual: 16 * 1024 * 1024 * 1024))
-  e.add(VMEmulator::VM.simple('Fedora', actual: 20 * 1024 * 1024 * 1024, max_actual: 40 * 1024 * 1024 * 1024))
+  e.add(VMEmulator::VM.simple('BASE', actual: 8.GiB, max_actual: 8.GiB))
+  e.add(VMEmulator::VM.simple('Ubuntu', actual: 8.GiB, max_actual: 16.GiB))
+  e.add(VMEmulator::VM.simple('win11', actual: 8.GiB, max_actual: 16.GiB))
+  e.add(VMEmulator::VM.simple('Fedora', actual: 20.GiB, max_actual: 40.GiB))
   e.vm('Ubuntu').start
   e.vm('win11').start
   e
