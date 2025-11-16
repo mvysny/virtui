@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_local 'byte_prefixes'
+
 # Controls all VMs.
 class Ballooning
   # @param virt_cache [VirtCache]
@@ -45,7 +47,7 @@ class BallooningVM
     @virt_cache = virt_cache
     @vmid = vmid
     # don't go below 1GB
-    @min_active = 1 * 1024 * 1024 * 1024
+    @min_active = 1.GiB
     # After Ballooning decreases active memory, it will back off for 20 seconds
     # before trying to decrease the memory again. Observation shows that
     # the effects of the memory decrease command in Linux guest isn't instant: instead it is gradual, and takes
@@ -162,9 +164,13 @@ class BallooningVM
     new_actual = new_actual.clamp(min_memory..max_memory)
     if new_actual == mem_stat.actual
       @status = if memory_delta > 0
-                  Status.new("I want to increase memory (current usage of #{percent_used}% is over trigger #{@trigger_increase_at}%) but can't go over configured max mem #{format_byte_size(new_actual)}", 0)
+                  Status.new(
+                    "I want to increase memory (current usage of #{percent_used}% is over trigger #{@trigger_increase_at}%) but can't go over configured max mem #{format_byte_size(new_actual)}", 0
+                  )
                 else
-      Status.new("New actual #{format_byte_size(new_actual)} is the same as current one #{format_byte_size(mem_stat.actual)}, doing nothing", 0)
+                  Status.new(
+                    "New actual #{format_byte_size(new_actual)} is the same as current one #{format_byte_size(mem_stat.actual)}, doing nothing", 0
+                  )
                 end
       return
     end
