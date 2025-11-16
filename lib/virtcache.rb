@@ -79,9 +79,9 @@ class VirtCache
 
   # VM cached data.
   # - `data` {DomainData}
-  # - `cpu_usage` [Float] CPU usage in %; 100% means one CPU core was fully utilized. 0 or greater, may be greater than
+  # - `cpu_usage` {Float} CPU usage in %; 100% means one CPU core was fully utilized. 0 or greater, may be greater than
   #    100.
-  # - `mem_data_age_seconds` [Float] memory data age in seconds; `nil` if balloon unavailable or VM is shot down.
+  # - `mem_data_age_seconds` {Float} memory data age in seconds; `nil` if balloon unavailable or VM is shot down.
   class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds)
     # @param prev_data [DomainData | nil] previous VM data
     # @param next_data [DomainData] current VM data
