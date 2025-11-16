@@ -30,8 +30,9 @@ class VMEmulator
     # Creates the VM.
     # @param info [DomainInfo]
     # @param initial_actual [Integer] the value of [MemStat.actual] when the VM is started.
-    # @param started_initial_apps [Integer] when the VM is started, it pretends that its app will use this amount of memory.
-    #   Once started, the VM mem usage slowly climbs to this value. You can call {:set_used} to set a new usage value.
+    # @param started_initial_apps [Integer] when the VM is started, it pretends that its app will use this amount of
+    #   memory. Once started, the VM mem usage slowly climbs to this value. You can call {:set_used} to set a new usage
+    #   value.
     def initialize(info, initial_actual, started_initial_apps)
       raise "max_memory must be #{MIN_ACTUAL} or higher" if info.max_memory < 128 * 1024 * 1024
       raise "initial_actual must be #{MIN_ACTUAL} or higher" if initial_actual < 128 * 1024 * 1024
