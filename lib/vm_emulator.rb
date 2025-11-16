@@ -2,6 +2,7 @@
 
 require 'interpolator'
 require 'virt'
+
 # Emulates a bunch of VMs.
 class VMEmulator
   # @param hostinfo [CpuInfo]
@@ -11,6 +12,7 @@ class VMEmulator
     @vms = {}
     @allow_set_actual = true
   end
+
   attr_reader :hostinfo
   attr_accessor :allow_set_actual
 
