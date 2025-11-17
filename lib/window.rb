@@ -108,7 +108,7 @@ class Window
 
   # If auto-scrolling, recalculate the top line and optionally repaint content
   # if top line changed.
-  # @return [Boolean] true if the content was repainted.
+  # @return [Boolean] true if the content was repainted, false if nothing was done
   def update_top_line_if_auto_scroll
     return false unless @auto_scroll
 
