@@ -21,15 +21,15 @@ class Window
   def initialize(caption = '')
     # {Rect} absolute coordinates of the window.
     @rect = Rect.new(0, 0, 0, 0)
-    # Window caption, shown in the upper-left part
+    # {String} Window caption, shown in the upper-left part
     @caption = caption
-    # Contents of the window.
+    # {Array<String>} Contents of the window.
     @lines = []
     # {Boolean} if true and a line is added or a new content is set, auto-scrolls to the bottom
     @auto_scroll = false
-    # {Pastel} draw colors
+    # {Pastel} use this to draw colors
     @p = Pastel.new
-    # [Integer] zero or positive: top line to paint.
+    # {Integer} zero or positive: top line to paint.
     @top_line = 0
   end
 
