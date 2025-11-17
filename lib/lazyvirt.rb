@@ -174,13 +174,14 @@ rescue StandardError => e
   $log.fatal('Failed to update VM data', e)
 end
 
-loop do
-  char = STDIN.getch
-  break if char == 'q'
+begin
+  loop do
+    char = STDIN.getch
+    break if char == 'q'
 
-  # Show the code point (helps debug escape sequences)
-  $log.debug "Got: #{char} (ord: #{char.ord})"
+    $log.debug "Got: #{char} (ord: #{char.ord})"
+  end
+ensure
+  scheduler.shutdown
+  screen.clear
 end
-
-scheduler.shutdown
-screen.clear
