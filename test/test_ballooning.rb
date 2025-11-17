@@ -32,7 +32,7 @@ class TestBallooningVM < Minitest::Test
     b = BallooningVM.new(virt_cache, 'vm0')
     b.update
     # should issue no update - the VM is just starting
-    assert_equal 'only 0% memory used, but backing off for 15.0s; d=0', b.status.to_s
+    assert_equal 'only 0% memory used, but backing off for 20.0s; d=0', b.status.to_s
 
     virt.allow_set_actual = true
     Timecop.freeze(Time.now + 10) do
