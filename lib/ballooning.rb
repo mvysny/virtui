@@ -147,7 +147,7 @@ class BallooningVM
 
     # Return early if nothing to do
     if memory_delta.zero?
-      @status = Status.new("app memory in sweet spot (#{percent_used}), doing nothing", 0)
+      @status = Status.new("app memory in sweet spot (#{percent_used}%), doing nothing", 0)
       return
     end
 
