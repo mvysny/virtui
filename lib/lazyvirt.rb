@@ -179,7 +179,7 @@ loop do
   break if char == 'q'
 
   # Show the code point (helps debug escape sequences)
-  printf "Got: %p (ord: %d)\n", char, char.ord
+  $log.debug "Got: #{char} (ord: #{char.ord})"
 end
 
 scheduler.shutdown
