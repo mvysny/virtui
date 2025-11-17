@@ -61,13 +61,13 @@ class BallooningVM
     @boot_back_off_seconds = 15
 
     # When the guest mem usage (ommitting cache) is above this value, increase guest memory
-    @trigger_increase_at = 70
+    @trigger_increase_at = 65
 
     # When increasing memory, increase by how much
     @increase_memory_by = 30
 
     # When the guest mem usage (ommitting cache) is below this, start decreasing guest memory
-    @trigger_decrease_at = 60
+    @trigger_decrease_at = 55
 
     # When decreasing memory, decrease by how much
     @decrease_memory_by = 10
