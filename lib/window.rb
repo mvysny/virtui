@@ -114,7 +114,7 @@ class Window
   def update_top_line_if_auto_scroll
     return false unless @auto_scroll
 
-    new_top_line = (@lines.size - rect.height).clamp(0, nil)
+    new_top_line = (@lines.size - rect.height - 2).clamp(0, nil)
     return false unless @top_line != new_top_line
 
     self.top_line = new_top_line
