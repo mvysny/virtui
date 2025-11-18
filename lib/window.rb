@@ -64,6 +64,7 @@ class Window
   # @param new_rect [Rect] new position
   def rect=(new_rect)
     raise "invalid rect #{new_rect}" unless new_rect.is_a? Rect
+    return if @rect == new_rect
 
     @rect = new_rect
     repaint
