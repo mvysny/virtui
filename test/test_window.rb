@@ -6,7 +6,7 @@ require 'tty-logger'
 
 class TestWindow < Minitest::Test
   def test_smoke
-    w = Window.new('foo')
+    Window.new('foo')
     w = Window.new
     w.rect = Rect.new(-1, 0, 20, 20)
     w.content = %w[a b c]
