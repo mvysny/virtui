@@ -7,12 +7,12 @@ require_relative 'virtcache'
 require 'tty-cursor'
 require 'tty-screen'
 require 'rufus-scheduler'
-require 'io/console'
 require_relative 'formatter'
 require_relative 'ballooning'
 require_relative 'vm_emulator'
 require 'tty-logger'
 require 'rainbow'
+require_relative 'event_loop'
 
 # https://github.com/piotrmurach/tty-logger
 $log = TTY::Logger.new do |config|
@@ -159,6 +159,11 @@ class Screen
     @system.update
     @vms.update
   end
+
+  # Called when a character is pressed on keyboard.
+  def handle_key(key)
+    @vms.handle_key(key)
+  end
 end
 
 ballooning = Ballooning.new(virt_cache)
@@ -182,11 +187,8 @@ rescue StandardError => e
 end
 
 begin
-  loop do
-    char = STDIN.getch
-    break if char == 'q'
-
-    $log.debug "Got: #{char} (ord: #{char.ord})"
+  event_loop do |key|
+    screen.handle_key key
   end
 ensure
   scheduler.shutdown
