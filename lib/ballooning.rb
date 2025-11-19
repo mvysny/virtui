@@ -46,7 +46,7 @@ class BallooningVM
   def initialize(virt_cache, vmid)
     @virt_cache = virt_cache
     @vmid = vmid
-    # don't go below 2GB
+    # Don't let the VM fall below 2GB
     @min_active = 2.GiB
     # After Ballooning decreases active memory, it will back off for 20 seconds
     # before trying to decrease the memory again. Observation shows that
