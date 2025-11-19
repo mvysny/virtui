@@ -1,6 +1,6 @@
 # LazyVirt
 
-A TUI client for libvirt/virsh. Under development. Requires Ruby 3.3+. Currently runs `virsh`.
+A TUI client for libvirt/virsh. Under development. Requires Ruby 3.4+. Currently runs `virsh`.
 Currently only tested on Linux host: probably won't work on Windows nor MacOS.
 
 ## Setup
