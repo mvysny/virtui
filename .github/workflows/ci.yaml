@@ -17,7 +17,7 @@ jobs:
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: '3.3'  # Use a stable version; adjust if you need a specific one (e.g., '3.2')
+        ruby-version: '3.4'
         bundler-cache: true  # Automatically runs 'bundle install' and caches gems (keyed on Gemfile.lock + Ruby version)
 
     - name: Run tests
