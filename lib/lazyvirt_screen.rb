@@ -132,13 +132,23 @@ class VMWindow < Window
 
     state = @virt_cache.state(current_vm)
 
-    return unless key == 's'
-
-    if state == :shut_off
-      @virt_cache.virt.start(current_vm)
-      $log.warn "'#{current_vm}' started"
-    else
-      $log.error "'#{current_vm}' must be stopped"
+    if key == 's' # start
+      if state == :shut_off
+        @virt_cache.virt.start(current_vm)
+        $log.warn "'#{current_vm}' started"
+      else
+        $log.error "'#{current_vm}' must be stopped"
+      end
+    elsif key == 'S' # stop
+      $log.error 'stop unimplemented'
+    elsif key == 'r' # reset
+      $log.error 'reset unimplemented'
+    elsif key == 'R' # reboot
+      $log.error 'reboot unimplemented'
+    elsif key == 'P' # pause
+      $log.error 'pause unimplemented'
+    elsif key == 'p' # unpause
+      $log.error 'unpause unimplemented'
     end
   end
 
