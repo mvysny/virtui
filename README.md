@@ -29,6 +29,12 @@ If `bundle install` fails, try running `bundle config set --global path '~/.gem'
 bin/lazyvirt
 ```
 
+Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
+
+- `s` - starts a VM
+- `<Shift>+s` - sends a shutdown signal to the guest OS which should gracefully shut down the VM.
+- TODO more as they're implemented.
+
 # Ballooning
 
 "Balloon" is closely related to precise control and statistics of guest memory. When ballooning is enabled, you can see
@@ -75,13 +81,15 @@ More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/
 
 ## Automatic Balloon inflate/deflate
 
-A running VM with ballooning support is observed, and a decision is made every 2 seconds. If the memory usage goes above 70%, the VM memory is
+A running VM with ballooning support is observed, and a decision is made every 2 seconds. If the memory usage goes above 65%, the VM memory is
 increased immediately by 30%. This helps if there's a sudden VM memory demand.
-If the memory usage goes below 60%, a memory is decreased by 10%, but this only happens every 10 seconds.
+If the memory usage goes below 55%, a memory is decreased by 10%, but this only happens every 10 seconds.
 
 In other words, if VM needs memory, the memory is given immediately. Afterwards, the memory is slowly decreased as the usage goes down.
 
 At the moment this can not be disabled - I'm working on making this controllable via a keyboard.
+
+At the moment you need to edit LazyVirt sources to configure this: edit `ballooning.rb`: the configuration starts at line 49.
 
 # Developing
 
@@ -92,8 +100,6 @@ $ bundle exec rake test
 
 # Future plans
 
-- Automatic balloon control (needs to be enabled)
+- Toggle balloon control via 'b'.
 - Add [libvirt](https://ruby.libvirt.org/) client: blocked by [bug #14](https://gitlab.com/libvirt/libvirt-ruby/-/issues/14)
-- Add dummy virt client
-- detect obsolete memory data (when the mem stats aren't refreshed by `<memballoon>` or `virt-manager`, and display a 'turtle' next to the VM name
 
