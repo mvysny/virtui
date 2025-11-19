@@ -259,6 +259,11 @@ class VirtCmd
   def start(domain_name)
     `virsh start "#{domain_name}"`
   end
+
+  # Shuts down a VM gracefully.
+  def shutdown(domain_name)
+    `virsh shutdown "#{domain_name}"`
+  end
 end
 
 def library_available?(name)
