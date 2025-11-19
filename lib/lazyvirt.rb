@@ -66,6 +66,7 @@ class VMWindow < Window
     @f = Formatter.new
     @virt_cache = virt_cache
     @ballooning = ballooning
+    self.selection = Window::Selection::Single.new
     update
   end
 

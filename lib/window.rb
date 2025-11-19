@@ -49,6 +49,13 @@ class Window
     repaint
   end
 
+  def selection=(selection)
+    raise 'Not a Selection' unless selection.is_a? Selection
+
+    @selection = selection
+    repaint_content
+  end
+
   # Scrolls the window contents by setting the new top line
   # @new_top_line [Integer] 0 or greater
   def top_line=(new_top_line)
@@ -183,7 +190,7 @@ class Window
     end
 
     # Single line is selected.
-    class Single
+    class Single < Selection
       # @param index [Integer] the initial selection
       def initialize(index: 0)
         # {Integer} 0-based index of selected line
@@ -191,12 +198,12 @@ class Window
       end
 
       def handle_key(key, line_count)
-        if ["\e[B", 'k'].include?(key) # down arrow
+        if ["\e[B", 'j'].include?(key) # down arrow
           return false if @selected >= line_count - 1
 
           @selected += 1
           return true
-        elsif ["\e[A", 'j'].include?(key) # up arrow
+        elsif ["\e[A", 'k'].include?(key) # up arrow
           return false if @selected <= 0
 
           @selected -= 1
