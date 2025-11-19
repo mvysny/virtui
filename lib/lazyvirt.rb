@@ -12,7 +12,7 @@ require_relative 'lazyvirt_screen'
 
 # https://github.com/piotrmurach/tty-logger
 $log = TTY::Logger.new do |config|
-  config.level = :warn
+  config.level = :info
 end
 
 # Don't use LibVirtClient for now: it doesn't provide all necessary data
