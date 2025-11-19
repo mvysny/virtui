@@ -10,6 +10,7 @@ class VirtCache
   attr_reader :host_mem_stat
   # @property [CpuInfo]
   attr_reader :cpu_info
+  attr_reader :virt
 
   # @param virt [VirtCmd | LibVirtClient] virt client
   def initialize(virt)
