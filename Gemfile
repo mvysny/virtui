@@ -3,7 +3,6 @@
 source 'https://rubygems.org'
 ruby '>= 3.3'
 
-gem 'pastel'
 gem 'rainbow', '~> 3.1.0'
 gem 'rufus-scheduler'
 gem 'strings-truncation'

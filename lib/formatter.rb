@@ -84,8 +84,8 @@ class Formatter
   # Draws pretty progress bar as one row. Supports paiting multiple values into the same row.
   # @param width the width of the progress bar, in characters. The height is always 1.
   # @param max_value [Integer] the max value
-  # @param values [Array<Array<Integer, Symbol>>] maps value to the Pastel color to draw with, e.g. `:red` or `:bright_yellow`.
-  # @return [String] Pastel progress bar
+  # @param values [Array<Array<Integer, Symbol>>] maps value to the Rainbow color to draw with, e.g. `:red` or `:yellow`.
+  # @return [String] Rainbow progress bar
   def progress_bar(width, max_value, values, char = '#')
     raise "#{max_value} must not be negative" if max_value.negative?
     return '' if max_value.zero? || width.zero?
