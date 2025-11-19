@@ -52,7 +52,7 @@ class SystemWindow < Window
       total_vm_rss_usage = @virt_cache.total_vm_rss_usage
       ram_use = [[total_vm_rss_usage, :magenta], [@virt_cache.host_mem_stat.ram.used, :bright_red]]
       pb = @f.progress_bar(20, total_ram, ram_use)
-      lines << "     [#{pb}] #{@p.magenta(format_byte_size(total_vm_rss_usage))} used by VMs"
+      lines << "     [#{pb}] #{Rainbow(format_byte_size(total_vm_rss_usage)).magenta} used by VMs"
     end
   end
 end
@@ -80,11 +80,11 @@ class VMWindow < Window
         if data.running?
           cpu_usage = @virt_cache.cache(domain_name).guest_cpu_usage.round(2)
           guest_mem_usage = cache.data.mem_stat.guest_mem
-          lines << "    #{@p.bright_blue('Guest CPU')}: [#{@f.progress_bar(20, 100,
-                                                                           [[cpu_usage.to_i, :bright_blue]])}] #{@p.bright_blue(cpu_usage)}%; #{data.info.cpus} #cpus"
+          lines << "    #{Rainbow('Guest CPU').bright.blue}: [#{@f.progress_bar(20, 100,
+                                                                                [[cpu_usage.to_i, :bright_blue]])}] #{@p.bright_blue(cpu_usage)}%; #{data.info.cpus} #cpus"
           unless guest_mem_usage.nil?
-            lines << "    #{@p.bright_red('Guest RAM')}: [#{@f.progress_bar(20, guest_mem_usage.total,
-                                                                            [[guest_mem_usage.used, :bright_red]])}] #{@f.format(guest_mem_usage)}"
+            lines << "    #{Rainbow('Guest RAM').bright.red}: [#{@f.progress_bar(20, guest_mem_usage.total,
+                                                                                 [[guest_mem_usage.used, :bright_red]])}] #{@f.format(guest_mem_usage)}"
           end
         end
         data.disk_stat.each do |ds|
@@ -97,7 +97,7 @@ class VMWindow < Window
   # @param cache [VirtCache::VMCache]
   # @return [String]
   def format_vm_overview_line(cache)
-    line = "#{@f.format_domain_state(cache.data.state)} #{@p.white(cache.info.name)}"
+    line = "#{@f.format_domain_state(cache.data.state)} #{Rainbow(cache.info.name).white}"
     memstat = cache.data.mem_stat
     if cache.data.running?
       if cache.data.balloon?
@@ -132,7 +132,6 @@ class Screen
     @vms = VMWindow.new(virt_cache, ballooning)
     @log = LogWindow.new
     @log.configure_logger $log
-    @p = Pastel.new
   end
 
   # Clears the TTY screen
@@ -153,7 +152,7 @@ class Screen
 
     # print status bar
     print TTY::Cursor.move_to(0, sh), ' ' * sw
-    print TTY::Cursor.move_to(0, sh), "Q #{@p.dim.white('quit')}"
+    print TTY::Cursor.move_to(0, sh), "Q #{Rainbow('quit').cadetblue}"
   end
 
   def update_data
