@@ -48,6 +48,8 @@ begin
   # event loop, captures keyboard keys and sends them to Screen
   event_loop do |key|
     screen.handle_key key
+  rescue StandardError => e
+    $log.fatal('Program failure', e)
   end
 ensure
   scheduler.shutdown
