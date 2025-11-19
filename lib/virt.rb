@@ -245,6 +245,7 @@ class VirtCmd
                 values['Thread(s) per core'].to_i)
   end
 
+  # Sets new memory size to a running VM.
   # @param domain_name [String]
   # @param new_actual [Integer]
   def set_actual(domain_name, new_actual)
@@ -252,6 +253,11 @@ class VirtCmd
 
     `virsh setmem "#{domain_name}" "#{new_actual / 1024}"`
     $log.info "#{domain_name}: setting new actual memory to #{format_byte_size(new_actual)}"
+  end
+
+  # Starts a VM if it was stopped. Undefined for started or paused VM.
+  def start(domain_name)
+    `virsh start "#{domain_name}"`
   end
 end
 
