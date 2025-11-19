@@ -6,6 +6,7 @@ require 'formatter'
 class TestFormatter < Minitest::Test
   def initialize(test)
     super(test)
+    Rainbow.enabled = true # force-enable for CI
     @f = Formatter.new
   end
 
