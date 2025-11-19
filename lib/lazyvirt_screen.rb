@@ -10,6 +10,7 @@ require_relative 'formatter'
 require_relative 'ballooning'
 require_relative 'vm_emulator'
 require 'rainbow'
+require_relative 'utils'
 
 # Shows host OS info, such as CPU info, memory info.
 class SystemWindow < Window
@@ -83,7 +84,7 @@ class VMWindow < Window
       true
     end
 
-    def go_down(line_count)
+    def go_down(_line_count)
       current_data = @line_data[@selected]
       next_vm = @line_data[(@selected + 1)..].find { it.vm_name != current_data.vm_name }
       return false if next_vm.nil?
@@ -134,15 +135,22 @@ class VMWindow < Window
 
     if key == 's' # start
       if state == :shut_off
-        $log.warn "Starting '#{current_vm}'"
+        $log.info "Starting '#{current_vm}'"
         @virt_cache.virt.start(current_vm)
       else
         $log.error "'#{current_vm}' must be stopped"
       end
     elsif key == 'S' # shutdown gracefully
       if state == :running
-        $log.warn "Shutting down '#{current_vm}' gracefully"
+        $log.info "Shutting down '#{current_vm}' gracefully"
         @virt_cache.virt.shutdown(current_vm)
+      else
+        $log.error "'#{current_vm}' must be running"
+      end
+    elsif key == 'v' # view
+      if state == :running
+        $log.info "Launching viewer for '#{current_vm}'"
+        async_run("virt-manager --connect qemu:///system --show-domain-console '#{current_vm}'")
       else
         $log.error "'#{current_vm}' must be running"
       end
