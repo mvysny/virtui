@@ -173,9 +173,9 @@ class Screen
     sh, sw = TTY::Screen.size
     left_pane_w = sw / 2
     sh -= 1 # make way for the status bar
-    @system.rect = Rect.new(0, 0, left_pane_w, 6)
-    @vms.rect = Rect.new(0, 6, left_pane_w, sh - 6)
-    @log.rect = Rect.new(left_pane_w, 0, sw - left_pane_w, sh)
+    @system.set_rect_and_repaint(Rect.new(0, 0, left_pane_w, 6))
+    @vms.set_rect_and_repaint(Rect.new(0, 6, left_pane_w, sh - 6))
+    @log.set_rect_and_repaint(Rect.new(left_pane_w, 0, sw - left_pane_w, sh))
 
     # print status bar
     print TTY::Cursor.move_to(0, sh), ' ' * sw
