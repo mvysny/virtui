@@ -126,7 +126,7 @@ class Window
   # @param lines [Array<String>]
   def add_lines(lines)
     # split lines by newline
-    lines = lines.flat_map { |it| it.to_s.split("\n") }
+    lines = lines.flat_map { it.to_s.split("\n") }
     @lines += lines.map(&:rstrip)
     # TODO: optimize
     repaint_content unless update_top_line_if_auto_scroll
