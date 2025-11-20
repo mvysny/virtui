@@ -47,8 +47,12 @@ class Ballooning
 
   # @param vm_name [String]
   # @param enabled [Boolean]
-  def enabled=(vm_name, enabled)
+  def enabled(vm_name, enabled)
     @ballooning[vm_name].enabled = !!enabled
+  end
+
+  def toggle_enable(vm_name)
+    enabled(vm_name, !enabled?(vm_name))
   end
 end
 
@@ -240,6 +244,6 @@ class BallooningVM
 
   # @return [Boolean] true if we are backing off from issuing any further memory decrease commands.
   def backing_off?
-    Time.now < @back_off_until
+    !@back_off_until.nil? && Time.now < @back_off_until
   end
 end
