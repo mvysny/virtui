@@ -1,18 +1,22 @@
 # frozen_string_literal: true
 
-require 'minitest/autorun'
+require_relative 'spec_helper'
 require 'interpolator'
 require 'timecop'
 
-class TestInterpolator < Minitest::Test
-  def test_const
+describe Interpolator::Const do
+  it 'provides given value' do
     assert_equal 2, Interpolator::Const.new(2).value
     assert_equal 'q', Interpolator::Const.new('q').value
   end
+end
 
-  def test_linear
+describe Interpolator::Linear do
+  it 'provides limit value if time outside range' do
     assert_equal 2.0, Interpolator::Linear.new(2.0, 10.0, Time.now + 5, Time.now + 10).value
     assert_equal 10.0, Interpolator::Linear.new(2.0, 10.0, Time.now - 10, Time.now - 5).value
+  end
+  it 'provides linearly interpolated value' do
     now = Time.now
     # Fix `Time.now` during the duration of the test
     Timecop.freeze(now) do
