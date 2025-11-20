@@ -8,6 +8,10 @@ describe Formatter do
     Rainbow.enabled = true # force-enable for CI
     Formatter.new
   end
+  it 'formats cpu' do
+    assert_equal "\e[1m\e[34mCPU\e[0m: \e[1m\e[34mx86_64\e[0m: \e[36m16\e[0m cores",
+                 f.format(CpuInfo.new('x86_64', 1, 8, 2))
+  end
   context 'progress_bar' do
     it 'is empty' do
       assert_equal '', f.progress_bar(0, 100, {})
