@@ -148,12 +148,8 @@ class VMWindow < Window
         $log.error "'#{current_vm}' is not running"
       end
     elsif key == 'v' # view
-      if state == :running
-        $log.info "Launching viewer for '#{current_vm}'"
-        async_run("virt-manager --connect qemu:///system --show-domain-console '#{current_vm}'")
-      else
-        $log.error "'#{current_vm}' is not running"
-      end
+      $log.info "Launching viewer for '#{current_vm}'"
+      async_run("virt-manager --connect qemu:///system --show-domain-console '#{current_vm}'")
     elsif key == 'b' # toggle Ballooning
       if state == :running
         $log.info "Toggling balloning for '#{current_vm}'"
