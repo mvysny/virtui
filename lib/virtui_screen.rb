@@ -155,7 +155,12 @@ class VMWindow < Window
         $log.error "'#{current_vm}' is not running"
       end
     elsif key == 'b' # toggle Ballooning
-      $log.error 'toggle ballooning unimplemented'
+      if state == :running
+        $log.info "Toggling balloning for '#{current_vm}'"
+        @ballooning.toggle_enable(current_vm)
+      else
+        $log.error "'#{current_vm}' is not running"
+      end
     elsif key == 'r' # reset
       $log.error 'reset unimplemented'
     elsif key == 'R' # reboot
@@ -185,7 +190,9 @@ class VMWindow < Window
         line += " \u{1F388}"
         balloon_status = @ballooning.status(cache.info.name)
         unless balloon_status.nil?
-          sc = if balloon_status.memory_delta.negative?
+          sc = if !@ballooning.enabled?(cache.info.name)
+                 'x'
+               elsif balloon_status.memory_delta.negative?
                  "\u{2193}"
                elsif balloon_status.memory_delta.positive?
                  "\u{2191}"
