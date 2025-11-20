@@ -17,14 +17,14 @@ describe VirtCache do
 
     it 'is calculated properly' do
       Timecop.freeze(Time.now) do
-        assert_equal 2_415_919_104, VirtCache.new(vm_emulator_demo).total_vm_rss_usage
+        assert_equal 2_415_919_104, VirtCache.new(VMEmulator.demo).total_vm_rss_usage
       end
     end
   end
 
   context 'running?' do
     it 'works on demo data' do
-      c = VirtCache.new(vm_emulator_demo)
+      c = VirtCache.new(VMEmulator.demo)
       assert c.running?('Ubuntu')
       assert c.running?('win11')
       assert !c.running?('BASE')

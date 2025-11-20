@@ -157,7 +157,6 @@ class Window
     return false unless @auto_scroll
 
     new_top_line = (@lines.size - rect.height + 2).clamp(0, nil)
-    puts new_top_line, @lines.size, rect
     return false unless @top_line != new_top_line
 
     self.top_line = new_top_line
