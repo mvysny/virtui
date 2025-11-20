@@ -2,6 +2,7 @@
 
 require 'minitest/autorun'
 require 'vm_emulator'
+require 'virtcache'
 require 'timecop'
 
 class TestVM < Minitest::Test
