@@ -13,6 +13,9 @@ GEM
     raabro (1.4.0)
     rainbow (3.1.1)
     rake (13.3.1)
+    rspec-core (3.13.6)
+      rspec-support (~> 3.13.0)
+    rspec-support (3.13.6)
     rufus-scheduler (3.9.2)
       fugit (~> 1.1, >= 1.11.1)
     strings (0.2.1)
@@ -47,6 +50,7 @@ DEPENDENCIES
   minitest (~> 5.26.0)
   rainbow (~> 3.1.0)
   rake (~> 13.2)
+  rspec-core (~> 3.13)
   rufus-scheduler
   strings-truncation
   timecop

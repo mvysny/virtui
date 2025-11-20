@@ -19,5 +19,6 @@ end
 
 group :test do
   gem 'minitest', '~> 5.26.0'
+  gem 'rspec-core', '~> 3.13'
   gem 'timecop'
 end
