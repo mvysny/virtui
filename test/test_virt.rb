@@ -2,6 +2,7 @@
 
 require 'minitest/autorun'
 require 'virt'
+require 'formatter'
 
 VIRSH_NODEINFO = <<~EOF
   CPU model:           x86_64
@@ -48,4 +49,3 @@ class TestDiskStat < Minitest::Test
     assert_equal 'sda: 17G/128G (13.11%); physical 22G (30.43% overhead)', ds.to_s
   end
 end
-
