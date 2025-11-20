@@ -17,3 +17,16 @@ describe Window do
     assert w.auto_scroll
   end
 end
+
+describe LogWindow do
+  it 'smokes' do
+    w = LogWindow.new
+    log = TTY::Logger.new do |config|
+      config.level = :debug
+    end
+    w.configure_logger(log)
+    log.error 'foo'
+    log.warn 'bar'
+    assert_equal ["\e[31m⨯\e[0m \e[31merror\e[0m   foo", "\e[33m⚠\e[0m \e[33mwarning\e[0m bar"], w.content
+  end
+end

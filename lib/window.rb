@@ -111,6 +111,8 @@ class Window
   # end
   # ````
   def content
+    return @lines unless block_given?
+
     lines = []
     yield lines
     self.content = lines
