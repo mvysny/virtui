@@ -117,7 +117,7 @@ describe Window do
 end
 
 describe LogWindow do
-  it 'smokes' do
+  it 'logs to content' do
     w = LogWindow.new
     log = TTY::Logger.new do |config|
       config.level = :debug
