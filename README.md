@@ -33,6 +33,8 @@ Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
 
 - `s` - starts a VM
 - `<Shift>+s` - sends a shutdown signal to the guest OS which should gracefully shut down the VM.
+- `v` - runs a graphical viewer for the VM (`virt-manager` needs to be installed)
+- `b` - toggles automatic ballooning for a VM
 - TODO more as they're implemented.
 
 # Ballooning
@@ -100,6 +102,6 @@ $ bundle exec rake test
 
 # Future plans
 
-- Toggle balloon control via 'b'.
+- `+-` increases/shrinks active memory by 10% and disables automatic ballooning
 - Add [libvirt](https://ruby.libvirt.org/) client: blocked by [bug #14](https://gitlab.com/libvirt/libvirt-ruby/-/issues/14)
 
