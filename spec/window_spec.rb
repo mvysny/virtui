@@ -148,3 +148,34 @@ describe Window::Cursor do
     assert_equal 0, c.position
   end
 end
+
+describe Window::Cursor::Limited do
+  let(:cursor) { Window::Cursor::Limited.new([0, 2, 4, 8]) }
+  it 'moves cursor down correctly' do
+    assert_equal 0, cursor.position
+    # first VM is stopped and takes 2 lines
+    cursor.handle_key("\e[B", 10)
+    assert_equal 2, cursor.position
+    # second VM is running and takes 3 lines
+    cursor.handle_key("\e[B", 10)
+    assert_equal 4, cursor.position
+    # third VM is running and takes 3 lines
+    cursor.handle_key("\e[B", 10)
+    assert_equal 8, cursor.position
+    # no more VMs
+    cursor.handle_key("\e[B", 10)
+    assert_equal 8, cursor.position
+  end
+  it 'moves cursor up correctly' do
+    cursor.position = 8
+    assert_equal 8, cursor.position
+    cursor.handle_key("\e[A", 10)
+    assert_equal 4, cursor.position
+    cursor.handle_key("\e[A", 10)
+    assert_equal 2, cursor.position
+    cursor.handle_key("\e[A", 10)
+    assert_equal 0, cursor.position
+    cursor.handle_key("\e[A", 10)
+    assert_equal 0, cursor.position
+  end
+end

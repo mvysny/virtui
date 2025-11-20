@@ -273,6 +273,34 @@ class Window
       @position -= 1
       true
     end
+
+    # Cursor with limited movement.
+    # @param positions [Array<Integer>] a set of positions the cursor can visit.
+    # @param position [Integer] initial position
+    class Limited < Cursor
+      def initialize(positions)
+        @positions = positions.sort
+        super(position: @positions[0])
+      end
+
+      protected
+
+      def go_down(line_count)
+        next_position = @positions.find { it > @position }
+        return false if next_position.nil?
+
+        @position = next_position
+        true
+      end
+
+      def go_up
+        prev_index = @positions.rindex { it < @position }
+        return false if prev_index.nil?
+
+        @position = @positions[prev_index]
+        true
+      end
+    end
   end
 end
 
