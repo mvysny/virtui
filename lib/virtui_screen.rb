@@ -45,10 +45,8 @@ end
 
 # Shows a quick overview of all VMs
 class VMWindow < Window
-  # - `owner_line` {Integer} for every line displayed in the window, this holds the index of the "owner line"
-  #   (the line which holds the VM name). This line gets selected.
   # - `vm_name` {String} this line is related to this VM.
-  class LineData < Data.define(:owner_line, :vm_name)
+  class LineData < Data.define(:vm_name)
   end
 
   # @param virt_cache [VirtCache]
@@ -62,45 +60,18 @@ class VMWindow < Window
     @ballooning = ballooning
     # {Array<LineData>} data for every line.
     @line_data = []
-    self.cursor = VMCursor.new(@line_data)
+    self.cursor = Cursor.new
     update
-  end
-
-  # A special cursor which hops over VMs, not lines.
-  class VMCursor < Cursor
-    def initialize(line_data)
-      super(position: 0)
-      @line_data = line_data
-    end
-
-    protected
-
-    def go_up
-      return false if @position <= 0
-
-      owner_line = @line_data[@position].owner_line
-      return false if owner_line <= 0
-
-      @position = @line_data[owner_line - 1].owner_line
-      true
-    end
-
-    def go_down(_line_count)
-      current_data = @line_data[@position]
-      next_vm = @line_data[(@position + 1)..].find { it.vm_name != current_data.vm_name }
-      return false if next_vm.nil?
-
-      @position = next_vm.owner_line
-      true
-    end
   end
 
   def update
     domains = @virt_cache.domains.sort # Array<String>
+    cursor_positions = [] # allowed cursor positions
     content do |lines|
       @line_data.clear
       domains.each do |domain_name|
-        line_data = LineData.new(lines.size, domain_name)
+        line_data = LineData.new(domain_name)
+        cursor_positions << lines.size
         cache = @virt_cache.cache(domain_name)
         data = cache.data
         lines << format_vm_overview_line(cache)
@@ -124,6 +95,7 @@ class VMWindow < Window
         end
       end
     end
+    self.cursor = Cursor::Limited.new(cursor_positions, position: cursor.position)
   end
 
   def handle_key(key)

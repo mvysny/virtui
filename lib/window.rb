@@ -278,9 +278,9 @@ class Window
     # @param positions [Array<Integer>] a set of positions the cursor can visit.
     # @param position [Integer] initial position
     class Limited < Cursor
-      def initialize(positions)
+      def initialize(positions, position: positions[0])
         @positions = positions.sort
-        super(position: @positions[0])
+        super(position: position)
       end
 
       protected
