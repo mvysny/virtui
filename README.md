@@ -21,7 +21,7 @@ If `bundle install` fails, try running `bundle config set --global path '~/.gem'
 - To use direct connection to `libvirt` (experimental, broken at the moment), install the libvirt Ruby gem: `sudo apt install ruby-libvirt`
 - To give your user control over virtual machines, add your user to `libvirt` group:
   `sudo usermod -aG libvirt $USER` and log out/log in.
-- To setup VMs, install `sudo apt install virt-manager`
+- Virt-Manager provides a nice UI which sets up VMs and provides a local fast VM viewer: install `sudo apt install virt-manager`
 
 ## Running
 
