@@ -14,7 +14,7 @@ module Interpolator
   # must be {Time}.
   class Linear < Data.define(:value_from, :value_to, :time_from, :time_to)
     def initialize(hash)
-      super(hash)
+      super
       unless value_from.is_a?(Numeric) && value_to.is_a?(Numeric) && time_from.is_a?(Time) && time_to.is_a?(Time)
         raise 'invalid value type'
       end
