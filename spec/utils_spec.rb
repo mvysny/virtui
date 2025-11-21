@@ -17,7 +17,7 @@ describe Run do
     it 'runs command successfully' do
       out = Helpers.setup_dummy_logger
       Run.async('echo foo').join
-      assert_equal '• debug   echo foo: exited successfully', out.string.strip
+      assert_equal "• debug   'echo foo': OK", out.string.strip
     end
     it 'raises when command doesnt exist' do
       Helpers.setup_dummy_logger
@@ -26,7 +26,7 @@ describe Run do
     it 'logs error when command fails' do
       out = Helpers.setup_dummy_logger
       Run.async('cat non-existing-file').join
-      assert out.string.strip.include?('⨯ error   cat non-existing-file failed with 1: cat: non-existing-file: No such file or directory'),
+      assert out.string.strip.include?("⨯ error   'cat non-existing-file' failed with 1: cat: non-existing-file: No such file or directory"),
              out.string.strip
     end
   end

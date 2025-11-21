@@ -14,9 +14,9 @@ module Run
       combined_output.close
 
       if status.success?
-        $log.debug("#{command}: exited successfully")
+        $log.debug("'#{command}': OK")
       else
-        $log.error("#{command} failed with #{status.exitstatus}: #{output}")
+        $log.error("'#{command}' failed with #{status.exitstatus}: #{output}")
       end
     rescue StandardError => e
       $log.fatal("Fatal error running '#{command}'", e)
