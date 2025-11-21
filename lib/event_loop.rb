@@ -6,27 +6,15 @@ require 'io/console'
 # - `\e[A` for up arrow
 def event_loop
   STDIN.echo = false
-  STDIN.raw!
+  STDIN.raw do
+    loop do
+      char = STDIN.getch
+      break if char == 'q'
 
-  loop do
-    char = STDIN.getch
-    break if char == 'q'
-
-    if char == "\e"
-      begin
-        char << STDIN.read_nonblock(3)
-      rescue StandardError
-        nil
-      end
-      begin
-        char << STDIN.read_nonblock(2)
-      rescue StandardError
-        nil
-      end
+      char << STDIN.read_nonblock(3) if char == "\e"
+      yield char
     end
-    yield char
   end
 ensure
   STDIN.echo = true
-  STDIN.cooked!
 end
