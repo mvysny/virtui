@@ -153,7 +153,7 @@ class VirtCmd
   # @param sampled_at [Integer] millis since epoch, for testing only.
   # @return [Hash<String => DomainData>] domain data, maps VM name to {DomainData}
   def domain_data(domstats_file = nil, sampled_at = nil)
-    domstats_file ||= `virsh domstats`
+    domstats_file ||= Run.sync('virsh domstats')
     sampled_at ||= DomainData.millis_now
 
     # grab data. Hash{String => current_values}
@@ -222,12 +222,12 @@ class VirtCmd
 
   # @return [Boolean] whether this virt client is available
   def self.available?
-    !`which virsh`.strip.empty?
+    !Run.sync('which virsh').strip.empty?
   end
 
   # @return [CpuInfo]
   def hostinfo(virsh_nodeinfo = nil)
-    virsh_nodeinfo ||= `virsh nodeinfo`
+    virsh_nodeinfo ||= Run.sync('virsh nodeinfo')
     values = virsh_nodeinfo.lines.filter { |it| !it.strip.empty? }.map { |it| it.split ':' }.to_h
     values = values.transform_values(&:strip)
     CpuInfo.new(values['CPU model'], values['CPU socket(s)'].to_i, values['Core(s) per socket'].to_i,
@@ -240,18 +240,18 @@ class VirtCmd
   def set_actual(domain_name, new_actual)
     raise "#{new_actual} must be at least 256m" if new_actual < 256.MiB
 
-    `virsh setmem "#{domain_name}" "#{new_actual / 1024}"`
+    Run.sync("virsh setmem '#{domain_name}' '#{new_actual / 1024}'")
     $log.info "#{domain_name}: setting new actual memory to #{format_byte_size(new_actual)}"
   end
 
   # Starts a VM if it was stopped. Undefined for started or paused VM.
   def start(domain_name)
-    `virsh start "#{domain_name}"`
+    Run.sync("virsh start '#{domain_name}'")
   end
 
   # Shuts down a VM gracefully.
   def shutdown(domain_name)
-    `virsh shutdown "#{domain_name}"`
+    Run.sync("virsh shutdown '#{domain_name}'")
   end
 end
 
