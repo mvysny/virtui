@@ -38,17 +38,13 @@ class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches,
   end
 
   # @return [MemoryUsage] the host memory stat: `rss` of `actual`
-  def host_mem
-    MemoryUsage.new(actual, actual - rss)
-  end
+  def host_mem = MemoryUsage.new(actual, actual - rss)
 
   # Returns true if the guest memory data is available. false if the VM doesn't report guest data,
   # probably because ballooning service isn't running, or virt guest tools aren't installed,
   # or the VM lacks the ballooning device.
   # @return [Boolean] true if the guest data is available
-  def guest_data_available?
-    !available.nil? && !usable.nil? && !disk_caches.nil? && !unused.nil?
-  end
+  def guest_data_available? = !available.nil? && !usable.nil? && !disk_caches.nil? && !unused.nil?
 
   def to_s
     result = "actual #{format_byte_size(actual)}"
@@ -106,19 +102,13 @@ end
 # - `mem_stat` {MemStat} memory stats, `nil` if not running.
 # - `disk_stat` {Array<DiskStat>} disk stats, one per every connected disk
 class DomainData < Data.define(:info, :state, :sampled_at, :cpu_time, :mem_stat, :disk_stat)
-  def running?
-    state == :running
-  end
+  def running? = state == :running
 
   # @return [Boolean] true if VM has proper ballooning support.
-  def balloon?
-    mem_stat.guest_data_available?
-  end
+  def balloon? = mem_stat.guest_data_available?
 
   # @return [Integer] now, represented as milliseconds since the epoch.
-  def self.millis_now
-    DateTime.now.strftime('%Q').to_i
-  end
+  def self.millis_now = DateTime.now.strftime('%Q').to_i
 
   # Calculates average CPU usage in the time period between older data and this data.
   # @param older_data [DomainData | nil]
@@ -144,9 +134,7 @@ end
 # - `model` {String} e.g. "x86_64"
 # - `sockets`, `cores_per_socket`, `threads_per_core`: {Integer}
 class CpuInfo < Data.define(:model, :sockets, :cores_per_socket, :threads_per_core)
-  def cpus
-    sockets * cores_per_socket * threads_per_core
-  end
+  def cpus = sockets * cores_per_socket * threads_per_core
 
   def to_s
     "#{model}: #{sockets}/#{cores_per_socket}/#{threads_per_core}"
