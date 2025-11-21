@@ -54,8 +54,9 @@ class Window
   def cursor=(cursor)
     raise 'Not a Cursor' unless cursor.is_a? Cursor
 
+    old_position = @cursor.position
     @cursor = cursor
-    repaint_content
+    repaint_content if old_position != cursor.position
   end
 
   # Scrolls the window contents by setting the new top line
@@ -229,11 +230,11 @@ class Window
         freeze
       end
 
-      def handle_key(key, line_count)
+      def handle_key(_key, _line_count)
         false
       end
 
-      def position=(position)
+      def position=(_position)
         raise 'no cursor'
       end
     end
@@ -286,7 +287,7 @@ class Window
 
       protected
 
-      def go_down(line_count)
+      def go_down(_line_count)
         next_position = @positions.find { it > @position }
         return false if next_position.nil?
 
