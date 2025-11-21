@@ -6,9 +6,10 @@ require 'virt'
 require 'virtcache'
 require 'timecop'
 require 'vm_emulator'
+require 'byte_prefixes'
 
 describe BallooningVM do
-  it 'does_nothing_on_stopped_machine' do
+  it 'doesnt attempt to control stopped VM' do
     virt = VMEmulator.new
     virt.allow_set_actual = false
     virt.add(VMEmulator::VM.simple('vm0'))
@@ -21,13 +22,13 @@ describe BallooningVM do
     end
   end
 
-  it 'memory_increase_in_backoff_period' do
+  it 'increases memory even though in backoff' do
     virt = VMEmulator.new
     virt.allow_set_actual = false
     vm = virt.add(VMEmulator::VM.simple('vm0'))
     vm.start
     virt_cache = VirtCache.new(virt)
-    assert_equal 2 * 1024 * 1024 * 1024, vm.to_mem_stat.actual
+    assert_equal 2.GiB, vm.to_mem_stat.actual
 
     b = BallooningVM.new(virt_cache, 'vm0')
     b.update
@@ -37,7 +38,7 @@ describe BallooningVM do
     virt.allow_set_actual = true
     Timecop.freeze(Time.now + 10) do
       # overshoot the used memory
-      vm.memory_app = 4 * 1024 * 1024 * 1024
+      vm.memory_app = 4.GiB
       virt_cache.update
       # ballooning should issue the memory_resize command immediately
       b.update
