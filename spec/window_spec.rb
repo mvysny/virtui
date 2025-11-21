@@ -192,4 +192,15 @@ describe Window::Cursor::Limited do
     cursor.handle_key("\e[A", 10)
     assert_equal 0, cursor.position
   end
+  it 'keeps position if allowed' do
+    assert_equal 0, cursor.position
+    cursor = Window::Cursor::Limited.new([0, 2, 4, 8], position: 4)
+    assert_equal 4, cursor.position
+  end
+  it 'adjusts the position if needed' do
+    cursor = Window::Cursor::Limited.new([0, 2, 4, 8], position: 1)
+    assert_equal 0, cursor.position
+    cursor = Window::Cursor::Limited.new([0, 2, 4, 8], position: 7)
+    assert_equal 4, cursor.position
+  end
 end
