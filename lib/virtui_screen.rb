@@ -136,15 +136,11 @@ class VMWindow < Window
       else
         $log.error "'#{current_vm}' is not running"
       end
-    elsif key == 'P' # pause
-      $log.error 'pause unimplemented'
-    elsif key == 'p' # unpause
-      $log.error 'unpause unimplemented'
     end
   end
 
   def keyboard_hint
-    "s #{Rainbow('start').cadetblue}  o #{Rainbow('shutdOwn').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  b #{Rainbow('toggle autoBallooning').cadetblue}  r #{Rainbow('reboot').cadetblue}  R #{Rainbow('reset').cadetblue}  P #{Rainbow('pause').cadetblue}  p #{Rainbow('unpause').cadetblue}"
+    "s #{Rainbow('start').cadetblue}  o #{Rainbow('shutdOwn').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  b #{Rainbow('toggle autoBallooning').cadetblue}  r #{Rainbow('reboot').cadetblue}  R #{Rainbow('reset').cadetblue}"
   end
 
   private
