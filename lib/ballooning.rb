@@ -65,7 +65,7 @@ class BallooningVM
     @virt_cache = virt_cache
     @vmid = vmid
     # Don't let the VM fall below 2GB
-    @min_active = 2.GiB
+    @min_actual = 2.GiB
     # After Ballooning decreases active memory, it will back off for 20 seconds
     # before trying to decrease the memory again. Observation shows that
     # the effects of the memory decrease command in Linux guest isn't instant: instead it is gradual, and takes
@@ -204,12 +204,12 @@ class BallooningVM
 
     # calculate min/max memory
     max_memory = info.max_memory
-    if @min_active > max_memory
-      @status = Status.new("VM max memory #{max_memory} is below min_active #{@min_active}, doing nothing", 0)
+    if @min_actual > max_memory
+      @status = Status.new("VM max memory #{max_memory} is below min_active #{@min_actual}, doing nothing", 0)
       return
     end
 
-    min_memory = @min_active.clamp(nil, max_memory)
+    min_memory = @min_actual.clamp(nil, max_memory)
     new_actual = mem_stat.actual * (memory_delta + 100) / 100
     new_actual = new_actual.clamp(min_memory..max_memory)
     if new_actual == mem_stat.actual
