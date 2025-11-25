@@ -161,7 +161,7 @@ class VMEmulator
   def domain_data
     @vms.map do |name, vm|
       state = vm.running? ? :running : :shut_off
-      disk = DiskStat.new('vda', 64.GiB, 128.GiB, 64.GiB, '/var/lib/libvirt/images/win11.qcow2')
+      disk = DiskStat.new('vda', 64.GiB, 128.GiB, 64.GiB, nil)
       data = DomainData.new(vm.info, state, DomainData.millis_now, 0, vm.to_mem_stat, [disk])
       [name, data]
     end.to_h
