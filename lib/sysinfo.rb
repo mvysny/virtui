@@ -58,7 +58,7 @@ class SysInfo
   # @param qcow2_files [Array<String>] a list of qcow2 files used by VMs.
   # @return [Map{String => MemoryUsage}] maps physical disk to usage information.
   def disk_usage(qcow2_files, test_df = nil)
-    files = qcow2_files.filter { !it.nil? }.map { "'{it}'" }.join ' '
+    files = qcow2_files.filter { !it.nil? }.map { "'#{it}'" }.join ' '
     return {} if files.empty? && test_df.nil?
 
     df = test_df || Run.sync("df -P #{files}")

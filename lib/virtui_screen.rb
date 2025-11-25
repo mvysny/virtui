@@ -39,6 +39,11 @@ class SystemWindow < Window
       ram_use = [[total_vm_rss_usage, :magenta], [@virt_cache.host_mem_stat.ram.used, :crimson]]
       pb = @f.progress_bar(20, total_ram, ram_use)
       lines << "     [#{pb}] #{Rainbow(format_byte_size(total_vm_rss_usage)).magenta} used by VMs"
+
+      # Disk
+      @virt_cache.disks.each do |name, usage|
+        lines << "#{name}: [#{@f.progress_bar(20, usage.total, [[usage.used, :gray]])}]"
+      end
     end
   end
 end
@@ -199,8 +204,8 @@ class Screen
     sh, sw = TTY::Screen.size
     left_pane_w = sw / 2
     sh -= 1 # make way for the status bar
-    @system.set_rect_and_repaint(Rect.new(0, 0, left_pane_w, 6))
-    @vms.set_rect_and_repaint(Rect.new(0, 6, left_pane_w, sh - 6))
+    @system.set_rect_and_repaint(Rect.new(0, 0, left_pane_w, 7))
+    @vms.set_rect_and_repaint(Rect.new(0, 7, left_pane_w, sh - 7))
     @vms.active = true
     @log.set_rect_and_repaint(Rect.new(left_pane_w, 0, sw - left_pane_w, sh))
 
