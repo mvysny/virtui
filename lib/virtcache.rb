@@ -15,8 +15,11 @@ class VirtCache
   # @param virt [VirtCmd | LibVirtClient] virt client
   def initialize(virt)
     @virt = virt
+    # {CpuInfo}
     @cpu_info = virt.hostinfo
+    # {SysInfo}
     @sysinfo = SysInfo.new
+    # {Integer}
     @cpu_count = @cpu_info.cpus
     # Hash{String => VMCache}
     @cache = {}
