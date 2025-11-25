@@ -128,8 +128,9 @@ class VirtCache
     domain_data = @virt.domain_data
     @cache = domain_data.map { |did, data| [did, VMCache.diff(old_cache[did]&.data, data)] }.to_h
 
-    # host stats
+    # {MemoryStat} host stats
     @host_mem_stat = @sysinfo.memory_stats
+    # {CpuUsage}
     @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
   end
 
