@@ -92,6 +92,8 @@ class Formatter
     return '' if max_value.zero? || width.zero?
     return ' ' * width if values.empty?
 
+    raise "non-numeric value: #{values}" unless values.all? { it[0].is_a? Integer }
+
     values = values.sort_by { |value, _| value }
     result = ''
     length = 0
