@@ -62,7 +62,8 @@ end
 # - `allocation` {Integer} how much of the guest’s disk has real data behind it
 # - `capacity` {Integer} maximum size of the guest disk
 # - `physical` {Integer} how big the qcow2 file actually is on host's filesystem right now
-class DiskStat < Data.define(:name, :allocation, :capacity, :physical)
+# - `path` {String} path to the qcow2 file
+class DiskStat < Data.define(:name, :allocation, :capacity, :physical, :path)
   # @return [Float] how much data is allocated vs the max capacity. 0..100
   def percent_used
     return 0.0 if capacity.zero?
@@ -212,9 +213,10 @@ class VirtCmd
       allocation = data["block.#{block_index}.allocation"]&.to_i
       capacity = data["block.#{block_index}.capacity"]&.to_i
       physical = data["block.#{block_index}.physical"]&.to_i
+      path = data["block.#{block_index}.path"]
       unless allocation.nil? || capacity.nil? || physical.nil? || name.nil?
         result << DiskStat.new(name, allocation, capacity,
-                               physical)
+                               physical, path)
       end
     end
     result
