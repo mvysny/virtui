@@ -4,6 +4,7 @@ require_relative 'utils'
 
 # Memory usage: `total` and `available`, in bytes, both {Integer}
 class MemoryUsage < Data.define(:total, :available)
+  ZERO = MemoryUsage.new(0, 0)
   def used = total - available
   def percent_used = total.zero? ? 0 : used * 100 / total
   def +(other) = MemoryUsage.new(total + other.total, available + other.available)

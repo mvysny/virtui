@@ -31,9 +31,9 @@ class SystemWindow < Window
       vm_cpu_usage = @virt_cache.total_vm_cpu_usage.round(2)
       pb = @f.progress_bar(20, 100, [[vm_cpu_usage.to_i, :magenta], [host_cpu_usage.to_i, :dodgerblue]])
       lines << "     [#{pb}] #{Rainbow(vm_cpu_usage).magenta}% used by VMs"
-      lines << @f.format(@virt_cache.host_mem_stat)
 
       # Memory
+      lines << @f.format(@virt_cache.host_mem_stat)
       total_ram = @virt_cache.host_mem_stat.ram.total
       total_vm_rss_usage = @virt_cache.total_vm_rss_usage
       ram_use = [[total_vm_rss_usage, :magenta], [@virt_cache.host_mem_stat.ram.used, :crimson]]
@@ -41,10 +41,13 @@ class SystemWindow < Window
       lines << "     [#{pb}] #{Rainbow(format_byte_size(total_vm_rss_usage)).magenta} used by VMs"
 
       # Disk
-      @virt_cache.disks.each do |name, usage|
+      disks = @virt_cache.disks
+      disk_usage = disks.values.inject(MemoryUsage::ZERO) { |sum, obj| sum + obj.usage }
+      lines << "Disk: #{@f.format(disk_usage)}"
+      disks.each do |name, usage|
         use = [[usage.vm_usage, :magenta], [usage.usage.used, :gray]]
         pb = @f.progress_bar(20, usage.usage.total, use)
-        lines << "#{name}: [#{pb}] #{Rainbow(format_byte_size(usage.vm_usage)).magenta} used by VMs"
+        lines << "   #{name}: [#{pb}] #{Rainbow(format_byte_size(usage.vm_usage)).magenta} used by VMs"
       end
     end
   end
@@ -206,8 +209,9 @@ class Screen
     sh, sw = TTY::Screen.size
     left_pane_w = sw / 2
     sh -= 1 # make way for the status bar
-    @system.set_rect_and_repaint(Rect.new(0, 0, left_pane_w, 7))
-    @vms.set_rect_and_repaint(Rect.new(0, 7, left_pane_w, sh - 7))
+    system_height = 8
+    @system.set_rect_and_repaint(Rect.new(0, 0, left_pane_w, system_height))
+    @vms.set_rect_and_repaint(Rect.new(0, system_height, left_pane_w, sh - system_height))
     @vms.active = true
     @log.set_rect_and_repaint(Rect.new(left_pane_w, 0, sw - left_pane_w, sh))
 
