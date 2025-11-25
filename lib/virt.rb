@@ -222,7 +222,9 @@ class VirtCmd
 
   # @return [Boolean] whether this virt client is available
   def self.available?
-    !Run.sync('which virsh').strip.empty?
+    # Don't use Run.sync() since which returns with error code 1 if
+    # it can't find virsh.
+    !`which virsh`.strip.empty?
   end
 
   # @return [CpuInfo]
