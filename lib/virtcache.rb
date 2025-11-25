@@ -13,7 +13,7 @@ class VirtCache
   # @property [VirtCmd]
   attr_reader :virt
 
-  # @property [Map{String => MemoryUsage}] maps physical disk name to usage information.
+  # @property [Map{String => DiskUsage}] maps physical disk name to usage information.
   attr_reader :disks
 
   # @param virt [VirtCmd | LibVirtClient] virt client
@@ -139,7 +139,7 @@ class VirtCache
     @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
 
     qcow2_files = domain_data.values.flat_map { it.disk_stat }.map(&:path)
-    # {Map{String => MemoryUsage}} maps physical disk name to usage information.
+    # {Map{String => DiskUsage}} maps physical disk name to usage information.
     @disks = @sysinfo.disk_usage(qcow2_files)
   end
 

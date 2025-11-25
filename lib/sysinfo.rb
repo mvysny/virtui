@@ -55,23 +55,40 @@ class SysInfo
   end
 
   # Calculates disk usage; only takes into account disks with VM qcow2 files on them.
-  # @param qcow2_files [Array<String>] a list of qcow2 files used by VMs.
-  # @return [Map{String => MemoryUsage}] maps physical disk to usage information.
+  # @param qcow2_files [Array<Array<String,Integer>>] a list of qcow2 files and their sizes used by VMs.
+  # @return [Map{String => DiskUsage}] maps physical disk to usage information.
   def disk_usage(qcow2_files, test_df = nil)
-    files = qcow2_files.filter { !it.nil? }.map { "'#{it}'" }.join ' '
-    return {} if files.empty? && test_df.nil?
+    return {} if qcow2_files.empty?
 
+    files = qcow2_files.map { "'#{it[0]}'" }.join ' '
     df = test_df || Run.sync("df -P #{files}")
     df_lines = df.lines.map(&:strip)[1..]
+    # each line is an Array: 0=>physical disk name, 1=>total size in kb, 3=>available space in kb.
     df_lines = df_lines.map(&:split)
-    df_lines = df_lines.uniq { it[0] }
-    df_lines.map do |line|
+
+    # {Map{String => DiskUsage}}
+    result = {}
+    # Array<Array<String,DiskUsage>>: String physical disk name to DiskUsage. One Physical disk name may have repeated entries.
+    df_lines.map.with_index do |line, idx|
       name = line[0].split('/').last
       total = line[1].to_i * 1024
       available = line[3].to_i * 1024
-      [name, MemoryUsage.new(total, available)]
-    end.to_h
+      vm_usage = qcow2_files[idx][1]
+      if result[name].nil?
+        result[name] = DiskUsage.new(MemoryUsage.new(total, available), vm_usage)
+      else
+        result[name] += vm_usage
+      end
+    end
+    result
   end
+end
+
+# - `usage` {MemoryUsage} the disk usage
+# - `vm_usage` {Integer} bytes used by VM qcow2 files
+class DiskUsage < Data.define(:usage, :vm_usage)
+  def to_s = "#{usage} (#{format_byte_size(vm_usage)} VMs)"
+  def +(other) = DiskUsage.new(usage, vm_usage + other)
 end
 
 # A representation of a single `cpu` line from `/proc/stat`. `name` is {String} `cpu`; others are {Integer}s.

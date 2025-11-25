@@ -2,6 +2,7 @@
 
 require_relative 'spec_helper'
 require 'sysinfo'
+require 'byte_prefixes'
 
 describe MemoryUsage do
   it 'should produce good to_s' do
@@ -26,10 +27,13 @@ describe SysInfo do
   end
 
   it 'calculates disk usage' do
-    usage = SysInfo.new.disk_usage([], DF_P)
+    disk_stats = %w['sda', 'sda', 'vda', 'vda'].map do
+      ["/var/lib/libvirt/images/#{it}.qcow2", 32.GiB]
+    end
+    usage = SysInfo.new.disk_usage(disk_stats, DF_P)
     assert_equal 1, usage.size
     assert_equal ['nvme0n1p6_crypt'], usage.keys
-    assert_equal ['501G/633G (79%)'], usage.values.map(&:to_s)
+    assert_equal ['501G/633G (79%) (128G VMs)'], usage.values.map(&:to_s)
   end
 end
 
@@ -146,9 +150,6 @@ EOF
 DF_P = <<~EOF
   Filesystem                  1024-blocks      Used Available Capacity Mounted on
   /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /
-  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
-  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
-  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
   /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
   /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
   /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
