@@ -42,7 +42,9 @@ class SystemWindow < Window
 
       # Disk
       @virt_cache.disks.each do |name, usage|
-        lines << "#{name}: [#{@f.progress_bar(20, usage.total, [[usage.used, :gray]])}]"
+        use = [[usage.vm_usage, :magenta], [usage.usage.used, :gray]]
+        pb = @f.progress_bar(20, usage.usage.total, use)
+        lines << "#{name}: [#{pb}] #{Rainbow(format_byte_size(usage.vm_usage)).magenta} used by VMs"
       end
     end
   end

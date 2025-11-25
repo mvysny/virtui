@@ -138,7 +138,7 @@ class VirtCache
     # {CpuUsage}
     @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
 
-    qcow2_files = domain_data.values.flat_map { it.disk_stat }.map(&:path).filter { !it.nil? }
+    qcow2_files = domain_data.values.flat_map { it.disk_stat }.filter { !it.path.nil? }.map { [it.path, it.physical] }
     # {Map{String => DiskUsage}} maps physical disk name to usage information.
     @disks = @sysinfo.disk_usage(qcow2_files)
   end
