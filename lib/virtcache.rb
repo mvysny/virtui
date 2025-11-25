@@ -10,7 +10,11 @@ class VirtCache
   attr_reader :host_mem_stat
   # @property [CpuInfo]
   attr_reader :cpu_info
+  # @property [VirtCmd]
   attr_reader :virt
+
+  # @property [Map{String => MemoryUsage}] maps physical disk name to usage information.
+  attr_reader :disks
 
   # @param virt [VirtCmd | LibVirtClient] virt client
   def initialize(virt)
@@ -125,6 +129,7 @@ class VirtCache
   # Updates the cache
   def update
     old_cache = @cache
+    # {Hash<String => DomainData>} domain data, maps VM name to {DomainData}
     domain_data = @virt.domain_data
     @cache = domain_data.map { |did, data| [did, VMCache.diff(old_cache[did]&.data, data)] }.to_h
 
@@ -132,6 +137,10 @@ class VirtCache
     @host_mem_stat = @sysinfo.memory_stats
     # {CpuUsage}
     @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
+
+    qcow2_files = domain_data.values.flat_map { it.disk_stat }.map(&:path)
+    # {Map{String => MemoryUsage}} maps physical disk name to usage information.
+    @disks = @sysinfo.disk_usage(qcow2_files)
   end
 
   # @return [Integer] a sum of RSS usage of all running VMs
