@@ -24,6 +24,13 @@ describe SysInfo do
     usage = SysInfo.new.cpu_usage(usage, PROC_STAT1)
     assert_equal 4.09, usage.usage_percent
   end
+
+  it 'calculates disk usage' do
+    usage = SysInfo.new.disk_usage([], DF_P)
+    assert_equal 1, usage.size
+    assert_equal ['nvme0n1p6_crypt'], usage.keys
+    assert_equal ['501G/633G (79%)'], usage.values.map(&:to_s)
+  end
 end
 
 describe CpuStat do
@@ -134,4 +141,15 @@ PROC_STAT1 = <<~EOF
   procs_running 3
   procs_blocked 0
   softirq 138289 52 18209 8 482 6684 0 845 35257 0 76752
+EOF
+
+DF_P = <<~EOF
+  Filesystem                  1024-blocks      Used Available Capacity Mounted on
+  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /
+  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
+  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
+  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
+  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
+  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
+  /dev/mapper/nvme0n1p6_crypt   663446528 518686312 137833720      80% /home
 EOF

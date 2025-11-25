@@ -53,6 +53,23 @@ class SysInfo
       CpuUsage.new(cpu_usage, stat)
     end
   end
+
+  # Calculates disk usage; only takes into account disks with VM qcow2 files on them.
+  # @param qcow2_files [Array<String>] a list of qcow2 files used by VMs.
+  # @return [Map{String => MemoryUsage}] maps physical disk to usage information.
+  def disk_usage(qcow2_files, test_df)
+    files = qcow2_files.map { "'{it}'" }.join ' '
+    df = test_df || Run.exec("df -P #{files}")
+    df_lines = df.lines.map(&:strip)[1..]
+    df_lines = df_lines.map(&:split)
+    df_lines = df_lines.uniq { it[0] }
+    df_lines.map do |line|
+      name = line[0].split('/').last
+      total = line[1].to_i * 1024
+      available = line[3].to_i * 1024
+      [name, MemoryUsage.new(total, available)]
+    end.to_h
+  end
 end
 
 # A representation of a single `cpu` line from `/proc/stat`. `name` is {String} `cpu`; others are {Integer}s.
