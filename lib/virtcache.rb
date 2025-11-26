@@ -30,6 +30,7 @@ class VirtCache
     update
   end
 
+  # Returns the names of all known VMs.
   # @return [Set<String>]
   def domains
     @cache.keys
