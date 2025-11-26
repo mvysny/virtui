@@ -71,7 +71,7 @@ class VMWindow < Window
   end
 
   def update
-    domains = @virt_cache.domains.sort # Array<String>
+    domains = @virt_cache.domains.sort_by(&:upcase) # Array<String>
     cursor_positions = [] # allowed cursor positions
     content do |lines|
       @line_data.clear
