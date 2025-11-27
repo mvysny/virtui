@@ -114,7 +114,7 @@ class VirtCache
             else
               next_data.mem_stat.last_updated - prev_data.mem_stat.last_updated
             end
-      VMCache.new(next_data, next_data.cpu_usage(prev_data), age)
+      VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age)
     end
 
     # @return [DomainInfo]
