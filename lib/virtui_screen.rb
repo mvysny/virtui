@@ -19,7 +19,6 @@ class SystemWindow < Window
     super('System')
     @f = Formatter.new
     @virt_cache = virt_cache
-    @cpu = @f.format(virt_cache.cpu_info)
     @cpu_info = format_cpu_info
     update
   end
@@ -28,11 +27,11 @@ class SystemWindow < Window
     content do |lines|
       # CPU
       lines << header('CPU', @cpu_info, :dodgerblue)
-      host_cpu_usage = @virt_cache.host_cpu_usage
-      lines << "#{@cpu}; #{Rainbow(host_cpu_usage).blue.bright}% used"
-      vm_cpu_usage = @virt_cache.total_vm_cpu_usage.round(2)
-      pb = @f.progress_bar(20, 100, [[vm_cpu_usage.to_i, :magenta], [host_cpu_usage.to_i, :dodgerblue]])
-      lines << "     [#{pb}] #{Rainbow(vm_cpu_usage).magenta}% used by VMs"
+      host_cpu_usage = @virt_cache.host_cpu_usage.to_i
+      lines << progress_bar("Used:#{host_cpu_usage.to_s.rjust(3)}%", host_cpu_usage, 100, :dodgerblue,
+                            "#{@virt_cache.cpu_info.cpus}t")
+      vm_cpu_usage = @virt_cache.total_vm_cpu_usage.to_i
+      lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, :magenta, '')
 
       # Memory
       lines << header('RAM', '', :crimson)
@@ -97,10 +96,20 @@ class SystemWindow < Window
   # @param right [String] what to show to the right
   # @param color [Symbol | String] the color to draw `left` and `right`
   def header(left, right, color)
-    left = left.to_s
-    right = right.to_s
     frame = '─' * (rect.width - left.size - right.size - 4).clamp(0, nil)
     Rainbow(left).fg(color) + Rainbow(frame).fg('#333333') + Rainbow(right).fg(color)
+  end
+
+  # @param left [String] of size 14
+  # @param right [String] of size 5
+  # @param value [Integer] current value, for drawing of the progress bar
+  # @param max [Integer] max value, for drawing of the progress bar
+  def progress_bar(left, value, max, color, right)
+    left = left.ljust(15)
+    right = right.rjust(6)
+    pb_width = (rect.width - 4 - left.size - right.size).clamp(0, nil)
+    pb = @f.progress_bar(pb_width, max, [[value.to_i, color]])
+    left + pb + right
   end
 end
 
