@@ -88,14 +88,18 @@ class Window
     raise "invalid rect #{new_rect}" unless new_rect.is_a? Rect
     return if @rect == new_rect
 
+    prev_width = @rect.width
     @rect = new_rect
+    on_width_changed if prev_width != new_rect.width
     repaint
   end
 
   def set_rect_and_repaint(new_rect)
     raise "invalid rect #{new_rect}" unless new_rect.is_a? Rect
 
+    prev_width = @rect.width
     @rect = new_rect
+    on_width_changed if prev_width != new_rect.width
     repaint
   end
 
@@ -149,6 +153,11 @@ class Window
   def keyboard_hint
     ''
   end
+
+  protected
+
+  # Called whenever the window width changes. Does nothing by default.
+  def on_width_changed; end
 
   private
 
