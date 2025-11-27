@@ -25,6 +25,7 @@ class VirtCache
     @cpu_info = virt.hostinfo
     # {Set<String>}
     @cpu_flags = SysInfo.new.cpu_flags
+
     # {SysInfo}
     @sysinfo = SysInfo.new
     # {Integer}
@@ -32,6 +33,11 @@ class VirtCache
     # Hash{String => VMCache}
     @cache = {}
     update
+  end
+
+  # @return [Integer] how many VMs are running
+  def up
+    @cache.values.count { it.data.state == :running }
   end
 
   # Returns the names of all known VMs.

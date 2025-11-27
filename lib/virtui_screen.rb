@@ -31,7 +31,8 @@ class SystemWindow < Window
       lines << progress_bar("Used:#{host_cpu_usage.to_s.rjust(3)}%", host_cpu_usage, 100, :dodgerblue,
                             "#{@virt_cache.cpu_info.cpus}t")
       vm_cpu_usage = @virt_cache.total_vm_cpu_usage.to_i
-      lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, :magenta, '')
+      up = @virt_cache.up
+      lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, :magenta, "#{up} up")
 
       # Memory
       lines << header('RAM', '', :crimson)
