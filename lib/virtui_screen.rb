@@ -20,7 +20,7 @@ class SystemWindow < Window
     @f = Formatter.new
     @virt_cache = virt_cache
     @cpu = @f.format(virt_cache.cpu_info)
-    @cpu_info = "#{virt_cache.cpu_info.model}, #{virt_cache.cpu_info.cpus} threads"
+    @cpu_info = format_cpu_info
     update
   end
 
@@ -63,6 +63,34 @@ class SystemWindow < Window
   end
 
   private
+
+  def format_cpu_info
+    r = @virt_cache.cpu_info.model + ', '
+    flags = @virt_cache.cpu_flags
+    # Intel VT-x (Virtualization Technology) - required for KVM on Intel
+    vmx = flags.include? 'vmx'
+    # AMD-V (AMD Secure Virtual Machine, aka AMD-V) - required for KVM on AMD
+    svm = flags.include? 'svm'
+    r += 'software' if !vmx && !svm
+    r += 'vmx' if vmx
+    r += 'svm' if svm
+    r += ' ept' if flags.include? 'ept'
+    r += ' npt' if flags.include? 'npt'
+    # EPT/NPT for memory virtualization (almost all CPUs since ~2008 have this)
+    # Faster APIC timer (better timing in guests)
+    r += ' tsc_deadline' if flags.include? 'tsc_deadline'
+    # Process-Context Identifiers – speeds up context switches and TLB flushes in guests
+    r += ' pcid' if flags.include? 'pcid'
+    # (Intel) → tagged TLB, speeds up guest transitions
+    r += ' vpid' if flags.include? 'vpid'
+    # Single-instruction invalidation of PCID – further improves TLB performance
+    r += ' invpcid' if flags.include? 'invpcid'
+    # 1GB huge pages support (greatly improves memory performance for VMs)
+    r += ' pdpe1gb' if flags.include? 'pdpe1gb'
+    # Faster saving/restoring of extended CPU state during VM entry/exit
+    r += ' xsave' if flags.any? { it.start_with? 'xsave' }
+    r
+  end
 
   # Draws and returns a header.
   # @param left [String] what to show to the left

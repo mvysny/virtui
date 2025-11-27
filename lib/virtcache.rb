@@ -16,11 +16,15 @@ class VirtCache
   # @property [Map{String => DiskUsage}] maps physical disk name to usage information.
   attr_reader :disks
 
+  attr_reader :cpu_flags
+
   # @param virt [VirtCmd | LibVirtClient] virt client
   def initialize(virt)
     @virt = virt
     # {CpuInfo}
     @cpu_info = virt.hostinfo
+    # {Set<String>}
+    @cpu_flags = SysInfo.new.cpu_flags
     # {SysInfo}
     @sysinfo = SysInfo.new
     # {Integer}

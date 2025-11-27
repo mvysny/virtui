@@ -79,6 +79,15 @@ class SysInfo
     end
     result
   end
+
+  # @return [Set<String>] CPU flags.
+  def cpu_flags
+    l = File.read('/proc/cpuinfo').lines
+    l = l.filter { it.start_with? 'flags' }
+    l = l.flat_map(&:split).to_set
+    l.subtract(['flags', ':'])
+    l
+  end
 end
 
 # - `usage` {MemoryUsage} the disk usage
