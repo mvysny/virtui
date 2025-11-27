@@ -37,15 +37,12 @@ class SystemWindow < Window
       # Memory
       lines << header('RAM', '', :crimson)
       host_ram = @virt_cache.host_mem_stat.ram
-      lines << progress_bar("Used:#{host_ram.percent_used.to_s.rjust(3)}% #{format_byte_size(host_ram.used).rjust(5)}",
-                            host_ram.used, host_ram.total, :crimson,
-                            format_byte_size(host_ram.total))
-      lines << @f.format(@virt_cache.host_mem_stat)
-      total_ram = @virt_cache.host_mem_stat.ram.total
+      lines << progress_bar2('Used', host_ram)
       total_vm_rss_usage = @virt_cache.total_vm_rss_usage
-      ram_use = [[total_vm_rss_usage, :magenta], [@virt_cache.host_mem_stat.ram.used, :crimson]]
-      pb = @f.progress_bar(20, total_ram, ram_use)
-      lines << "     [#{pb}] #{Rainbow(format_byte_size(total_vm_rss_usage)).magenta} used by VMs"
+      lines << progress_bar(" VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
+                            total_vm_rss_usage, host_ram.total, :magenta, format_byte_size(host_ram.total))
+      host_swap = @virt_cache.host_mem_stat.swap
+      lines << progress_bar2('Swap', host_swap)
 
       # Disk
       lines << header('Disks', '', '#ffffff')
@@ -115,6 +112,14 @@ class SystemWindow < Window
     pb_width = (rect.width - 4 - left.size - right.size).clamp(0, nil)
     pb = @f.progress_bar(pb_width, max, [[value.to_i, color]])
     left + pb + right
+  end
+
+  # @param tag [String] 4-char tag
+  # @param mem_usage [MemoryUsage] resource usage
+  def progress_bar2(tag, mem_usage)
+    progress_bar("#{tag}:#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
+                 mem_usage.used, mem_usage.total, :crimson,
+                 format_byte_size(mem_usage.total))
   end
 end
 
