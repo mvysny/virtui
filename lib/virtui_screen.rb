@@ -36,6 +36,10 @@ class SystemWindow < Window
 
       # Memory
       lines << header('RAM', '', :crimson)
+      host_ram = @virt_cache.host_mem_stat.ram
+      lines << progress_bar("Used:#{host_ram.percent_used.to_s.rjust(3)}% #{format_byte_size(host_ram.used).rjust(5)}",
+                            host_ram.used, host_ram.total, :crimson,
+                            format_byte_size(host_ram.total))
       lines << @f.format(@virt_cache.host_mem_stat)
       total_ram = @virt_cache.host_mem_stat.ram.total
       total_vm_rss_usage = @virt_cache.total_vm_rss_usage
@@ -106,7 +110,7 @@ class SystemWindow < Window
   # @param value [Integer] current value, for drawing of the progress bar
   # @param max [Integer] max value, for drawing of the progress bar
   def progress_bar(left, value, max, color, right)
-    left = left.ljust(15)
+    left = left.ljust(16)
     right = right.rjust(6)
     pb_width = (rect.width - 4 - left.size - right.size).clamp(0, nil)
     pb = @f.progress_bar(pb_width, max, [[value.to_i, color]])
