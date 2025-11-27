@@ -31,17 +31,21 @@ ballooning = Ballooning.new(virt_cache)
 screen = Screen.new(virt_cache, ballooning)
 screen.calculate_window_sizes
 
+# Can't do much in trap. This solution sucks, TODO better one via pipes?
+$recalculate_window_sizes = false
+
 # Trap the WINCH signal (sent on terminal resize)
 trap('WINCH') do
-  screen.calculate_window_sizes
-rescue StandardError => e
-  $log.fatal('Failed to update window sizes', e)
+  $recalculate_window_sizes = true
 end
 
 scheduler = Rufus::Scheduler.new
 begin
   # https://github.com/jmettraux/rufus-scheduler
   scheduler.every '2s' do
+    screen.calculate_window_sizes if $recalculate_window_sizes
+    $recalculate_window_sizes = false
+
     virt_cache.update
     # Needs to go after virt_cache.update so that it reads up-to-date values
     ballooning.update
