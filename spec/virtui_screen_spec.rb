@@ -28,7 +28,7 @@ describe VMWindow do
     assert_equal '    vda: 50%   64G   128G | ', content[7]
     assert_equal '▶ win11 🎈', content[8]
     assert_equal '    CPU:  0%          1 t |   0%          8 t', content[9]
-    assert_equal '    RAM: 25%    2G   7.9G |  10%  3.1G    29G', content[10]
+    assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[10]
     assert_equal '    vda: 50%   64G   128G | ', content[11]
   end
 
