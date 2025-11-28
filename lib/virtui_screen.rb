@@ -223,13 +223,19 @@ class VMWindow < Window
     "s #{Rainbow('start').cadetblue}  o #{Rainbow('shutdOwn').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  b #{Rainbow('toggle autoBallooning').cadetblue}  r #{Rainbow('reboot').cadetblue}  R #{Rainbow('reset').cadetblue}"
   end
 
+  protected
+
+  def on_width_changed
+    update
+  end
+
   private
 
   # @param cache [VirtCache::VMCache]
   # @return [String]
   def format_vm_overview_line(cache)
     line = "#{@f.format_domain_state(cache.data.state)} #{Rainbow(cache.info.name).white}"
-    memstat = cache.data.mem_stat
+    cache.data.mem_stat
     if cache.data.running?
       if cache.data.balloon?
         line += " \u{1F388}"
@@ -248,9 +254,37 @@ class VMWindow < Window
         end
       end
       line += " \u{1F422}" if cache.stale?
-      line += "   #{Rainbow('Host RSS RAM').bright.red}: #{@f.format(memstat.host_mem)}"
+      #   line += "   #{Rainbow('Host RSS RAM').bright.red}: #{@f.format(memstat.host_mem)}"
     end
-    line
+    header(line)
+  end
+
+  # Draws and returns a header.
+  # @param left [String] what to show to the left
+  def header(left)
+    left_size = Unicode::DisplayWidth.of(Rainbow.uncolor(left))
+    frame = '─' * (rect.width - left_size - 4).clamp(0, nil)
+    left + Rainbow(frame).fg('#333333')
+  end
+
+  # @param left [String] of size 14
+  # @param right [String] of size 5
+  # @param value [Integer] current value, for drawing of the progress bar
+  # @param max [Integer] max value, for drawing of the progress bar
+  def progress_bar(left, value, max, color, right)
+    left = left.ljust(16)
+    right = right.rjust(6)
+    pb_width = (rect.width - 4 - left.size - right.size).clamp(0, nil)
+    pb = @f.progress_bar2(pb_width, value, max, color)
+    left + pb + right
+  end
+
+  # @param tag [String] 4-char tag
+  # @param mem_usage [MemoryUsage] resource usage
+  def progress_bar2(tag, mem_usage, color)
+    progress_bar("#{tag}:#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
+                 mem_usage.used, mem_usage.total, color,
+                 format_byte_size(mem_usage.total))
   end
 end
 
