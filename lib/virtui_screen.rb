@@ -110,7 +110,7 @@ class SystemWindow < Window
     left = left.ljust(16)
     right = right.rjust(6)
     pb_width = (rect.width - 4 - left.size - right.size).clamp(0, nil)
-    pb = @f.progress_bar(pb_width, max, [[value.to_i, color]])
+    pb = @f.progress_bar2(pb_width, value, max, color)
     left + pb + right
   end
 
