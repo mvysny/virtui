@@ -177,8 +177,8 @@ class VMWindow < Window
           end
         end
         data.disk_stat.each do |ds| # {DiskStat}
-          lines << "   #{Rainbow(ds.name[0..3].rjust(4)).fg(:gold)}:#{progress_bar2(column_width, ds.guest_usage,
-                                                                                    :chocolate)}"
+          name = Rainbow(ds.name[0..3].rjust(4)).fg(:gold)
+          lines << "   #{name}:#{progress_bar2(column_width, ds.guest_usage, :chocolate)}"
           @line_data << domain_name
           lines << '    ' + @f.format(ds)
           @line_data << domain_name
