@@ -27,8 +27,8 @@ describe VirtCmd do
     assert_equal 'ubuntu: CPUs: 8, RAM: 12G; running; actual 12G(rss=3.4G); guest: 241M/11G (2%) (unused=11G, disk_caches=37M)',
                  result['ubuntu'].to_s
     assert_equal 'win11: CPUs: 4, RAM: 8G; shut_off', result['win11'].to_s
-    assert_equal 'sda: 18G/128G (13.99%); physical 18G (2.88% overhead)', result['win11'].disk_stat.join(',')
-    assert_equal 'vda: 23G/64G (36.02%); physical 25G (9.31% overhead)', result['ubuntu'].disk_stat.join(',')
+    assert_equal 'sda: 18G/128G (13%); physical 18G (2.88% overhead)', result['win11'].disk_stat.join(',')
+    assert_equal 'vda: 23G/64G (36%); physical 25G (9.31% overhead)', result['ubuntu'].disk_stat.join(',')
   end
 
   it 'cpu usage' do
@@ -44,8 +44,8 @@ end
 describe DiskStat do
   it 'to_s' do
     ds = DiskStat.new('vda', 20_348_669_952, 68_719_476_736, 20_452_605_952, '/var/lib/libvirt/images/win11.qcow2')
-    assert_equal 'vda: 19G/64G (29.61%); physical 19G (0.51% overhead)', ds.to_s
+    assert_equal 'vda: 19G/64G (29%); physical 19G (0.51% overhead)', ds.to_s
     ds = DiskStat.new('sda', 18_022_993_920, 137_438_953_472, 23_508_287_488, '/var/lib/libvirt/images/win11.qcow2')
-    assert_equal 'sda: 17G/128G (13.11%); physical 22G (30.43% overhead)', ds.to_s
+    assert_equal 'sda: 17G/128G (13%); physical 22G (30.43% overhead)', ds.to_s
   end
 end

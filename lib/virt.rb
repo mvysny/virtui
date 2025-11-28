@@ -67,12 +67,8 @@ class DiskStat < Data.define(:name, :allocation, :capacity, :physical, :path)
   # @return [MemoryUsage] `allocation` used out of `capacity`
   def guest_usage = MemoryUsage.of(capacity, allocation)
 
-  # @return [Float] how much data is allocated vs the max capacity. 0..100
-  def percent_used
-    return 0.0 if capacity.zero?
-
-    (allocation.to_f / capacity * 100).clamp(0.0, 100.0).round(2)
-  end
+  # @return [Integer] how much data is allocated vs the max capacity. 0..100
+  def percent_used = guest_usage.percent_used
 
   # @return [Float] how much bigger `physical` (host storage size) is, compared to `allocation` (guest-stored data).
   # 0 if `physical` == `allocation`; may be less than zero if `physical` is smaller (e.g. due compression).
