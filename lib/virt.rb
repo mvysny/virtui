@@ -64,6 +64,9 @@ end
 # - `physical` {Integer} how big the qcow2 file actually is on host's filesystem right now
 # - `path` {String} path to the qcow2 file
 class DiskStat < Data.define(:name, :allocation, :capacity, :physical, :path)
+  # @return [MemoryUsage] `allocation` used out of `capacity`
+  def guest_usage = MemoryUsage.of(capacity, allocation)
+
   # @return [Float] how much data is allocated vs the max capacity. 0..100
   def percent_used
     return 0.0 if capacity.zero?
