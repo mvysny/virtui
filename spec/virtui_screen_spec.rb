@@ -7,7 +7,7 @@ require 'timecop'
 describe VMWindow do
   let(:now) { Time.now }
   let(:window) do
-    cache = Timecop.freeze(now) { VirtCache.new(VMEmulator.demo) }
+    cache = Timecop.freeze(now) { VirtCache.new(VMEmulator.demo, PcEmulator.new) }
     w = Timecop.freeze(now + 5) do
       cache.update
       VMWindow.new(cache, Ballooning.new(cache))
@@ -24,7 +24,7 @@ describe VMWindow do
     assert_equal '    vda: 50%   64G   128G | ', content[3]
     assert_equal '▶ Ubuntu 🎈', content[4]
     assert_equal '    CPU:  0%          1 t |   0%          8 t', content[5]
-    assert_equal '    RAM: 25%    2G   7.9G |  10%  3.1G    29G', content[6]
+    assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[6]
     assert_equal '    vda: 50%   64G   128G | ', content[7]
     assert_equal '▶ win11 🎈', content[8]
     assert_equal '    CPU:  0%          1 t |   0%          8 t', content[9]

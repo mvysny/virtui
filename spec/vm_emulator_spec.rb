@@ -131,7 +131,7 @@ describe VMEmulator do
   end
 
   it 'test_smoke_virtcache' do
-    VirtCache.new(VMEmulator.new)
+    VirtCache.new(VMEmulator.new, PcEmulator.new)
   end
 
   it 'test_virtcache_with_some_vms' do
@@ -139,7 +139,7 @@ describe VMEmulator do
     e.add(VMEmulator::VM.simple('vm0')).start
     e.add(VMEmulator::VM.simple('vm1'))
     assert_equal 2, e.domain_data.size
-    c = VirtCache.new(e)
+    c = VirtCache.new(e, PcEmulator.new)
     assert_equal %w[vm0 vm1], c.domains
   end
 

@@ -19,15 +19,16 @@ class VirtCache
   attr_reader :cpu_flags
 
   # @param virt [VirtCmd | LibVirtClient] virt client
-  def initialize(virt)
+  # @param sysinfo [SysInfo]
+  def initialize(virt, sysinfo)
     @virt = virt
     # {CpuInfo}
     @cpu_info = virt.hostinfo
     # {Set<String>}
-    @cpu_flags = SysInfo.new.cpu_flags
+    @cpu_flags = sysinfo.cpu_flags
 
     # {SysInfo}
-    @sysinfo = SysInfo.new
+    @sysinfo = sysinfo
     # {Integer}
     @cpu_count = @cpu_info.cpus
     # Hash{String => VMCache}
