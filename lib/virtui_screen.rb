@@ -162,7 +162,7 @@ class VMWindow < Window
                                   cpu_usage, 100, :royalblue)
           cpuhost = progress_bar("#{host_cpu_usage.to_s.rjust(3)}%", "#{cpus.to_s.rjust(3)} t", column_width,
                                  host_cpu_usage, 100, :dodgerblue)
-          lines << "  CPU: #{cpuguest} | #{cpuhost}"
+          lines << "   #{Rainbow('CPU').fg(:dodgerblue)}: #{cpuguest} | #{cpuhost}"
           @line_data << domain_name
 
           guest_mem_usage = cache.data.mem_stat.guest_mem
@@ -170,7 +170,7 @@ class VMWindow < Window
           unless guest_mem_usage.nil?
             memguest = progress_bar2(column_width, guest_mem_usage, :magenta)
             memhost = progress_bar2(column_width, MemoryUsage.of(host_ram.total, host_mem_usage.used), :maroon)
-            lines << "  RAM: #{memguest} | #{memhost}"
+            lines << "   #{Rainbow('RAM').fg(:maroon)}: #{memguest} | #{memhost}"
             @line_data << domain_name
           end
         end
