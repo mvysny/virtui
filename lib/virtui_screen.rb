@@ -145,6 +145,7 @@ class VMWindow < Window
     cursor_positions = [] # allowed cursor positions
     column_width = (rect.width - 4 - 4) / 2
     cpus = @virt_cache.cpu_info.cpus
+    host_ram = @virt_cache.host_mem_stat.ram
     content do |lines|
       @line_data.clear
       domains.each do |domain_name|
@@ -161,18 +162,15 @@ class VMWindow < Window
                                   cpu_usage, 100, :royalblue)
           cpuhost = progress_bar("#{host_cpu_usage.to_s.rjust(3)}%", "#{cpus.to_s.rjust(3)} t", column_width,
                                  host_cpu_usage, 100, :dodgerblue)
-          lines << '  CPU: ' + cpuguest + ' | ' + cpuhost
+          lines << "  CPU: #{cpuguest} | #{cpuhost}"
+          @line_data << domain_name
+
           guest_mem_usage = cache.data.mem_stat.guest_mem
           host_mem_usage = cache.data.mem_stat.host_mem
-          memguest = progress_bar2(column_width, guest_mem_usage, :magenta)
-          memhost = progress_bar2(column_width, host_mem_usage, :maroon)
-          lines << "  RAM: #{memguest} | #{memhost}"
-          lines << "    #{Rainbow('Guest CPU').bright.blue}: [#{@f.progress_bar(20, 100,
-                                                                                [[cpu_usage.to_i, :dodgerblue]])}] #{Rainbow(cpu_usage).bright.blue}%; #{data.info.cpus} #cpus"
-          @line_data << domain_name
           unless guest_mem_usage.nil?
-            lines << "    #{Rainbow('Guest RAM').bright.red}: [#{@f.progress_bar(20, guest_mem_usage.total,
-                                                                                 [[guest_mem_usage.used, :crimson]])}] #{@f.format(guest_mem_usage)}"
+            memguest = progress_bar2(column_width, guest_mem_usage, :magenta)
+            memhost = progress_bar2(column_width, MemoryUsage.of(host_ram.total, host_mem_usage.used), :maroon)
+            lines << "  RAM: #{memguest} | #{memhost}"
             @line_data << domain_name
           end
         end
