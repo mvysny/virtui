@@ -158,11 +158,15 @@ class VMWindow < Window
           cpu_usage = cache.guest_cpu_usage.to_i
           host_cpu_usage = (cache.cpu_usage / cpus).to_i
           cpuguest = progress_bar("#{cpu_usage.to_s.rjust(3)}%", "#{data.info.cpus.to_s.rjust(3)} t", column_width,
-                                  cpu_usage, 100, :dodgerblue)
+                                  cpu_usage, 100, :royalblue)
           cpuhost = progress_bar("#{host_cpu_usage.to_s.rjust(3)}%", "#{cpus.to_s.rjust(3)} t", column_width,
                                  host_cpu_usage, 100, :dodgerblue)
           lines << '  CPU: ' + cpuguest + ' | ' + cpuhost
           guest_mem_usage = cache.data.mem_stat.guest_mem
+          host_mem_usage = cache.data.mem_stat.host_mem
+          memguest = progress_bar2(column_width, guest_mem_usage, :magenta)
+          memhost = progress_bar2(column_width, host_mem_usage, :maroon)
+          lines << "  RAM: #{memguest} | #{memhost}"
           lines << "    #{Rainbow('Guest CPU').bright.blue}: [#{@f.progress_bar(20, 100,
                                                                                 [[cpu_usage.to_i, :dodgerblue]])}] #{Rainbow(cpu_usage).bright.blue}%; #{data.info.cpus} #cpus"
           @line_data << domain_name
@@ -289,12 +293,11 @@ class VMWindow < Window
     left + pb + right
   end
 
-  # @param tag [String] 4-char tag
+  # @param width [Integer] the width of the bar in chars.
   # @param mem_usage [MemoryUsage] resource usage
-  def progress_bar2(tag, mem_usage, color)
-    progress_bar("#{tag}:#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
-                 mem_usage.used, mem_usage.total, color,
-                 format_byte_size(mem_usage.total))
+  def progress_bar2(width, mem_usage, color)
+    progress_bar("#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
+                 format_byte_size(mem_usage.total), width, mem_usage.used, mem_usage.total, color)
   end
 end
 
