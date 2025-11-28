@@ -150,7 +150,9 @@ class VMWindow < Window
       @line_data.clear
       domains.each do |domain_name|
         cursor_positions << lines.size
+        # {VMCache}
         cache = @virt_cache.cache(domain_name)
+        # {DomainData}
         data = cache.data
         lines << format_vm_overview_line(cache)
         @line_data << domain_name
@@ -174,7 +176,7 @@ class VMWindow < Window
             @line_data << domain_name
           end
         end
-        data.disk_stat.each do |ds|
+        data.disk_stat.each do |ds| # {DiskStat}
           lines << '    ' + @f.format(ds)
           @line_data << domain_name
         end
