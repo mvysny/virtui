@@ -178,7 +178,10 @@ class VMWindow < Window
         end
         data.disk_stat.each do |ds| # {DiskStat}
           name = Rainbow(ds.name[0..3].rjust(4)).fg(:gold)
-          lines << "   #{name}:#{progress_bar2(column_width, ds.guest_usage, :chocolate)}"
+          guest_du = progress_bar2(column_width, ds.guest_usage, :chocolate)
+          host_du = @virt_cache.host_disk_usage(ds)
+          host_du_pb = progress_bar2(column_width, host_du, :goldenrod) unless host_du.nil?
+          lines << "   #{name}:#{guest_du} | #{host_du_pb}"
           @line_data << domain_name
           lines << '    ' + @f.format(ds)
           @line_data << domain_name

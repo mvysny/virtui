@@ -154,6 +154,15 @@ class VirtCache
     @disks = @sysinfo.disk_usage(qcow2_files)
   end
 
+  # @param disk_stat [DiskStat]
+  # @return [MemoryUsage | nil] of how much space the qcow2 file takes on the disk.
+  def host_disk_usage(disk_stat)
+    du = @disks.values.find { it.qcow2_files.include?(disk_stat.path) }
+    return nil if du.nil?
+
+    MemoryUsage.of(du.usage.total, disk_stat.physical)
+  end
+
   # @return [Integer] a sum of RSS usage of all running VMs
   def total_vm_rss_usage
     @cache.values.sum { |cache| cache.data.mem_stat&.rss || 0 }
