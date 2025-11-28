@@ -74,11 +74,12 @@ class SysInfo
       total = line[1].to_i * 1024
       available = line[3].to_i * 1024
       vm_usage = qcow2_files[idx][1]
-      if result[name].nil?
-        result[name] = DiskUsage.new(MemoryUsage.new(total, available), vm_usage)
-      else
-        result[name] += vm_usage
-      end
+      qcow2_file = qcow2_files[idx][0]
+      result[name] = if result[name].nil?
+                       DiskUsage.new(MemoryUsage.new(total, available), vm_usage, [qcow2_file])
+                     else
+                       result[name].add(vm_usage, qcow2_file)
+                     end
     end
     result
   end
@@ -95,9 +96,13 @@ end
 
 # - `usage` {MemoryUsage} the disk usage
 # - `vm_usage` {Integer} bytes used by VM qcow2 files
-class DiskUsage < Data.define(:usage, :vm_usage)
+# - `qcow2_paths` {Array<String>} qcow2 files stored on this disk
+class DiskUsage < Data.define(:usage, :vm_usage, :qcow2_paths)
   def to_s = "#{usage} (#{format_byte_size(vm_usage)} VMs)"
-  def +(other) = DiskUsage.new(usage, vm_usage + other)
+  # @param physical [Integer] qcow2 file size
+  # @param qcow2_path [String] path to the qcow2 file
+  # @return [DiskUsage]
+  def add(physical, qcow2_path) = DiskUsage.new(usage, vm_usage + physical, qcow2_paths + [qcow2_path])
 end
 
 # A representation of a single `cpu` line from `/proc/stat`. `name` is {String} `cpu`; others are {Integer}s.
