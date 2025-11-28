@@ -32,26 +32,27 @@ class SystemWindow < Window
                             "#{@virt_cache.cpu_info.cpus}t")
       vm_cpu_usage = @virt_cache.total_vm_cpu_usage.to_i
       up = @virt_cache.up
-      lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, :magenta, "#{up} up")
+      lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, :royalblue, "#{up} up")
 
       # Memory
-      lines << header('RAM', '', :crimson)
+      lines << header('RAM', '', :maroon)
       host_ram = @virt_cache.host_mem_stat.ram
-      lines << progress_bar2('Used', host_ram, :crimson)
+      lines << progress_bar2('Used', host_ram, :maroon)
       total_vm_rss_usage = @virt_cache.total_vm_rss_usage
       lines << progress_bar(" VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
                             total_vm_rss_usage, host_ram.total, :magenta, format_byte_size(host_ram.total))
       host_swap = @virt_cache.host_mem_stat.swap
-      lines << progress_bar2('Swap', host_swap, :crimson)
+      lines << progress_bar2('Swap', host_swap, :maroon)
 
       # Disk
       disks = @virt_cache.disks
       disk_usage = disks.values.inject(MemoryUsage::ZERO) { |sum, obj| sum + obj.usage }
-      lines << header('Disks', format_byte_size(disk_usage.total), '#ffffff')
+      lines << header('Disks', format_byte_size(disk_usage.total), :goldenrod)
       disks.each do |name, usage|
-        lines << name
-        lines << progress_bar2('Used', usage.usage, '#ffffff')
-        lines << progress_bar2(' VMs', MemoryUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage), :magenta)
+        lines << Rainbow("#{name}:").fg(:gold)
+        lines << progress_bar2('Used', usage.usage, :goldenrod)
+        lines << progress_bar2(' VMs', MemoryUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage),
+                               :chocolate)
       end
     end
   end
