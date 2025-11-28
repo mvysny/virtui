@@ -37,22 +37,21 @@ class SystemWindow < Window
       # Memory
       lines << header('RAM', '', :crimson)
       host_ram = @virt_cache.host_mem_stat.ram
-      lines << progress_bar2('Used', host_ram)
+      lines << progress_bar2('Used', host_ram, :crimson)
       total_vm_rss_usage = @virt_cache.total_vm_rss_usage
       lines << progress_bar(" VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
                             total_vm_rss_usage, host_ram.total, :magenta, format_byte_size(host_ram.total))
       host_swap = @virt_cache.host_mem_stat.swap
-      lines << progress_bar2('Swap', host_swap)
+      lines << progress_bar2('Swap', host_swap, :crimson)
 
       # Disk
-      lines << header('Disks', '', '#ffffff')
       disks = @virt_cache.disks
       disk_usage = disks.values.inject(MemoryUsage::ZERO) { |sum, obj| sum + obj.usage }
-      lines << "Disk: #{@f.format(disk_usage)}"
+      lines << header('Disks', format_byte_size(disk_usage.total), '#ffffff')
       disks.each do |name, usage|
-        use = [[usage.vm_usage, :magenta], [usage.usage.used, :gray]]
-        pb = @f.progress_bar(20, usage.usage.total, use)
-        lines << "   #{name}: [#{pb}] #{Rainbow(format_byte_size(usage.vm_usage)).magenta} used by VMs"
+        lines << name
+        lines << progress_bar2('Used', usage.usage, '#ffffff')
+        lines << progress_bar2(' VMs', MemoryUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage), :magenta)
       end
     end
   end
@@ -116,9 +115,9 @@ class SystemWindow < Window
 
   # @param tag [String] 4-char tag
   # @param mem_usage [MemoryUsage] resource usage
-  def progress_bar2(tag, mem_usage)
+  def progress_bar2(tag, mem_usage, color)
     progress_bar("#{tag}:#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
-                 mem_usage.used, mem_usage.total, :crimson,
+                 mem_usage.used, mem_usage.total, color,
                  format_byte_size(mem_usage.total))
   end
 end
@@ -279,7 +278,7 @@ class Screen
     sh, sw = TTY::Screen.size
     left_pane_w = sw / 2
     sh -= 1 # make way for the status bar
-    system_height = 11
+    system_height = 13
     @system.set_rect_and_repaint(Rect.new(0, 0, left_pane_w, system_height))
     @vms.set_rect_and_repaint(Rect.new(0, system_height, left_pane_w, sh - system_height))
     @vms.active = true
