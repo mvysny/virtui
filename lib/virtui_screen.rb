@@ -277,13 +277,14 @@ class Screen
   def calculate_window_sizes
     clear
     sh, sw = TTY::Screen.size
-    left_pane_w = sw / 2
+    system_width = (sw / 2).clamp(0, 60)
     sh -= 1 # make way for the status bar
     system_height = 13
-    @system.set_rect_and_repaint(Rect.new(0, 0, left_pane_w, system_height))
-    @vms.set_rect_and_repaint(Rect.new(0, system_height, left_pane_w, sh - system_height))
+    vms_height = sh - system_height
+    @system.set_rect_and_repaint(Rect.new(0, vms_height, system_width, system_height))
+    @vms.set_rect_and_repaint(Rect.new(0, 0, sw, vms_height))
     @vms.active = true
-    @log.set_rect_and_repaint(Rect.new(left_pane_w, 0, sw - left_pane_w, sh))
+    @log.set_rect_and_repaint(Rect.new(system_width, vms_height, sw - system_width, system_height))
 
     # print status bar
     print TTY::Cursor.move_to(0, sh), ' ' * sw
