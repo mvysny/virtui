@@ -29,7 +29,7 @@ class SystemWindow < Window
       lines << header('CPU', @cpu_info, :dodgerblue)
       host_cpu_usage = @virt_cache.host_cpu_usage.to_i
       lines << progress_bar("Used:#{host_cpu_usage.to_s.rjust(3)}%", host_cpu_usage, 100, :dodgerblue,
-                            "#{@virt_cache.cpu_info.cpus}t")
+                            "#{@virt_cache.cpu_info.cpus} t")
       vm_cpu_usage = @virt_cache.total_vm_cpu_usage.to_i
       up = @virt_cache.up
       lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, :royalblue, "#{up} up")
@@ -143,6 +143,8 @@ class VMWindow < Window
   def update
     domains = @virt_cache.domains.sort_by(&:upcase) # Array<String>
     cursor_positions = [] # allowed cursor positions
+    column_width = (rect.width - 4 - 4) / 2
+    cpus = @virt_cache.cpu_info.cpus
     content do |lines|
       @line_data.clear
       domains.each do |domain_name|
@@ -153,7 +155,13 @@ class VMWindow < Window
         @line_data << domain_name
 
         if data.running?
-          cpu_usage = @virt_cache.cache(domain_name).guest_cpu_usage.round(2)
+          cpu_usage = cache.guest_cpu_usage.to_i
+          host_cpu_usage = (cache.cpu_usage / cpus).to_i
+          cpuguest = progress_bar("#{cpu_usage.to_s.rjust(3)}%", "#{data.info.cpus.to_s.rjust(3)} t", column_width,
+                                  cpu_usage, 100, :dodgerblue)
+          cpuhost = progress_bar("#{host_cpu_usage.to_s.rjust(3)}%", "#{cpus.to_s.rjust(3)} t", column_width,
+                                 host_cpu_usage, 100, :dodgerblue)
+          lines << '  CPU: ' + cpuguest + ' | ' + cpuhost
           guest_mem_usage = cache.data.mem_stat.guest_mem
           lines << "    #{Rainbow('Guest CPU').bright.blue}: [#{@f.progress_bar(20, 100,
                                                                                 [[cpu_usage.to_i, :dodgerblue]])}] #{Rainbow(cpu_usage).bright.blue}%; #{data.info.cpus} #cpus"
@@ -267,14 +275,16 @@ class VMWindow < Window
     left + Rainbow(frame).fg('#333333')
   end
 
-  # @param left [String] of size 14
+  # @param left [String] of size 10
   # @param right [String] of size 5
+  # @param width [Integer] width of the bar in chars.
   # @param value [Integer] current value, for drawing of the progress bar
   # @param max [Integer] max value, for drawing of the progress bar
-  def progress_bar(left, value, max, color, right)
-    left = left.ljust(16)
+  # @param color [Symbol | String] progress bar color
+  def progress_bar(left, right, width, value, max, color)
+    left = left.ljust(11)
     right = right.rjust(6)
-    pb_width = (rect.width - 4 - left.size - right.size).clamp(0, nil)
+    pb_width = (width - 4 - left.size - right.size).clamp(0, nil)
     pb = @f.progress_bar2(pb_width, value, max, color)
     left + pb + right
   end
