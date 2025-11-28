@@ -179,11 +179,8 @@ class VMWindow < Window
         data.disk_stat.each do |ds| # {DiskStat}
           name = Rainbow(ds.name[0..3].rjust(4)).fg(:gold)
           guest_du = progress_bar2(column_width, ds.guest_usage, :chocolate)
-          host_du = @virt_cache.host_disk_usage(ds)
-          host_du_pb = progress_bar2(column_width, host_du, :goldenrod) unless host_du.nil?
-          lines << "   #{name}:#{guest_du} | #{host_du_pb}"
-          @line_data << domain_name
-          lines << '    ' + @f.format(ds)
+          host_du = progress_bar_qcow2(column_width, ds)
+          lines << "   #{name}:#{guest_du} | #{host_du}"
           @line_data << domain_name
         end
       end
@@ -292,7 +289,7 @@ class VMWindow < Window
   # @param max [Integer] max value, for drawing of the progress bar
   # @param color [Symbol | String] progress bar color
   def progress_bar(left, right, width, value, max, color)
-    left = left.ljust(11)
+    left = left.ljust(11) unless left.empty?
     right = right.rjust(6)
     pb_width = (width - 4 - left.size - right.size).clamp(0, nil)
     pb = @f.progress_bar2(pb_width, value, max, color)
@@ -304,6 +301,27 @@ class VMWindow < Window
   def progress_bar2(width, mem_usage, color)
     progress_bar("#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
                  format_byte_size(mem_usage.total), width, mem_usage.used, mem_usage.total, color)
+  end
+
+  # @param width [Integer] the width of the bar in chars.
+  # @param ds [DiskStat]
+  # @return [String | nil]
+  def progress_bar_qcow2(width, ds)
+    host_du = @virt_cache.host_disk_usage(ds)
+    return nil if host_du.nil?
+
+    overhead_percent = ds.overhead_percent.to_i
+    overhead_color = case overhead_percent
+                     when ..10
+                       :green
+                     when 10..20
+                       :yellow
+                     else
+                       :red
+                     end
+    op = Rainbow(overhead_percent.to_s.rjust(3)).fg(overhead_color)
+    prefix = "#{op}% #{format_byte_size(host_du.used).rjust(5)} "
+    prefix + progress_bar('', format_byte_size(host_du.total), width - 11, host_du.used, host_du.total, :goldenrod)
   end
 end
 
