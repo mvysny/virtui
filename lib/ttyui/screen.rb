@@ -21,8 +21,8 @@ class Screen
     $screen = self
     # Every UI modification must hold this lock.
     @lock = Thread::Mutex.new
-    # {Array<Window>} tiled windows.
-    @windows = []
+    # {Hash{String => Window}} tiled windows; maps key to a window activated by that key shortcut
+    @windows = {}
     @size = Size.new(self)
   end
 
@@ -88,6 +88,17 @@ class Screen
     $stdin.echo = true
   end
 
+  # Called when the active window changes.
+  # @param window [Window] the new active window
+  def active_window=(window)
+    @windows.each_value { it.active = it == window }
+  end
+
+  # @return [Window | nil] current active window.
+  def active_window
+    @windows.values.find(&:active?)
+  end
+
   private
 
   # A key has been pressed on the keyboard. Handle it, or forward to active window.
@@ -99,15 +110,6 @@ class Screen
     else
       active_window.handle_key(key)
     end
-  end
-
-  # @return [Window] active window.
-  def active_window
-    @windows.values.find(&:active?)
-  end
-
-  def active_window=(window)
-    @windows.each_value { it.active = it == window }
   end
 
   def event_loop
