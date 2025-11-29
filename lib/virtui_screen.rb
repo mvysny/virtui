@@ -310,7 +310,7 @@ class VMWindow < Window
     host_du = @virt_cache.host_disk_usage(ds)
     return nil if host_du.nil?
 
-    overhead_percent = ds.overhead_percent.to_i
+    overhead_percent = ds.overhead_percent
     overhead_color = case overhead_percent
                      when ..10
                        :green

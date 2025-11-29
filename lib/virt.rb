@@ -70,10 +70,10 @@ class DiskStat < Data.define(:name, :allocation, :capacity, :physical, :path)
   # @return [Integer] how much data is allocated vs the max capacity. 0..100
   def percent_used = guest_usage.percent_used
 
-  # @return [Float] how much bigger `physical` (host storage size) is, compared to `allocation` (guest-stored data).
+  # @return [Integer] how much bigger `physical` (host storage size) is, compared to `allocation` (guest-stored data).
   # 0 if `physical` == `allocation`; may be less than zero if `physical` is smaller (e.g. due compression).
   def overhead_percent
-    (((physical.to_f / allocation) - 1) * 100).round(2)
+    (((physical.to_f / allocation) - 1) * 100).clamp(-100, 1000).to_i
   end
 
   def to_s
