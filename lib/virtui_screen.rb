@@ -16,7 +16,7 @@ require_relative 'ttyui/screen'
 class SystemWindow < Window
   # @param virt_cache [VirtCache]
   def initialize(virt_cache)
-    super('System')
+    super('[2]-System')
     @f = Formatter.new
     @virt_cache = virt_cache
     @cpu_info = format_cpu_info
@@ -334,9 +334,9 @@ class AppScreen < Screen
     @virt_cache = virt_cache
     @system = SystemWindow.new(virt_cache)
     @vms = VMWindow.new(virt_cache, ballooning)
-    @log = LogWindow.new
+    @log = LogWindow.new('[3]-Log')
     @log.configure_logger $log
-    self.windows = [@system, @vms, @log]
+    self.windows = { '2' => @system, '1' => @vms, '3' => @log }
     @vms.active = true
   end
 

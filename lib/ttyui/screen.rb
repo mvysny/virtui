@@ -53,14 +53,14 @@ class Screen
 
   # Adds a new tiled window.
   # @param window [Window] the window to add.
-  def add_window(window)
+  def add_window(shortcut, window)
     raise unless window.is_a? Window
 
     window.active = true if @windows.empty?
-    @windows << window
+    @windows[shortcut] = window
   end
 
-  # {Array<Window>}
+  # {Hash{String => Window}} maps keyboard shortcut key to {Window}.
   attr_accessor :windows
 
   # Runs event loop - waits for keys and sends them to active window.
@@ -78,9 +78,22 @@ class Screen
 
   private
 
+  def handle_key(key)
+    window_to_activate = @windows[key]
+    if !window_to_activate.nil?
+      self.active_window = window_to_activate
+    else
+      active_window.handle_key(key)
+    end
+  end
+
   # @return [Window] active window.
   def active_window
-    @windows.find(&:active?)
+    @windows.values.find(&:active?)
+  end
+
+  def active_window=(window)
+    @windows.each_value { it.active = it == window }
   end
 
   def event_loop
@@ -98,7 +111,7 @@ class Screen
         end
       end
       with_lock do
-        active_window.handle_key(char)
+        handle_key(char)
       end
     rescue StandardError => e
       $log.fatal('Uncaught event loop exception', e)
