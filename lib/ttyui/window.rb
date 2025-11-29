@@ -356,7 +356,7 @@ class Window
     end
 
     # Cursor which can not hop on just any line - only on allowed lines.
-    # @param positions [Array<Integer>] a set of positions the cursor can visit.
+    # @param positions [Array<Integer>] a set of positions the cursor can visit. Can not be empty.
     # @param position [Integer] initial position
     class Limited < Cursor
       def initialize(positions, position: positions[0])
