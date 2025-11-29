@@ -199,7 +199,7 @@ class Window
     false
   end
 
-  def top_line_max = @lines.size - rect.height + 2
+  def top_line_max = (@lines.size - rect.height + 2).clamp(0, nil)
 
   def move_top_line_by(delta)
     new_top_line = (@top_line + delta).clamp(0, top_line_max)
