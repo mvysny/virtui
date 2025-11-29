@@ -18,11 +18,19 @@ require 'tty-screen'
 # Modal windows: TODO
 class Screen
   def initialize
+    $screen = self
     # Every UI modification must hold this lock.
     @lock = Thread::Mutex.new
     # {Array<Window>} tiled windows.
     @windows = []
     @size = Size.new(self)
+  end
+
+  # @return [Screen] the singleton instance
+  def self.instance
+    raise 'screen not initialized' if $screen.nil?
+
+    $screen
   end
 
   # Provides [:width] and [:height] of the screen.
