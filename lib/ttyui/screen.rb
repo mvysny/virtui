@@ -78,6 +78,7 @@ class Screen
 
   private
 
+  # A key has been pressed on the keyboard. Handle it, or forward to active window.
   def handle_key(key)
     window_to_activate = @windows[key]
     if !window_to_activate.nil?
