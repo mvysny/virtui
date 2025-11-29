@@ -183,7 +183,7 @@ class Window
 
   private
 
-  # Scrolls window viewport so that the cursor is visible.
+  # Scrolls window viewport so that the cursor is visible. Repaints content if viewport was scrolled.
   # @return [Boolean] true if the viewport was moved and the window repainted, false if nothing was done.
   def move_viewport_to_cursor
     pos = @cursor.position
