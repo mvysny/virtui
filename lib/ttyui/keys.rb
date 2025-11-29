@@ -9,6 +9,9 @@ module Keys
   LEFT_ARROW = "\e[D"
   RIGHT_ARROW = "\e[C"
   ESC = "\e"
+  HOME = "\e[H"
+  END_ = "\e[F"
+
   # Grabs a key from stdin and returns it. Blocks until the key is obtained.
   # Reads a full esc key sequence; see constants above for some values returned by this function.
   # @return [String] key, such as {DOWN_ARROW}

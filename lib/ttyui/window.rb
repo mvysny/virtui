@@ -288,6 +288,10 @@ class Window
         return go_down(line_count)
       elsif Keys::UP_ARROWS.include?(key) # up arrow
         return go_up
+      elsif key == Keys::HOME
+        return go_to_first
+      elsif key == Keys::END_
+        return go_to_last(line_count)
       end
 
       false
@@ -301,18 +305,29 @@ class Window
 
     protected
 
-    def go_down(line_count)
-      return false if @position >= line_count - 1
+    def go(new_position)
+      return false if new_position.nil? || @position == new_position || new_position.negative?
 
-      @position += 1
+      @position = new_position
       true
     end
 
-    def go_up
-      return false if @position <= 0
+    def go_down(line_count)
+      return false if @position >= line_count - 1
 
-      @position -= 1
-      true
+      go(@position + 1)
+    end
+
+    def go_up
+      go(@position - 1)
+    end
+
+    def go_to_first
+      go(0)
+    end
+
+    def go_to_last(line_count)
+      go(line_count - 1)
     end
 
     # Cursor which can not hop on just any line - only on allowed lines.
@@ -328,19 +343,22 @@ class Window
       protected
 
       def go_down(_line_count)
-        next_position = @positions.find { it > @position }
-        return false if next_position.nil?
-
-        @position = next_position
-        true
+        go(@positions.find { it > @position })
       end
 
       def go_up
         prev_index = @positions.rindex { it < @position }
         return false if prev_index.nil?
 
-        @position = @positions[prev_index]
-        true
+        go(@positions[prev_index])
+      end
+
+      def go_to_first
+        go(@positions.first)
+      end
+
+      def go_to_last(_line_count)
+        go(@positions.last)
       end
     end
   end
