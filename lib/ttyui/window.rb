@@ -399,11 +399,6 @@ class LogWindow < Window
     super
     self.auto_scroll = true
     self.cursor = Cursor.new # allow scrolling when a long stacktrace is logged
-    @lock = Mutex.new # multiple threads may log at the same time
-  end
-
-  def add_line(line)
-    @lock.synchronize { super }
   end
 
   # @param logger [TTY::Logger]
@@ -418,7 +413,9 @@ class LogWindow < Window
     end
 
     def puts(string)
-      @window.add_line(string)
+      Screen.instance.with_lock do
+        @window.add_line(string)
+      end
     end
   end
 end
