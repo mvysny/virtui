@@ -13,7 +13,7 @@ require 'ballooning'
 require 'vm_emulator'
 require 'tty-logger'
 require 'rainbow'
-require 'event_loop'
+require 'ttyui/event_loop'
 require 'virtui_screen'
 
 # https://github.com/piotrmurach/tty-logger

@@ -6,6 +6,7 @@ require 'rainbow'
 require 'unicode/display_width'
 require 'strings-truncation'
 require 'tty-logger'
+require_relative 'keys'
 
 # A rectangle, with {Integer} `left`, `top`, `width` and `height`.
 class Rect < Data.define(:left, :top, :width, :height)
@@ -268,9 +269,9 @@ class Window
     # @param line_count [Integer] number of lines in owner {Window}
     # @return [Boolean] true if the cursor moved and window needs repaint.
     def handle_key(key, line_count)
-      if ["\e[B", 'j'].include?(key) # down arrow
+      if Keys::DOWN_ARROWS.include?(key)
         return go_down(line_count)
-      elsif ["\e[A", 'k'].include?(key) # up arrow
+      elsif Keys::UP_ARROWS.include?(key) # up arrow
         return go_up
       end
 

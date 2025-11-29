@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'virt'
-require_relative 'window'
+require_relative 'ttyui/window'
 require_relative 'sysinfo'
 require_relative 'virtcache'
 require 'tty-cursor'
