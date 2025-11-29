@@ -65,10 +65,12 @@ class Screen
   # The function exits when the 'ESC' or 'q' key is pressed.
   def run_event_loop
     $stdin.echo = false
+    print TTY::Cursor.hide
     $stdin.raw do
       event_loop
     end
   ensure
+    print TTY::Cursor.show
     $stdin.echo = true
   end
 
