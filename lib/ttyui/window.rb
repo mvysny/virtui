@@ -159,7 +159,10 @@ class Window
   # Called when a character is pressed on the keyboard.
   # @param key [String] a key.
   def handle_key(key)
-    repaint_content if @cursor.handle_key(key, @lines.size)
+    return unless @cursor.handle_key(key, @lines.size)
+    return if move_viewport_to_cursor
+
+    repaint_content
   end
 
   # @return [String] formatted keyboard hint for users. Empty by default.
@@ -173,6 +176,22 @@ class Window
   def on_width_changed; end
 
   private
+
+  # Scrolls window viewport so that the cursor is visible.
+  # @return [Boolean] true if the viewport was moved and the window repainted, false if nothing was done.
+  def move_viewport_to_cursor
+    pos = @cursor.position
+    return false unless pos >= 0
+
+    if @top_line > pos
+      self.top_line = pos
+      return true
+    elsif pos > @top_line + rect.height - 3
+      self.top_line = pos - rect.height + 3
+      return true
+    end
+    false
+  end
 
   # If auto-scrolling, recalculate the top line and optionally repaint content
   # if top line changed.
@@ -256,10 +275,6 @@ class Window
 
       def handle_key(_key, _line_count)
         false
-      end
-
-      def position=(_position)
-        raise 'no cursor'
       end
     end
 
