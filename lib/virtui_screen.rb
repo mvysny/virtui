@@ -337,7 +337,7 @@ class AppScreen < Screen
     @log = LogWindow.new('[3]-Log')
     @log.configure_logger $log
     self.windows = { '2' => @system, '1' => @vms, '3' => @log }
-    @vms.active = true
+    self.active_window = @vms
   end
 
   def layout
@@ -351,10 +351,7 @@ class AppScreen < Screen
     @system.set_rect_and_repaint(Rect.new(0, vms_height, system_window_width, system_height))
     @vms.set_rect_and_repaint(Rect.new(0, 0, sw, vms_height))
     @log.set_rect_and_repaint(Rect.new(system_window_width, vms_height, sw - system_window_width, system_height))
-
-    # print status bar
-    print TTY::Cursor.move_to(0, sh), ' ' * sw
-    print TTY::Cursor.move_to(0, sh), "Q #{Rainbow('quit').cadetblue}  ", active_window.keyboard_hint
+    update_status_bar
   end
 
   # Call when windows need to update their contents. Must be run with screen lock held.
@@ -362,5 +359,17 @@ class AppScreen < Screen
     check_locked
     @system.update
     @vms.update
+  end
+
+  def active_window=(window)
+    super
+    update_status_bar
+  end
+
+  private
+
+  def update_status_bar
+    print TTY::Cursor.move_to(0, size.height - 1), ' ' * size.width
+    print TTY::Cursor.move_to(0, size.height - 1), "q #{Rainbow('quit').cadetblue}  ", active_window&.keyboard_hint
   end
 end
