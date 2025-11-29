@@ -85,7 +85,10 @@ class Window
 
   # @param active [Boolean] true if active. Active window has green border.
   def active=(active)
-    @active = !!active
+    active = !!active
+    return unless @active != active
+
+    @active = active
     repaint_border
   end
 
@@ -331,8 +334,8 @@ end
 # Shows a log. Plug to `TTY::Logger`
 # to log stuff straight from the logger: [:configure_logger].
 class LogWindow < Window
-  def initialize
-    super('Log')
+  def initialize(caption = 'Log')
+    super
     self.auto_scroll = true
     @lock = Mutex.new # multiple threads may log at the same time
   end
