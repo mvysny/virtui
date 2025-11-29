@@ -358,6 +358,7 @@ class AppScreen < Screen
     print TTY::Cursor.move_to(0, sh), "Q #{Rainbow('quit').cadetblue}  ", active_window.keyboard_hint
   end
 
+  # Call when windows need to update their contents. Must be run with screen lock held.
   def update_data
     @system.update
     @vms.update

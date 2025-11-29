@@ -38,7 +38,9 @@ begin
     # Needs to go after virt_cache.update so that it reads up-to-date values
     ballooning.update
     # Needs to go last, to correctly update current ballooning status
-    screen.update_data
+    screen.with_lock do
+      screen.update_data
+    end
   rescue StandardError => e
     $log.fatal('Failed to update VM data', e)
   end
