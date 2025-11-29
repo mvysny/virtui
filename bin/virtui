@@ -13,7 +13,6 @@ require 'ballooning'
 require 'vm_emulator'
 require 'tty-logger'
 require 'rainbow'
-require 'ttyui/event_loop'
 require 'virtui_screen'
 
 # https://github.com/piotrmurach/tty-logger
@@ -28,24 +27,13 @@ virt ||= VMEmulator.demo
 virt_cache = VirtCache.new(virt, SysInfo.new)
 
 ballooning = Ballooning.new(virt_cache)
-screen = Screen.new(virt_cache, ballooning)
-screen.calculate_window_sizes
-
-# Can't do much in trap. This solution sucks, TODO better one via pipes?
-$recalculate_window_sizes = false
-
-# Trap the WINCH signal (sent on terminal resize)
-trap('WINCH') do
-  $recalculate_window_sizes = true
-end
+screen = AppScreen.new(virt_cache, ballooning)
+screen.layout
 
 scheduler = Rufus::Scheduler.new
 begin
   # https://github.com/jmettraux/rufus-scheduler
   scheduler.every '2s' do
-    screen.calculate_window_sizes if $recalculate_window_sizes
-    $recalculate_window_sizes = false
-
     virt_cache.update
     # Needs to go after virt_cache.update so that it reads up-to-date values
     ballooning.update
@@ -55,12 +43,7 @@ begin
     $log.fatal('Failed to update VM data', e)
   end
 
-  # event loop, captures keyboard keys and sends them to Screen
-  event_loop do |key|
-    screen.handle_key key
-  rescue StandardError => e
-    $log.fatal('Program failure', e)
-  end
+  screen.run_event_loop
 ensure
   scheduler.shutdown
   screen.clear

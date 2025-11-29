@@ -4,7 +4,10 @@ require_relative 'window'
 require 'io/console'
 
 # The TTY screen. There is exactly one screen per app.
-# It holds the screen lock; any UI modifications must run
+#
+# A screen runs the event loop; call [:run_event_loop] to do that.
+#
+# A screen holds the screen lock; any UI modifications must run
 # from [:with_lock].
 #
 # A screen contains tiled windows. Tiled windows are visible at all times
@@ -17,7 +20,11 @@ class Screen
     @lock = Thread::Mutex.new
     # {Array<Window>} tiled windows.
     @windows = []
+    @size = Size.new(self)
   end
+
+  # Provides [:width] and [:height] of the screen.
+  attr_reader :size
 
   # Runs block with the UI lock held.
   def with_lock(&block)
@@ -29,6 +36,13 @@ class Screen
     print TTY::Cursor.move_to(0, 0), TTY::Cursor.clear_screen
   end
 
+  # Re-calculates all window sizes and re-positions them. Call after the screen is initialized.
+  #
+  # Default implementation clears the screen.
+  def layout
+    clear
+  end
+
   # Adds a new tiled window.
   # @param window [Window] the window to add.
   def add_window(window)
@@ -37,6 +51,9 @@ class Screen
     window.active = true if @windows.empty?
     @windows << window
   end
+
+  # {Array<Window>}
+  attr_accessor :windows
 
   # Runs event loop - waits for keys and sends them to active window.
   # The event loop is terminated on ESC or `q`.
@@ -49,6 +66,8 @@ class Screen
 
         char << $stdin.read_nonblock(3) if char == "\e"
         active_window.handle_key(char)
+      rescue StandardError => e
+        $log.fatal('Uncaught event loop exception', e)
       end
     end
   ensure
@@ -60,5 +79,36 @@ class Screen
   # @return [Window] active window.
   def active_window
     @windows.find(&:active?)
+  end
+
+  # Tracks tty window size.
+  class Size
+    def initialize(screen)
+      @screen = screen
+      @height, @width = TTY::Screen.size
+
+      # Trap the WINCH signal (sent on terminal resize)
+      @rd, @wr = IO.pipe
+      trap('WINCH') do
+        # can't lock here. but writing a single byte is always allowed.
+        @wr.puts 'a'
+      rescue StandardError
+        nil
+      end
+
+      Thread.new do
+        loop do
+          @rd.gets # block until winch
+          screen.with_lock do
+            @height, @width = TTY::Screen.size
+            screen.layout
+          end
+        rescue e
+          $log.fatal('winch handling failed', e)
+        end
+      end
+    end
+
+    attr_reader :width, :height
   end
 end

@@ -11,6 +11,7 @@ require_relative 'ballooning'
 require_relative 'vm_emulator'
 require 'rainbow'
 require_relative 'utils'
+require_relative 'ttyui/screen'
 
 # Shows host OS info, such as CPU info, memory info.
 class SystemWindow < Window
@@ -326,35 +327,31 @@ class VMWindow < Window
 end
 
 # A screen, holding all windows.
-class Screen
+class AppScreen < Screen
   # @param virt_cache [VirtCache]
   # @param ballooning [Ballooning]
   def initialize(virt_cache, ballooning)
+    super()
     @virt_cache = virt_cache
     @system = SystemWindow.new(virt_cache)
     @vms = VMWindow.new(virt_cache, ballooning)
     @log = LogWindow.new
     @log.configure_logger $log
+    self.windows = [@system, @vms, @log]
+    @vms.active = true
   end
 
-  # Clears the TTY screen
-  def clear
-    print TTY::Cursor.move_to(0, 0), TTY::Cursor.clear_screen
-  end
-
-  # Re-calculates all window sizes and re-positions them. Call initially, and
-  # when TTY size changes.
-  def calculate_window_sizes
-    clear
-    sh, sw = TTY::Screen.size
-    system_width = (sw / 2).clamp(0, 60)
+  def layout
+    super
+    sw = size.width
+    sh = size.height
+    system_window_width = (sw / 2).clamp(0, 60)
     sh -= 1 # make way for the status bar
     system_height = 13
     vms_height = sh - system_height
-    @system.set_rect_and_repaint(Rect.new(0, vms_height, system_width, system_height))
+    @system.set_rect_and_repaint(Rect.new(0, vms_height, system_window_width, system_height))
     @vms.set_rect_and_repaint(Rect.new(0, 0, sw, vms_height))
-    @vms.active = true
-    @log.set_rect_and_repaint(Rect.new(system_width, vms_height, sw - system_width, system_height))
+    @log.set_rect_and_repaint(Rect.new(system_window_width, vms_height, sw - system_window_width, system_height))
 
     # print status bar
     print TTY::Cursor.move_to(0, sh), ' ' * sw
@@ -364,16 +361,5 @@ class Screen
   def update_data
     @system.update
     @vms.update
-  end
-
-  # Called when a character is pressed on keyboard.
-  def handle_key(key)
-    active_window.handle_key(key)
-  end
-
-  private
-
-  def active_window
-    [@system, @vms, @log].find(&:active?)
   end
 end
