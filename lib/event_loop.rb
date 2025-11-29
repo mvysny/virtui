@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'io/console'
 
 # Runs an event loop. Terminates when 'q' is pressed.
@@ -5,16 +7,16 @@ require 'io/console'
 # - `\e[B` for down arrow
 # - `\e[A` for up arrow
 def event_loop
-  STDIN.echo = false
-  STDIN.raw do
+  $stdin.echo = false
+  $stdin.raw do
     loop do
-      char = STDIN.getch
+      char = $stdin.getch
       break if char == 'q'
 
-      char << STDIN.read_nonblock(3) if char == "\e"
+      char << $stdin.read_nonblock(3) if char == "\e"
       yield char
     end
   end
 ensure
-  STDIN.echo = true
+  $stdin.echo = true
 end
