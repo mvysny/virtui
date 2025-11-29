@@ -2,6 +2,8 @@
 
 require_relative 'window'
 require 'io/console'
+require 'tty-cursor'
+require 'tty-screen'
 
 # The TTY screen. There is exactly one screen per app.
 #

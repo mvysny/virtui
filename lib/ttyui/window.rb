@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'tty-box'
-require 'tty-cursor'
 require 'rainbow'
 require 'unicode/display_width'
 require 'strings-truncation'
