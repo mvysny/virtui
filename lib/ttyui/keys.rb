@@ -11,6 +11,10 @@ module Keys
   ESC = "\e"
   HOME = "\e[H"
   END_ = "\e[F"
+  PAGE_UP = "\e[5~"
+  PAGE_DOWN = "\e[6~"
+  CTRL_U = "\21"
+  CTRL_D = "\4"
 
   # Grabs a key from stdin and returns it. Blocks until the key is obtained.
   # Reads a full esc key sequence; see constants above for some values returned by this function.
