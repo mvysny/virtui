@@ -118,7 +118,8 @@ class Screen
     end
   end
 
-  # Tracks tty window size, the safe way.
+  # Tracks tty window size, the safe way. Call [:width] and [:height] to obtain
+  # current TTY size.
   class Size
     def initialize(screen)
       @screen = screen
