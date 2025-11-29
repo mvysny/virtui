@@ -79,6 +79,7 @@ class Screen
   private
 
   # A key has been pressed on the keyboard. Handle it, or forward to active window.
+  # @param [String] key
   def handle_key(key)
     window_to_activate = @windows[key]
     if !window_to_activate.nil?
@@ -116,34 +117,44 @@ class Screen
     def initialize(screen)
       @screen = screen
       @height, @width = TTY::Screen.size
+      @winch_pipe_r, @winch_pipe_w = IO.pipe
 
+      Thread.new do
+        poll_winch_pipe
+      rescue StandardError => e
+        $log.fatal('winch thread failed', e)
+      end
+      trap_winch
+    end
+
+    attr_reader :width, :height
+
+    private
+
+    def poll_winch_pipe
+      loop do
+        @winch_pipe_r.gets # block until winch
+        @screen.with_lock do
+          @height, @width = TTY::Screen.size
+          @screen.layout
+        end
+      rescue StandardError => e
+        $log.fatal('winch handling failed', e)
+      end
+    end
+
+    def trap_winch
       # Trap the WINCH signal (sent on terminal resize)
-      @rd, @wr = IO.pipe
       trap('WINCH') do
         # signal handlers (set up with trap) run in a special "trap context" where Ruby prohibits many operations,
         # including acquiring a Mutex, Queue#pop, ConditionVariable#wait, or basically anything that might block or
         # allocate.
         # But writing a single byte is always allowed.
-        @wr.puts 'a'
+        # This notifies the poll thread that a WINCH occurred.
+        @winch_pipe_w.puts 'a'
       rescue StandardError
         nil
       end
-
-      Thread.new do
-        loop do
-          @rd.gets # block until winch
-          screen.with_lock do
-            @height, @width = TTY::Screen.size
-            screen.layout
-          rescue e
-            $log.fatal('winch handling failed', e)
-          end
-        rescue e
-          $log.fatal('winch thread failed', e)
-        end
-      end
     end
-
-    attr_reader :width, :height
   end
 end
