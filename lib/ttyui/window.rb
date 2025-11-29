@@ -337,6 +337,7 @@ class LogWindow < Window
   def initialize(caption = 'Log')
     super
     self.auto_scroll = true
+    self.cursor = Cursor.new # allow scrolling when a long stacktrace is logged
     @lock = Mutex.new # multiple threads may log at the same time
   end
 
