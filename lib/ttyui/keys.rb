@@ -13,7 +13,7 @@ module Keys
   END_ = "\e[F"
   PAGE_UP = "\e[5~"
   PAGE_DOWN = "\e[6~"
-  CTRL_U = "\21"
+  CTRL_U = "\u0015"
   CTRL_D = "\4"
 
   # Grabs a key from stdin and returns it. Blocks until the key is obtained.

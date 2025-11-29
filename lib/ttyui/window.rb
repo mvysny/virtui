@@ -164,7 +164,7 @@ class Window
     elsif key == Keys::PAGE_DOWN
       move_top_line_by(viewport_lines)
     else
-      return unless @cursor.handle_key(key, @lines.size)
+      return unless @cursor.handle_key(key, @lines.size, viewport_lines)
       return if move_viewport_to_cursor
 
       repaint_content
@@ -291,7 +291,7 @@ class Window
         freeze
       end
 
-      def handle_key(_key, _line_count)
+      def handle_key(_key, _line_count, _viewport_lines)
         false
       end
     end
@@ -300,16 +300,21 @@ class Window
 
     # @param key [String] pressed keyboard key
     # @param line_count [Integer] number of lines in owner {Window}
+    # @param viewport_lines [Integer] number of lines of the window viewport.
     # @return [Boolean] true if the cursor moved and window needs repaint.
-    def handle_key(key, line_count)
+    def handle_key(key, line_count, viewport_lines)
       if Keys::DOWN_ARROWS.include?(key)
-        return go_down(line_count)
+        return go_down_by(1, line_count)
       elsif Keys::UP_ARROWS.include?(key) # up arrow
-        return go_up
+        return go_up_by(1)
       elsif key == Keys::HOME
         return go_to_first
       elsif key == Keys::END_
         return go_to_last(line_count)
+      elsif key == Keys::CTRL_U
+        return go_up_by(viewport_lines / 2)
+      elsif key == Keys::CTRL_D
+        return go_down_by(viewport_lines / 2, line_count)
       end
 
       false
@@ -324,20 +329,21 @@ class Window
     protected
 
     def go(new_position)
-      return false if new_position.nil? || @position == new_position || new_position.negative?
+      return false if new_position.nil?
+
+      new_position = new_position.clamp(0, nil)
+      return false if @position == new_position
 
       @position = new_position
       true
     end
 
-    def go_down(line_count)
-      return false if @position >= line_count - 1
-
-      go(@position + 1)
+    def go_down_by(lines, line_count)
+      go((@position + lines).clamp(nil, line_count - 1))
     end
 
-    def go_up
-      go(@position - 1)
+    def go_up_by(lines)
+      go(@position - lines)
     end
 
     def go_to_first
@@ -360,13 +366,16 @@ class Window
 
       protected
 
-      def go_down(_line_count)
-        go(@positions.find { it > @position })
+      def go_down_by(lines, line_count)
+        next_pos = @positions.find { it >= @position + lines }
+        return go_to_last(line_count) if next_pos.nil?
+
+        go(next_pos)
       end
 
-      def go_up
-        prev_index = @positions.rindex { it < @position }
-        return false if prev_index.nil?
+      def go_up_by(lines)
+        prev_index = @positions.rindex { it <= @position - lines }
+        return go_to_first if prev_index.nil?
 
         go(@positions[prev_index])
       end
