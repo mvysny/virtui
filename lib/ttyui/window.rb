@@ -303,21 +303,22 @@ class Window
     # @param viewport_lines [Integer] number of lines of the window viewport.
     # @return [Boolean] true if the cursor moved and window needs repaint.
     def handle_key(key, line_count, viewport_lines)
-      if Keys::DOWN_ARROWS.include?(key)
-        return go_down_by(1, line_count)
-      elsif Keys::UP_ARROWS.include?(key) # up arrow
-        return go_up_by(1)
-      elsif key == Keys::HOME
-        return go_to_first
-      elsif key == Keys::END_
-        return go_to_last(line_count)
-      elsif key == Keys::CTRL_U
-        return go_up_by(viewport_lines / 2)
-      elsif key == Keys::CTRL_D
-        return go_down_by(viewport_lines / 2, line_count)
+      case key
+      when *Keys::DOWN_ARROWS
+        go_down_by(1, line_count)
+      when *Keys::UP_ARROWS
+        go_up_by(1)
+      when Keys::HOME
+        go_to_first
+      when Keys::END_
+        go_to_last(line_count)
+      when Keys::CTRL_U
+        go_up_by(viewport_lines / 2)
+      when Keys::CTRL_D
+        go_down_by(viewport_lines / 2, line_count)
+      else
+        false
       end
-
-      false
     end
 
     def position=(position)
