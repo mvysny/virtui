@@ -30,7 +30,11 @@ class Screen
 
   # Runs block with the UI lock held.
   def with_lock(&block)
-    @lock.synchronize(&block)
+    if @lock.owned?
+      block.call
+    else
+      @lock.synchronize(&block)
+    end
   end
 
   # Checks that the UI lock is held and the current code runs in the 'UI thread'.
