@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative 'spec_helper'
-require 'window'
+require_relative '../spec_helper'
+require 'ttyui/window'
 require 'tty-logger'
 
 describe Window do
