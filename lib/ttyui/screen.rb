@@ -98,20 +98,11 @@ class Screen
 
   def event_loop
     loop do
-      char = $stdin.getch
-      break if char == 'q'
+      key = Keys.getkey
+      break if ['q', Keys::ESC].include?(key)
 
-      if char == "\e"
-        # Escape sequence. Try to read more data.
-        begin
-          char << $stdin.read_nonblock(3)
-        rescue IO::EAGAINWaitReadable
-          # The 'ESC' key pressed => only the \e char is emitted. Exit the event loop.
-          break
-        end
-      end
       with_lock do
-        handle_key(char)
+        handle_key(key)
       end
     rescue StandardError => e
       $log.fatal('Uncaught event loop exception', e)

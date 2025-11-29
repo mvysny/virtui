@@ -8,4 +8,20 @@ module Keys
   UP_ARROWS = [UP_ARROW, 'k'].freeze
   LEFT_ARROW = "\e[D"
   RIGHT_ARROW = "\e[C"
+  ESC = "\e"
+  # Grabs a key from stdin and returns it. Blocks until the key is obtained.
+  # Reads a full esc key sequence; see constants above for some values returned by this function.
+  # @return [String] key, such as {DOWN_ARROW}
+  def self.getkey
+    char = $stdin.getch
+    return char unless char == Keys::ESC
+
+    # Escape sequence. Try to read more data.
+    begin
+      char << $stdin.read_nonblock(3)
+    rescue IO::EAGAINWaitReadable
+      # The 'ESC' key pressed => only the \e char is emitted.
+    end
+    char
+  end
 end
