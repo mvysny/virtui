@@ -359,6 +359,7 @@ class AppScreen < Screen
 
   # Call when windows need to update their contents. Must be run with screen lock held.
   def update_data
+    check_locked
     @system.update
     @vms.update
   end
