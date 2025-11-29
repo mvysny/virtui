@@ -31,6 +31,11 @@ class Screen
     @lock.synchronize(&block)
   end
 
+  # Checks that the UI lock is held and the current code runs in the 'UI thread'.
+  def check_locked
+    raise 'UI lock not held' unless @lock.owned?
+  end
+
   # Clears the TTY screen
   def clear
     print TTY::Cursor.move_to(0, 0), TTY::Cursor.clear_screen
@@ -40,6 +45,7 @@ class Screen
   #
   # Default implementation clears the screen.
   def layout
+    check_locked
     clear
   end
 
@@ -65,7 +71,9 @@ class Screen
         break if char == 'q'
 
         char << $stdin.read_nonblock(3) if char == "\e"
-        active_window.handle_key(char)
+        with_lock do
+          active_window.handle_key(char)
+        end
       rescue StandardError => e
         $log.fatal('Uncaught event loop exception', e)
       end
@@ -102,9 +110,11 @@ class Screen
           screen.with_lock do
             @height, @width = TTY::Screen.size
             screen.layout
+          rescue e
+            $log.fatal('winch handling failed', e)
           end
         rescue e
-          $log.fatal('winch handling failed', e)
+          $log.fatal('winch thread failed', e)
         end
       end
     end
