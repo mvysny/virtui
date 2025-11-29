@@ -159,10 +159,16 @@ class Window
   # Called when a character is pressed on the keyboard.
   # @param key [String] a key.
   def handle_key(key)
-    return unless @cursor.handle_key(key, @lines.size)
-    return if move_viewport_to_cursor
+    if key == Keys::PAGE_UP
+      move_top_line_by(-(rect.height - 2))
+    elsif key == Keys::PAGE_DOWN
+      move_top_line_by(rect.height - 2)
+    else
+      return unless @cursor.handle_key(key, @lines.size)
+      return if move_viewport_to_cursor
 
-    repaint_content
+      repaint_content
+    end
   end
 
   # @return [String] formatted keyboard hint for users. Empty by default.
@@ -191,6 +197,16 @@ class Window
       return true
     end
     false
+  end
+
+  def top_line_max = @lines.size - rect.height + 2
+
+  def move_top_line_by(delta)
+    new_top_line = (@top_line + delta).clamp(0, top_line_max)
+    return if @top_line == new_top_line
+
+    @top_line = new_top_line
+    repaint_content
   end
 
   # If auto-scrolling, recalculate the top line and optionally repaint content
