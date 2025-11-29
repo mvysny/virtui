@@ -62,21 +62,11 @@ class Screen
   attr_accessor :windows
 
   # Runs event loop - waits for keys and sends them to active window.
-  # The event loop is terminated on ESC or `q`.
+  # The function exits when the 'ESC' or 'q' key is pressed.
   def run_event_loop
     $stdin.echo = false
     $stdin.raw do
-      loop do
-        char = $stdin.getch
-        break if char == 'q'
-
-        char << $stdin.read_nonblock(3) if char == "\e"
-        with_lock do
-          active_window.handle_key(char)
-        end
-      rescue StandardError => e
-        $log.fatal('Uncaught event loop exception', e)
-      end
+      event_loop
     end
   ensure
     $stdin.echo = true
@@ -87,6 +77,28 @@ class Screen
   # @return [Window] active window.
   def active_window
     @windows.find(&:active?)
+  end
+
+  def event_loop
+    loop do
+      char = $stdin.getch
+      break if char == 'q'
+
+      if char == "\e"
+        # Escape sequence. Try to read more data.
+        begin
+          char << $stdin.read_nonblock(3)
+        rescue IO::EAGAINWaitReadable
+          # The 'ESC' key pressed => only the \e char is emitted. Exit the event loop.
+          break
+        end
+      end
+      with_lock do
+        active_window.handle_key(char)
+      end
+    rescue StandardError => e
+      $log.fatal('Uncaught event loop exception', e)
+    end
   end
 
   # Tracks tty window size, the safe way.
