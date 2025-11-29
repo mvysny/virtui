@@ -89,7 +89,7 @@ class Screen
     @windows.find(&:active?)
   end
 
-  # Tracks tty window size.
+  # Tracks tty window size, the safe way.
   class Size
     def initialize(screen)
       @screen = screen
@@ -98,7 +98,10 @@ class Screen
       # Trap the WINCH signal (sent on terminal resize)
       @rd, @wr = IO.pipe
       trap('WINCH') do
-        # can't lock here. but writing a single byte is always allowed.
+        # signal handlers (set up with trap) run in a special "trap context" where Ruby prohibits many operations,
+        # including acquiring a Mutex, Queue#pop, ConditionVariable#wait, or basically anything that might block or
+        # allocate.
+        # But writing a single byte is always allowed.
         @wr.puts 'a'
       rescue StandardError
         nil
