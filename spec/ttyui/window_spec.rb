@@ -129,22 +129,22 @@ describe Window::Cursor do
   end
   it 'moves down on down arrow' do
     c = Window::Cursor.new
-    assert c.handle_key("\e[B", 20)
+    assert c.handle_key(Keys::DOWN_ARROW, 20, 10)
     assert_equal 1, c.position
   end
   it 'wont move down if there are no more lines' do
     c = Window::Cursor.new
-    assert !c.handle_key("\e[B", 1)
+    assert !c.handle_key(Keys::DOWN_ARROW, 1, 10)
     assert_equal 0, c.position
   end
   it 'moves up on up arrow' do
     c = Window::Cursor.new(position: 10)
-    assert c.handle_key("\e[A", 20)
+    assert c.handle_key(Keys::UP_ARROW, 20, 10)
     assert_equal 9, c.position
   end
   it 'wont move up when at the top' do
     c = Window::Cursor.new
-    assert !c.handle_key("\e[A", 20)
+    assert !c.handle_key(Keys::UP_ARROW, 20, 10)
     assert_equal 0, c.position
   end
 end
@@ -155,8 +155,8 @@ describe Window::Cursor::None do
     assert_equal(-1, c.position)
   end
   it 'doesnt move' do
-    assert !c.handle_key('j', 20)
-    assert !c.handle_key('k', 20)
+    assert !c.handle_key('j', 20, 10)
+    assert !c.handle_key('k', 20, 10)
   end
   it 'cant move position' do
     assert_raises(StandardError) { c.position = 1 }
@@ -168,28 +168,28 @@ describe Window::Cursor::Limited do
   it 'moves cursor down correctly' do
     assert_equal 0, cursor.position
     # first VM is stopped and takes 2 lines
-    cursor.handle_key("\e[B", 10)
+    cursor.handle_key(Keys::DOWN_ARROW, 10, 10)
     assert_equal 2, cursor.position
     # second VM is running and takes 3 lines
-    cursor.handle_key("\e[B", 10)
+    cursor.handle_key(Keys::DOWN_ARROW, 10, 10)
     assert_equal 4, cursor.position
     # third VM is running and takes 3 lines
-    cursor.handle_key("\e[B", 10)
+    cursor.handle_key(Keys::DOWN_ARROW, 10, 10)
     assert_equal 8, cursor.position
     # no more VMs
-    cursor.handle_key("\e[B", 10)
+    cursor.handle_key(Keys::DOWN_ARROW, 10, 10)
     assert_equal 8, cursor.position
   end
   it 'moves cursor up correctly' do
     cursor.position = 8
     assert_equal 8, cursor.position
-    cursor.handle_key("\e[A", 10)
+    cursor.handle_key(Keys::UP_ARROW, 10, 10)
     assert_equal 4, cursor.position
-    cursor.handle_key("\e[A", 10)
+    cursor.handle_key(Keys::UP_ARROW, 10, 10)
     assert_equal 2, cursor.position
-    cursor.handle_key("\e[A", 10)
+    cursor.handle_key(Keys::UP_ARROW, 10, 10)
     assert_equal 0, cursor.position
-    cursor.handle_key("\e[A", 10)
+    cursor.handle_key(Keys::UP_ARROW, 10, 10)
     assert_equal 0, cursor.position
   end
   it 'keeps position if allowed' do
