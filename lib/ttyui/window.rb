@@ -157,8 +157,6 @@ class Window
   # Called when a character is pressed on the keyboard.
   # @param key [String] a key.
   def handle_key(key)
-    return unless active?
-
     repaint_content if @cursor.handle_key(key, @lines.size)
   end
 
