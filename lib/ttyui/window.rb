@@ -160,9 +160,9 @@ class Window
   # @param key [String] a key.
   def handle_key(key)
     if key == Keys::PAGE_UP
-      move_top_line_by(-(rect.height - 2))
+      move_top_line_by(-viewport_lines)
     elsif key == Keys::PAGE_DOWN
-      move_top_line_by(rect.height - 2)
+      move_top_line_by(viewport_lines)
     else
       return unless @cursor.handle_key(key, @lines.size)
       return if move_viewport_to_cursor
@@ -201,6 +201,8 @@ class Window
 
   def top_line_max = (@lines.size - rect.height + 2).clamp(0, nil)
 
+  def viewport_lines = rect.height - 2
+
   def move_top_line_by(delta)
     new_top_line = (@top_line + delta).clamp(0, top_line_max)
     return if @top_line == new_top_line
@@ -215,7 +217,7 @@ class Window
   def update_top_line_if_auto_scroll
     return false unless @auto_scroll
 
-    new_top_line = (@lines.size - rect.height + 2).clamp(0, nil)
+    new_top_line = (@lines.size - viewport_lines).clamp(0, nil)
     return false unless @top_line != new_top_line
 
     self.top_line = new_top_line
