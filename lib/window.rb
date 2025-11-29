@@ -14,10 +14,15 @@ class Rect < Data.define(:left, :top, :width, :height)
   end
 end
 
-# A very simple textual window. Doesn't support overlapping with other windows.
+# A window with a frame, a [:caption] and text contents. Doesn't support overlapping with other windows:
+# it paints its entire contents and doesn't clip if there are other overlapping windows.
+#
 # The content is a list of lines painted into the window. The lines are automatically
-# clipped both vertically and horizontally so that the text contents won't overflow
-# the window.
+# clipped horizontally. Vertical scrolling is supported, via [:top_line]; the window
+# can also automatically scroll to the bottom if [:auto_scroll] is enabled.
+#
+# Cursor is supported too, call [:cursor=] to change the behavior of the cursor.
+# The cursor responds to arrows and `jk` and scrolls the window contents automatically.
 class Window
   def initialize(caption = '')
     # {Rect} absolute coordinates of the window.
@@ -52,6 +57,8 @@ class Window
     repaint
   end
 
+  # Sets a new cursor.
+  # @param cursor [Cursor] new cursor.
   def cursor=(cursor)
     raise 'Not a Cursor' unless cursor.is_a? Cursor
 
@@ -83,7 +90,8 @@ class Window
   end
 
   # Sets new position of the window.
-  # @param new_rect [Rect] new position
+  # @param new_rect [Rect] new position. Does nothing if the new rectangle is same as
+  # the old one.
   def rect=(new_rect)
     raise "invalid rect #{new_rect}" unless new_rect.is_a? Rect
     return if @rect == new_rect
@@ -94,6 +102,9 @@ class Window
     repaint
   end
 
+  # Sets new position of the window. Always repaints, even if the new rectangle is same
+  # as the old one.
+  # @param new_rect [Rect] new position.
   def set_rect_and_repaint(new_rect)
     raise "invalid rect #{new_rect}" unless new_rect.is_a? Rect
 
@@ -138,11 +149,12 @@ class Window
     # split lines by newline
     lines = lines.flat_map { it.to_s.split("\n") }
     @lines += lines.map(&:rstrip)
-    # TODO: optimize
+    # TODO: optimize - if no scrolling is done then perhaps only the new line needs to be painted.
     repaint_content unless update_top_line_if_auto_scroll
   end
 
-  # Called when a character is pressed on the keyboard
+  # Called when a character is pressed on the keyboard.
+  # @param key [String] a key.
   def handle_key(key)
     return unless active?
 
@@ -174,6 +186,7 @@ class Window
     true
   end
 
+  # @return [Boolean] true if [:rect] is off screen and the window won't paint.
   def rect_off_screen?
     @rect.empty? || @rect.top.negative? || @rect.left.negative?
   end
@@ -198,7 +211,7 @@ class Window
   def repaint_content
     return if rect_off_screen?
 
-    width = @rect.width - 4 # 1 character for window frame, 1 character for padding
+    width = @rect.width - 4 # 1 character for window frame, 1 character for padding, both sides
 
     (0..(@rect.height - 3)).each do |line_no|
       line_index = line_no + @top_line
