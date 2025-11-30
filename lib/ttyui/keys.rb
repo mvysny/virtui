@@ -25,7 +25,7 @@ module Keys
 
     # Escape sequence. Try to read more data.
     begin
-      char << $stdin.read_nonblock(3)
+      char += $stdin.read_nonblock(3)
     rescue IO::EAGAINWaitReadable
       # The 'ESC' key pressed => only the \e char is emitted.
     end
