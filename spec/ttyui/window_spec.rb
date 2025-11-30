@@ -112,6 +112,7 @@ end
 
 describe LogWindow do
   it 'logs to content' do
+    Screen.new
     w = LogWindow.new
     log = TTY::Logger.new do |config|
       config.level = :debug
@@ -192,7 +193,7 @@ describe Window::Cursor::Limited do
     cursor.handle_key(Keys::UP_ARROW, 10, 10)
     assert_equal 0, cursor.position
   end
-  it 'keeps position if allowed' do
+  it 'keeps position if possible' do
     assert_equal 0, cursor.position
     cursor = Window::Cursor::Limited.new([0, 2, 4, 8], position: 4)
     assert_equal 4, cursor.position
