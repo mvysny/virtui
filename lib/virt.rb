@@ -145,9 +145,7 @@ end
 # A virt client, controls virt via the `virsh` program.
 # Install the `virsh` program via `sudo apt install libvirt-clients`
 class VirtCmd
-  def initialize
-    @states = { 3 => :paused, 1 => :running, 5 => :shut_off }
-  end
+  @@states = { 3 => :paused, 1 => :running, 5 => :shut_off }
 
   # Returns all available domain data.
   # @param domstats_file [String] outcome of `virsh domstats`, for testing only.
@@ -179,7 +177,7 @@ class VirtCmd
     # parse the data
     result = {}
     data.each do |domain, values|
-      state = @states[values['state.state'].to_i] || :other
+      state = @@states[values['state.state'].to_i] || :other
       mem_current = values['balloon.current'].to_i.KiB
       domain_info = DomainInfo.new(domain, values['vcpu.maximum'].to_i,
                                    values['balloon.maximum'].to_i.KiB)
