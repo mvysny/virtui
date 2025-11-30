@@ -18,7 +18,7 @@ require 'tty-screen'
 # Modal windows: TODO
 class Screen
   def initialize
-    $screen = self
+    @@instance = self
     # Every UI modification must hold this lock.
     @lock = Thread::Mutex.new
     # {Hash{String => Window}} tiled windows; maps key to a window activated by that key shortcut
@@ -28,9 +28,9 @@ class Screen
 
   # @return [Screen] the singleton instance
   def self.instance
-    raise 'screen not initialized' if $screen.nil?
+    raise 'screen not initialized' if @@instance.nil?
 
-    $screen
+    @@instance
   end
 
   # Provides [:width] and [:height] of the screen.
