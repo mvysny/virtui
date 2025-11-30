@@ -97,7 +97,7 @@ end
 
 # - `usage` {MemoryUsage} the disk usage
 # - `vm_usage` {Integer} bytes used by VM qcow2 files
-# - `qcow2_paths` {Array<String>} qcow2 files stored on this disk
+# - `qcow2_files` {Array<String>} qcow2 files stored on this disk
 class DiskUsage < Data.define(:usage, :vm_usage, :qcow2_files)
   def to_s = "#{usage} (#{format_byte_size(vm_usage)} VMs)"
   # @param physical [Integer] qcow2 file size
