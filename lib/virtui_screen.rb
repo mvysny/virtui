@@ -143,7 +143,7 @@ class VMWindow < Window
   def update
     domains = @virt_cache.domains.sort_by(&:upcase) # Array<String>
     cursor_positions = [] # allowed cursor positions
-    column_width = (rect.width - 4 - 4) / 2
+    column_width = (rect.width - 16) / 2
     cpus = @virt_cache.cpu_info.cpus
     host_ram = @virt_cache.host_mem_stat.ram
     content do |lines|
@@ -169,12 +169,10 @@ class VMWindow < Window
 
           guest_mem_usage = cache.data.mem_stat.guest_mem
           host_mem_usage = cache.data.mem_stat.host_mem
-          unless guest_mem_usage.nil?
-            memguest = progress_bar2(column_width, guest_mem_usage, :magenta)
-            memhost = progress_bar2(column_width, MemoryUsage.of(host_ram.total, host_mem_usage.used), :maroon)
-            lines << "    #{Rainbow('RAM').fg(:maroon)}:#{memguest} | #{memhost}"
-            @line_data << domain_name
-          end
+          memguest = progress_bar2(column_width, guest_mem_usage, :magenta)
+          memhost = progress_bar2(column_width, MemoryUsage.of(host_ram.total, host_mem_usage.used), :maroon)
+          lines << "    #{Rainbow('RAM').fg(:maroon)}:#{memguest} | #{memhost}"
+          @line_data << domain_name
         end
         data.disk_stat.each do |ds| # {DiskStat}
           name = Rainbow(ds.name[0..3].rjust(4)).fg(:gold)
@@ -291,7 +289,7 @@ class VMWindow < Window
   def progress_bar(left, right, width, value, max, color)
     left = left.ljust(11) unless left.empty?
     right = right.rjust(6)
-    pb_width = (width - 4 - left.size - right.size).clamp(0, nil)
+    pb_width = (width - left.size - right.size).clamp(0, nil)
     pb = @f.progress_bar2(pb_width, value, max, color)
     left + pb + right
   end
@@ -299,6 +297,8 @@ class VMWindow < Window
   # @param width [Integer] the width of the bar in chars.
   # @param mem_usage [MemoryUsage] resource usage
   def progress_bar2(width, mem_usage, color)
+    return ' ' * width if mem_usage.nil?
+
     progress_bar("#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
                  format_byte_size(mem_usage.total), width, mem_usage.used, mem_usage.total, color)
   end
