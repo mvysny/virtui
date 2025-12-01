@@ -174,6 +174,8 @@ class VMWindow < Window
           lines << "    #{Rainbow('RAM').fg(:maroon)}:#{memguest} | #{memhost}"
           @line_data << domain_name
         end
+        next unless @show_disk_stat || data.running?
+
         data.disk_stat.each do |ds| # {DiskStat}
           name = Rainbow(ds.name[0..3].rjust(4)).fg(:gold)
           guest_du = progress_bar2(column_width, ds.guest_usage, :chocolate)
@@ -229,11 +231,14 @@ class VMWindow < Window
       else
         $log.error "'#{current_vm}' is not running"
       end
+    elsif key == 'd'
+      @show_disk_stat = !@show_disk_stat
+      update
     end
   end
 
   def keyboard_hint
-    "s #{Rainbow('start').cadetblue}  o #{Rainbow('shutdOwn').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  b #{Rainbow('toggle autoBallooning').cadetblue}  r #{Rainbow('reboot').cadetblue}  R #{Rainbow('reset').cadetblue}"
+    "s #{Rainbow('start').cadetblue}  o #{Rainbow('shutdOwn').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  b #{Rainbow('toggle autoBallooning').cadetblue}  r #{Rainbow('reboot').cadetblue}  R #{Rainbow('reset').cadetblue}  d #{Rainbow('toggle Disk stat').cadetblue}"
   end
 
   protected
