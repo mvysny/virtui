@@ -13,6 +13,7 @@ describe VMWindow do
       VMWindow.new(cache, Ballooning.new(cache))
     end
     w.active = true
+    w.show_disk_stat = true
     w
   end
 

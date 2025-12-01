@@ -136,7 +136,17 @@ class VMWindow < Window
     @ballooning = ballooning
     # {Array<String>} VM name for every line.
     @line_data = []
+    # {Boolean} show disk stats for shutoff'd VMs
+    @show_disk_stat = false
     self.cursor = Cursor.new
+    update
+  end
+
+  # {Boolean} show disk stats for shutoff'd VMs
+  attr_reader :show_disk_stat
+
+  def show_disk_stat=(value)
+    @show_disk_stat = !!value
     update
   end
 
@@ -232,8 +242,7 @@ class VMWindow < Window
         $log.error "'#{current_vm}' is not running"
       end
     elsif key == 'd'
-      @show_disk_stat = !@show_disk_stat
-      update
+      self.show_disk_stat = !show_disk_stat
     end
   end
 
