@@ -12,6 +12,7 @@ require 'rainbow'
 require_relative 'utils'
 require_relative 'ttyui/screen'
 require_relative 'system_window'
+require_relative 'ttyui/picker_window'
 
 # Shows a quick overview of all VMs
 class VMWindow < Window
@@ -107,6 +108,8 @@ class VMWindow < Window
       else
         $log.error "'#{current_vm}' is not running"
       end
+    elsif key == 'p' # Power menu
+      show_power_popup
     elsif key == 'v' # view
       $log.info "Launching viewer for '#{current_vm}'"
       Run.async("virt-manager --connect qemu:///system --show-domain-console '#{current_vm}'")
@@ -147,6 +150,43 @@ class VMWindow < Window
   end
 
   private
+
+  def show_power_popup
+    current_vm = @line_data[cursor.position] || return
+    state = @virt_cache.state(current_vm)
+    opts = [['s', 'Start'], ['o', 'shut dOwn gracefully'], ['r', 'reboot'], ['R', 'Reset']]
+    PickerWindow.open('Power', opts) do |key|
+      if key == 's' # start
+        if state == :shut_off
+          $log.info "Starting '#{current_vm}'"
+          @virt_cache.virt.start(current_vm)
+        else
+          $log.error "'#{current_vm}' is already running"
+        end
+      elsif key == 'o' # shutdown gracefully
+        if state == :running
+          $log.info "Shutting down '#{current_vm}' gracefully"
+          @virt_cache.virt.shutdown(current_vm)
+        else
+          $log.error "'#{current_vm}' is not running"
+        end
+      elsif key == 'r' # reboot
+        if state == :running
+          $log.info "Asking '#{current_vm}' to reboot"
+          @virt_cache.virt.reboot(current_vm)
+        else
+          $log.error "'#{current_vm}' is not running"
+        end
+      elsif key == 'R' # reset
+        if state == :running
+          $log.info "Resetting '#{current_vm}' forcefully"
+          @virt_cache.virt.reset(current_vm)
+        else
+          $log.error "'#{current_vm}' is not running"
+        end
+      end
+    end
+  end
 
   # @param cache [VirtCache::VMCache]
   # @return [String]

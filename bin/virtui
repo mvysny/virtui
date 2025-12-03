@@ -13,7 +13,7 @@ require 'virt/ballooning'
 require 'virt/vm_emulator'
 require 'tty-logger'
 require 'rainbow'
-require 'virtui_screen'
+require 'app_screen'
 
 # https://github.com/piotrmurach/tty-logger
 $log = TTY::Logger.new do |config|

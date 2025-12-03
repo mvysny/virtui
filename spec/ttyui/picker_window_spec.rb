@@ -7,24 +7,24 @@ require 'ttyui/keys'
 describe PickerWindow do
   let(:screen) { Screen.fake }
   it 'smokes' do
-    w = PickerWindow.new('foo', [PickerWindow::Option.new('a', 'all')]) {}
+    w = PickerWindow.new('foo', [%w[a all]]) {}
     screen.add_window '1', w
     w.close
   end
   it 'opens as popup' do
-    w = PickerWindow.open('foo', [PickerWindow::Option.new('a', 'all')]) {}
+    w = PickerWindow.open('foo', [%w[a all]]) {}
     assert w.open?
     w.close
   end
   it 'doesnt call block if closed' do
-    w = PickerWindow.new('foo', [PickerWindow::Option.new('a', 'all')]) { raise 'should not be called' }
+    w = PickerWindow.new('foo', [%w[a all]]) { raise 'should not be called' }
     screen.add_window '1', w
     w.handle_key('q')
     assert !w.open?
   end
   it 'selects first option on enter' do
     selected = nil
-    w = PickerWindow.new('foo', [PickerWindow::Option.new('a', 'all')]) { selected = it }
+    w = PickerWindow.new('foo', [%w[a all]]) { selected = it }
     screen.add_window '1', w
     w.handle_key(Keys::ENTER)
     assert_equal 'a', selected
@@ -32,7 +32,7 @@ describe PickerWindow do
   end
   it 'selects correct option' do
     selected = nil
-    w = PickerWindow.new('foo', [PickerWindow::Option.new('a', 'all')]) { selected = it }
+    w = PickerWindow.new('foo', [%w[a all]]) { selected = it }
     screen.add_window '1', w
     w.handle_key('a')
     assert_equal 'a', selected
@@ -40,7 +40,7 @@ describe PickerWindow do
   end
   it 'does nothing if unlisted key is pressed' do
     selected = nil
-    w = PickerWindow.new('foo', [PickerWindow::Option.new('a', 'all')]) { selected = it }
+    w = PickerWindow.new('foo', [%w[a all]]) { selected = it }
     screen.add_window '1', w
     w.handle_key('b')
     assert_nil selected
