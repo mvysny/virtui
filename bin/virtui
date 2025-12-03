@@ -6,11 +6,11 @@ $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 
 require 'bundler/setup'
 
-require 'virt'
-require 'virtcache'
+require 'virt/virt'
+require 'virt/virtcache'
 require 'rufus-scheduler'
-require 'ballooning'
-require 'vm_emulator'
+require 'virt/ballooning'
+require 'virt/vm_emulator'
 require 'tty-logger'
 require 'rainbow'
 require 'virtui_screen'

@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative 'sysinfo'
+require_relative '../sysinfo'
 require_relative 'virt'
-require_relative 'byte_prefixes'
+require_relative '../byte_prefixes'
 
 # Caches all VM runtime info for speedy access.
 class VirtCache

@@ -1,6 +1,6 @@
 require_relative 'spec_helper'
-require 'virtcache'
-require 'vm_emulator'
+require 'virt/virtcache'
+require 'virt/vm_emulator'
 require 'virtui_screen'
 require 'timecop'
 

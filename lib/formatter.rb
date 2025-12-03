@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rainbow'
-require_relative 'virt'
 require_relative 'sysinfo'
 require_relative 'utils'
 

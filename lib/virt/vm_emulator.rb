@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative 'interpolator'
+require_relative '../interpolator'
 require_relative 'virt'
-require_relative 'byte_prefixes'
+require_relative '../byte_prefixes'
 
 # Emulates a bunch of VMs. API-compatible with [VirtCmd].
 class VMEmulator

@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-require_relative 'virt'
+require_relative 'virt/virt'
 require_relative 'ttyui/window'
 require_relative 'sysinfo'
-require_relative 'virtcache'
+require_relative 'virt/virtcache'
 require 'tty-cursor'
 require_relative 'formatter'
-require_relative 'ballooning'
-require_relative 'vm_emulator'
+require_relative 'virt/ballooning'
+require_relative 'virt/vm_emulator'
 require 'rainbow'
 require_relative 'utils'
 require_relative 'ttyui/screen'

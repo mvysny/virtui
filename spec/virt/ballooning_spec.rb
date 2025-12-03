@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require_relative 'spec_helper'
-require 'ballooning'
-require 'virt'
-require 'virtcache'
+require_relative '../spec_helper'
+require 'virt/ballooning'
+require 'virt/virt'
+require 'virt/virtcache'
 require 'timecop'
-require 'vm_emulator'
+require 'virt/vm_emulator'
 require 'byte_prefixes'
 
 describe BallooningVM do

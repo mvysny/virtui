@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative 'spec_helper'
-require 'vm_emulator'
-require 'virtcache'
+require_relative '../spec_helper'
+require 'virt/vm_emulator'
+require 'virt/virtcache'
 require 'timecop'
 
 describe VMEmulator::VM do

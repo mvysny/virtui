@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative 'sysinfo'
+require_relative '../sysinfo'
 require 'date'
-require_relative 'byte_prefixes'
+require_relative '../byte_prefixes'
 
 # VM memory stats
 #
