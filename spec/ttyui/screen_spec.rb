@@ -22,12 +22,23 @@ describe Screen do
 
   context 'active_window' do
     it 'is nil when no windows' do
-      assert_nil screen.active_window
+      screen.with_lock { assert_nil screen.active_window }
     end
     it 'returns the active window' do
+      screen.with_lock do
+        w = Window.new
+        screen.add_window '0', w
+        assert_equal w, screen.active_window
+      end
+    end
+  end
+
+  it 'removes window' do
+    screen.with_lock do
       w = Window.new
-      screen.add_window '0', w
-      assert_equal w, screen.active_window
+      screen.add_window '1', w
+      screen.remove_window(w)
+      assert !screen.has_window?(w)
     end
   end
 end
