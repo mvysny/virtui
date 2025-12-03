@@ -65,10 +65,14 @@ class Screen
   # Repaints all windows.
   def repaint
     check_locked
-    return if @invalidated_windows.empty?
+    return if @invalidated_windows.empty? && !@needs_full_repaint
 
     clear if @needs_full_repaint
-    tiled_windows_to_repaint = @windows.keys.filter { @invalidated_windows.include? it }
+    tiled_windows_to_repaint = if @needs_full_repaint
+                                 @windows.keys
+                               else
+                                 @windows.keys.filter { @invalidated_windows.include? it }
+                               end
     tiled_windows_to_repaint.each(&:repaint)
     popups_to_repaint = if tiled_windows_to_repaint.empty?
                           @popups.filter { @invalidated_windows.include? it }
