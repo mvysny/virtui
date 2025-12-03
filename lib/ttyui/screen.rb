@@ -110,7 +110,7 @@ class Screen
     invalidate(window)
   end
 
-  # @param [window] the popup to add. will be centered and painted automatically.
+  # @param [window] the popup to add. Will be centered and painted automatically.
   def add_popup(window)
     @popups << window
     window.center
@@ -122,6 +122,7 @@ class Screen
 
   # @param value [Hash{String => Window}] maps keybaard shortcut to a window activated by that shortcut.
   def windows=(value)
+    check_locked
     @windows = {}
     value.each { |key, window| add_window(key, window) }
     layout
