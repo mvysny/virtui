@@ -89,7 +89,7 @@ class Screen
   # @param [window] the popup to add. will be centered and painted automatically.
   def add_popup(window)
     @popups << window
-    window.center
+    window.center # Also paints the window
   end
 
   # {Hash{String => Window}} maps keyboard shortcut key to {Window}.
