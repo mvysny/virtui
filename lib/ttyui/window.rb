@@ -209,6 +209,11 @@ class Window
     !@rect.empty? && !@rect.top.negative? && !@rect.left.negative?
   end
 
+  # Removes the window from the screen.
+  def close
+    screen.remove_window(self)
+  end
+
   protected
 
   # Called whenever the window width changes. Does nothing by default.

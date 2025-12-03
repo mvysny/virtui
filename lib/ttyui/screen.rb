@@ -55,7 +55,7 @@ class Screen
     print TTY::Cursor.move_to(0, 0), TTY::Cursor.clear_screen
   end
 
-  # Re-calculates all window sizes and re-positions them. Call after the screen is initialized.
+  # Re-calculates all window sizes and re-positions them, which draws them. Call after the screen is initialized.
   #
   # Default implementation clears the screen.
   def layout
@@ -97,6 +97,13 @@ class Screen
   # @return [Window | nil] current active window.
   def active_window
     @windows.values.find(&:active?)
+  end
+
+  # Removes a window and calls {:layout}. This should visually "remove" the window. The window will also no longer receive
+  # keys.
+  def remove_window(window)
+    @windows -= [window]
+    layout
   end
 
   private
