@@ -97,23 +97,7 @@ class VMWindow < Window
 
     state = @virt_cache.state(current_vm)
 
-    if key == 's' # start
-      if state == :shut_off
-        $log.info "Starting '#{current_vm}'"
-        @virt_cache.virt.start(current_vm)
-      else
-        $log.error "'#{current_vm}' is already running"
-      end
-      true
-    elsif key == 'o' # shutdown gracefully
-      if state == :running
-        $log.info "Shutting down '#{current_vm}' gracefully"
-        @virt_cache.virt.shutdown(current_vm)
-      else
-        $log.error "'#{current_vm}' is not running"
-      end
-      true
-    elsif key == 'p' # Power menu
+    if key == 'p' # Power menu
       show_power_popup
       true
     elsif key == 'v' # view
@@ -128,22 +112,6 @@ class VMWindow < Window
         $log.error "'#{current_vm}' is not running"
       end
       true
-    elsif key == 'r' # reboot
-      if state == :running
-        $log.info "Asking '#{current_vm}' to reboot"
-        @virt_cache.virt.reboot(current_vm)
-      else
-        $log.error "'#{current_vm}' is not running"
-      end
-      true
-    elsif key == 'R' # reset
-      if state == :running
-        $log.info "Resetting '#{current_vm}' forcefully"
-        @virt_cache.virt.reset(current_vm)
-      else
-        $log.error "'#{current_vm}' is not running"
-      end
-      true
     elsif key == 'd'
       self.show_disk_stat = !show_disk_stat
       true
@@ -153,7 +121,7 @@ class VMWindow < Window
   end
 
   def keyboard_hint
-    "s #{Rainbow('start').cadetblue}  o #{Rainbow('shutdOwn').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  b #{Rainbow('toggle autoBallooning').cadetblue}  r #{Rainbow('reboot').cadetblue}  R #{Rainbow('reset').cadetblue}  d #{Rainbow('toggle Disk stat').cadetblue}"
+    "p #{Rainbow('Power').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  b #{Rainbow('toggle autoBallooning').cadetblue}  d #{Rainbow('toggle Disk stat').cadetblue}"
   end
 
   protected
