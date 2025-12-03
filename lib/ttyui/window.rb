@@ -216,7 +216,7 @@ class Window
   end
 
   # @return [Boolean] true if this window is part of a screen. May not be visible.
-  def opened?
+  def open?
     screen.has_window?(self)
   end
 
