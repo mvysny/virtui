@@ -249,7 +249,8 @@ class VirtCmd
   # Starts a VM if it was stopped. Undefined for started or paused VM.
   # @param domain_name [String] VM name
   def start(domain_name)
-    Run.sync("virsh start '#{domain_name}'")
+    # Async - this can take ~800ms during which the UI appears frozen.
+    Run.async("virsh start '#{domain_name}'")
   end
 
   # Shuts down a VM gracefully - basically asks the VM to shut off.
