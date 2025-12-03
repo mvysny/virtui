@@ -15,6 +15,7 @@ module Keys
   PAGE_DOWN = "\e[6~"
   CTRL_U = "\u0015"
   CTRL_D = "\4"
+  ENTER = "\u000d"
 
   # Grabs a key from stdin and returns it. Blocks until the key is obtained.
   # Reads a full esc key sequence; see constants above for some values returned by this function.
