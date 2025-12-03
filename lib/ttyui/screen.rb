@@ -67,11 +67,12 @@ class Screen
     check_locked
     repaint = []
     if @needs_full_repaint
-      clear
+      # clear - only needed when tiled windows don't cover the screen entirely... and usually they do.
+      # Don't clear - prevents blinking
       repaint = @windows.keys + @popups
     else
       repaint = @windows.keys.filter { @invalidated_windows.include? it }
-      repaint += @popups.filter { @invalidated_windows.include? it }
+      repaint += repaint.empty? ? @popups.filter { @invalidated_windows.include? it } : @popups
     end
     repaint.each(&:repaint)
     @invalidated_windows.clear
