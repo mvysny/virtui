@@ -86,6 +86,12 @@ class Screen
     @windows[shortcut] = window
   end
 
+  # @param [window] the popup to add. will be centered and painted automatically.
+  def add_popup(window)
+    @popups << window
+    window.center
+  end
+
   # {Hash{String => Window}} maps keyboard shortcut key to {Window}.
   attr_accessor :windows
 
@@ -121,6 +127,10 @@ class Screen
   # Does nothing if the window is not open on this screen.
   def remove_window(window)
     check_locked
+    if @popups.delete(window)
+      repaint
+      return
+    end
     e = @windows.find { |k, v| v == window }
     return if e.nil?
 
@@ -131,19 +141,13 @@ class Screen
   # @return [Boolean] if screen contains this window.
   def has_window?(window)
     check_locked
-    @windows.values.include?(window)
+    @popups.include?(window) || @windows.values.include?(window)
   end
 
   # Testing only - creates new screen and locks the UI.
   def self.fake
-    Screen.new
-    Screen.instance.lock
+    FakeScreen.new
     Screen.instance
-  end
-
-  # Testing only!!!
-  def lock
-    @lock.lock
   end
 
   protected
@@ -229,5 +233,14 @@ class Screen
         nil
       end
     end
+  end
+end
+
+class FakeScreen < Screen
+  def check_locked; end
+  def clear; end
+
+  def with_lock
+    yield
   end
 end

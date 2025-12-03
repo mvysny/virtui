@@ -4,7 +4,7 @@ require_relative '../spec_helper'
 require 'ttyui/screen'
 
 describe Screen do
-  let(:screen) { Screen.new }
+  let(:screen) { Screen.fake }
 
   it 'provides singleton instance' do
     assert_equal screen, Screen.instance
@@ -39,6 +39,14 @@ describe Screen do
       screen.add_window '1', w
       screen.remove_window(w)
       assert !screen.has_window?(w)
+    end
+  end
+
+  context 'popups' do
+    it 'adds popup' do
+      w = Window.new
+      screen.add_popup w
+      assert screen.has_window? w
     end
   end
 end

@@ -69,7 +69,7 @@ class Window
   # Moves window to center it on screen. Consults [Rect:width] and [Rect:height]
   # and modifies [Rect:top] and [Rect:left].
   def center
-    self.rect = rect.centered(screen.width, screen.height)
+    self.rect = rect.centered(screen.size.width, screen.size.height)
   end
 
   # Sets the new auto_scroll. If true, immediately scrolls to the bottom.
