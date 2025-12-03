@@ -3,7 +3,7 @@
 require_relative 'spec_helper'
 require 'virt/virtcache'
 require 'virt/vm_emulator'
-require 'virtui_screen'
+require 'vm_window'
 require 'timecop'
 
 describe VMWindow do

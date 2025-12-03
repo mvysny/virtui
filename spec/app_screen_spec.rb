@@ -8,6 +8,7 @@ require 'virt/ballooning'
 
 describe AppScreen do
   let(:screen) do
+    Helpers.setup_dummy_logger
     cache = VirtCache.new(VMEmulator.demo, PcEmulator.new)
     AppScreen.new(cache, Ballooning.new(cache))
   end
