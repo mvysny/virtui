@@ -4,6 +4,17 @@ require_relative '../spec_helper'
 require 'ttyui/window'
 require 'tty-logger'
 
+describe Rect do
+  it 'moves rect with at()' do
+    rect = Rect.new(0, 0, 40, 20).at(5, 10)
+    assert_equal Rect.new(5, 10, 40, 20), rect
+  end
+  it 'centers rect' do
+    rect = Rect.new(-1, -1, 40, 20)
+    assert_equal Rect.new(20, 10, 40, 20), rect.centered(80, 40)
+  end
+end
+
 describe Window do
   context 'caption' do
     it 'sets caption via constructor' do

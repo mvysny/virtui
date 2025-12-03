@@ -26,7 +26,7 @@ class Rect < Data.define(:left, :top, :width, :height)
   # @param screen_height [Integer] screen height
   # @return [Rect] moved rectangle.
   def centered(screen_width, screen_height)
-    at((width - screen_width) / 2, (height - screen_height) / 2)
+    at((screen_width - width) / 2, (screen_height - height) / 2)
   end
 end
 
