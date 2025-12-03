@@ -161,15 +161,15 @@ class Screen
 
   # A key has been pressed on the keyboard. Handle it, or forward to active window.
   # @param [String] key
+  # @return [Boolean] true if the key was handled by some window.
   def handle_key(key)
     topmost_popup = @popups.last
-    unless topmost_popup.nil?
-      topmost_popup.handle_key(key)
-      return
-    end
+    return topmost_popup.handle_key(key) unless topmost_popup.nil?
+
     window_to_activate = @windows[key]
     if !window_to_activate.nil?
       self.active_window = window_to_activate
+      true
     else
       active_window.handle_key(key)
     end
