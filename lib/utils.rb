@@ -1,5 +1,8 @@
+# frozen_string_literal: true
+
 require 'open3'
 
+# Replacement for all exec methods. Raise error if the command not found or fails.
 module Run
   # Runs command asynchronously, logging stderr lazily once it fails.
   # The function terminates immediately.
@@ -11,7 +14,6 @@ module Run
     Thread.new do
       status = wait_thr.value
       output = combined_output.read
-      combined_output.close
 
       if status.success?
         $log.debug("'#{command}': OK")
@@ -20,6 +22,8 @@ module Run
       end
     rescue StandardError => e
       $log.fatal("Fatal error running '#{command}'", e)
+    ensure
+      combined_output.close
     end
   end
 
