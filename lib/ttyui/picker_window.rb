@@ -27,14 +27,20 @@ class PickerWindow < Window
   end
 
   def handle_key(key)
-    super
+    return true if super
+
     if [Keys::ESC, 'q'].include?(key)
       close
+      true
     elsif @options.any? { it.key == key }
       select_option(key)
+      true
     elsif key == Keys::ENTER
       selected = @options[cursor.position]
       select_option(selected.key)
+      true
+    else
+      false
     end
   end
 

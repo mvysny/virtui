@@ -187,16 +187,19 @@ class Window
 
   # Called when a character is pressed on the keyboard.
   # @param key [String] a key.
+  # @return [Boolean] true if the key was handled, false if not.
   def handle_key(key)
     if key == Keys::PAGE_UP
       move_top_line_by(-viewport_lines)
+      true
     elsif key == Keys::PAGE_DOWN
       move_top_line_by(viewport_lines)
+      true
     else
-      return unless @cursor.handle_key(key, @lines.size, viewport_lines)
-      return if move_viewport_to_cursor
+      return false unless @cursor.handle_key(key, @lines.size, viewport_lines)
 
-      repaint_content
+      repaint_content unless move_viewport_to_cursor
+      true
     end
   end
 

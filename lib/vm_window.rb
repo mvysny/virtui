@@ -90,8 +90,11 @@ class VMWindow < Window
   end
 
   def handle_key(key)
-    super
-    current_vm = @line_data[cursor.position] || return
+    return true if super
+
+    current_vm = @line_data[cursor.position]
+    return false if current_vm.nil?
+
     state = @virt_cache.state(current_vm)
 
     if key == 's' # start
@@ -101,6 +104,7 @@ class VMWindow < Window
       else
         $log.error "'#{current_vm}' is already running"
       end
+      true
     elsif key == 'o' # shutdown gracefully
       if state == :running
         $log.info "Shutting down '#{current_vm}' gracefully"
@@ -108,11 +112,14 @@ class VMWindow < Window
       else
         $log.error "'#{current_vm}' is not running"
       end
+      true
     elsif key == 'p' # Power menu
       show_power_popup
+      true
     elsif key == 'v' # view
       $log.info "Launching viewer for '#{current_vm}'"
       Run.async("virt-manager --connect qemu:///system --show-domain-console '#{current_vm}'")
+      true
     elsif key == 'b' # toggle Ballooning
       if state == :running
         $log.info "Toggling balloning for '#{current_vm}'"
@@ -120,6 +127,7 @@ class VMWindow < Window
       else
         $log.error "'#{current_vm}' is not running"
       end
+      true
     elsif key == 'r' # reboot
       if state == :running
         $log.info "Asking '#{current_vm}' to reboot"
@@ -127,6 +135,7 @@ class VMWindow < Window
       else
         $log.error "'#{current_vm}' is not running"
       end
+      true
     elsif key == 'R' # reset
       if state == :running
         $log.info "Resetting '#{current_vm}' forcefully"
@@ -134,8 +143,12 @@ class VMWindow < Window
       else
         $log.error "'#{current_vm}' is not running"
       end
+      true
     elsif key == 'd'
       self.show_disk_stat = !show_disk_stat
+      true
+    else
+      false
     end
   end
 

@@ -178,11 +178,10 @@ class Screen
   def event_loop
     loop do
       key = Keys.getkey
-      break if ['q', Keys::ESC].include?(key)
-
-      with_lock do
+      handled = with_lock do
         handle_key(key)
       end
+      break if !handled && ['q', Keys::ESC].include?(key)
     rescue StandardError => e
       $log.fatal('Uncaught event loop exception', e)
     end
