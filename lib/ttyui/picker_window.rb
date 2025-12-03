@@ -5,6 +5,9 @@ require_relative 'keys'
 require_relative 'window'
 
 class PickerWindow < Window
+  # Scrolls the window when more items
+  MAX_ITEMS = 10
+
   # One picker option, has a {String} keyboard `key` and the {String} option caption
   class Option < Data.define(:key, :caption)
   end
@@ -22,7 +25,7 @@ class PickerWindow < Window
     self.content = options.map { "#{it.key} #{Rainbow(it.caption).cadetblue}" }
     self.cursor = Cursor.new
     width = options.map { it.caption.length }.max + 6
-    height = options.length.clamp(..10)
+    height = options.length.clamp(..MAX_ITEMS) + 2
     self.rect = Rect.new(-1, -1, width, height)
   end
 
