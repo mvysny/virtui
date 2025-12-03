@@ -2,6 +2,7 @@
 
 require 'rainbow'
 require_relative 'keys'
+require_relative 'window'
 
 class PickerWindow < Window
   # One picker option, has a {String} keyboard `key` and the {String} option caption
@@ -20,7 +21,7 @@ class PickerWindow < Window
     self.content = options.map { "#{it.key} #{Rainbow(it.caption).cadetblue}" }
     self.cursor = Cursor.new
     width = options.map { it.caption.length }.max + 6
-    height = options.length.clamp(...10)
+    height = options.length.clamp(..10)
     self.rect = Rect.new(-1, -1, width, height)
   end
 
