@@ -101,9 +101,19 @@ class Screen
 
   # Removes a window and calls {:layout}. This should visually "remove" the window. The window will also no longer receive
   # keys.
+  #
+  # Does nothing if the window is not open on this screen.
   def remove_window(window)
-    @windows -= [window]
+    e = @windows.find { |k, v| v == window }
+    return if e.nil?
+
+    @windows.remove(key)
     layout
+  end
+
+  # @return [Boolean] if screen contains this window.
+  def has_window?(window)
+    @windows.values.contains?(window)
   end
 
   private

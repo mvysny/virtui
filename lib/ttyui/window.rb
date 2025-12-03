@@ -6,6 +6,7 @@ require 'unicode/display_width'
 require 'strings-truncation'
 require 'tty-logger'
 require_relative 'keys'
+require_relative 'screen'
 
 # A rectangle, with {Integer} `left`, `top`, `width` and `height`.
 class Rect < Data.define(:left, :top, :width, :height)
@@ -206,12 +207,17 @@ class Window
 
   # @return [Boolean] true if [:rect] is off screen and the window won't paint.
   def visible?
-    !@rect.empty? && !@rect.top.negative? && !@rect.left.negative?
+    !@rect.empty? && !@rect.top.negative? && !@rect.left.negative? && opened?
   end
 
   # Removes the window from the screen.
   def close
     screen.remove_window(self)
+  end
+
+  # @return [Boolean] true if this window is part of a screen. May not be visible.
+  def opened?
+    screen.has_window?(self)
   end
 
   protected
