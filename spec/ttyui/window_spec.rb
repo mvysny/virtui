@@ -122,8 +122,8 @@ describe Window do
 end
 
 describe LogWindow do
+  before { Screen.fake }
   it 'logs to content' do
-    Screen.new
     w = LogWindow.new
     log = TTY::Logger.new do |config|
       config.level = :debug

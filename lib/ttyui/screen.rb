@@ -276,6 +276,8 @@ class FakeScreen < Screen
   def clear; end
 
   def with_lock
-    yield
+    yield # no lock necessary when testing
   end
+
+  def repaint; end
 end
