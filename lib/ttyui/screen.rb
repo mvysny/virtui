@@ -146,6 +146,7 @@ class Screen
   def active_window=(window)
     check_locked
     @windows.each_key { it.active = it == window }
+    update_status_bar
   end
 
   # @return [Window | nil] current active tiled window.
