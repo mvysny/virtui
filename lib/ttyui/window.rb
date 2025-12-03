@@ -9,8 +9,23 @@ require_relative 'keys'
 
 # A rectangle, with {Integer} `left`, `top`, `width` and `height`.
 class Rect < Data.define(:left, :top, :width, :height)
+  # @return [Boolean] true if either {:width} or {:height} is zero or negative.
   def empty?
     width <= 0 || height <= 0
+  end
+
+  # @return [Rect] positioned at the new `left`/`top`.
+  def at(left, top)
+    Rect.new(left, top, width, height)
+  end
+
+  # Centers the rectangle - keeps {:width} and {:height} but modifies
+  # {:top} and {:left} so that the rectangle is centered on a screen.
+  # @param screen_width [Integer] screen width
+  # @param screen_height [Integer] screen height
+  # @return [Rect] moved rectangle.
+  def centered(screen_width, screen_height)
+    at((width - screen_width) / 2, (height - screen_height) / 2)
   end
 end
 
@@ -23,6 +38,10 @@ end
 #
 # Cursor is supported too, call [:cursor=] to change the behavior of the cursor.
 # The cursor responds to arrows and `jk` and scrolls the window contents automatically.
+#
+# Window is considered invisible if [:rect] is empty or one of left/top is negative.
+# The window won't draw when invisible. You can use this feature: simply set left/top to -1
+# to prevent window from drawing.
 class Window
   def initialize(caption = '')
     # {Rect} absolute coordinates of the window.
@@ -42,6 +61,15 @@ class Window
   end
 
   attr_reader :caption, :rect, :p, :auto_scroll, :top_line, :cursor
+
+  # @return [Screen] the screen which owns the window.
+  def screen = Screen.instance
+
+  # Moves window to center it on screen. Consults [Rect:width] and [Rect:height]
+  # and modifies [Rect:top] and [Rect:left].
+  def center
+    self.rect = rect.centered(screen.width, screen.height)
+  end
 
   # Sets the new auto_scroll. If true, immediately scrolls to the bottom.
   # @param new_auto_scroll [Boolean] if true, keep scrolled to the bottom.
@@ -176,6 +204,11 @@ class Window
     ''
   end
 
+  # @return [Boolean] true if [:rect] is off screen and the window won't paint.
+  def visible?
+    !@rect.empty? && !@rect.top.negative? && !@rect.left.negative?
+  end
+
   protected
 
   # Called whenever the window width changes. Does nothing by default.
@@ -228,11 +261,6 @@ class Window
     true
   end
 
-  # @return [Boolean] true if [:rect] is off screen and the window won't paint.
-  def rect_off_screen?
-    @rect.empty? || @rect.top.negative? || @rect.left.negative?
-  end
-
   # Fully repaints the window: both frame and Contents
   def repaint
     repaint_border
@@ -240,7 +268,7 @@ class Window
   end
 
   def repaint_border
-    return if rect_off_screen?
+    return unless visible?
 
     frame = TTY::Box.frame(
       width: @rect.width, height: @rect.height, top: @rect.top, left: @rect.left,
@@ -251,7 +279,7 @@ class Window
   end
 
   def repaint_content
-    return if rect_off_screen?
+    return unless visible?
 
     width = @rect.width - 4 # 1 character for window frame, 1 character for padding, both sides
 
