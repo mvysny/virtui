@@ -11,6 +11,11 @@ describe PickerWindow do
     screen.add_window '1', w
     w.close
   end
+  it 'opens as popup' do
+    w = PickerWindow.open('foo', [PickerWindow::Option.new('a', 'all')]) {}
+    assert w.open?
+    w.close
+  end
   it 'doesnt call block if closed' do
     w = PickerWindow.new('foo', [PickerWindow::Option.new('a', 'all')]) { raise 'should not be called' }
     screen.add_window '1', w

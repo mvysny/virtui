@@ -37,6 +37,16 @@ class PickerWindow < Window
     end
   end
 
+  # @param caption [String] the window caption
+  # @param options [Array<Option>] maps keyboard key to the option caption. No Rainbow formatting must be used.
+  # @param block called with the option key once one is selected by the user. Not called if the window is closed via ESC or q
+  # @return [PickerWindow]
+  def self.open(caption, options, &block)
+    picker = PickerWindow.new(caption, options, &block)
+    picker.screen.add_popup(picker)
+    picker
+  end
+
   protected
 
   def select_option(key)
