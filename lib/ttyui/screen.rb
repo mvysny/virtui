@@ -21,7 +21,7 @@ class Screen
     @@instance = self
     # Every UI modification must hold this lock.
     @lock = Thread::Mutex.new
-    # {Hash{String => Window}} tiled windows; maps key to a window activated by that key shortcut
+    # {Hash{Window => String}} tiled windows; maps key to a window activated by that key shortcut
     @windows = {}
     # {Array<Window>} modal popup windows, listed in order as they were opened.
     # Last popup is the topmost one and receives all key events.
@@ -62,7 +62,7 @@ class Screen
   def repaint
     check_locked
     clear
-    @windows.each_value(&:repaint)
+    @windows.each_key(&:repaint)
     @popups.each(&:repaint)
   end
 
@@ -80,10 +80,11 @@ class Screen
   # Adds a new tiled window.
   # @param window [Window] the window to add.
   def add_window(shortcut, window)
+    check_locked
     raise unless window.is_a? Window
 
     window.active = true if @windows.empty?
-    @windows[shortcut] = window
+    @windows[window] = shortcut
   end
 
   # @param [window] the popup to add. will be centered and painted automatically.
@@ -92,8 +93,15 @@ class Screen
     window.center # Also paints the window
   end
 
-  # {Hash{String => Window}} maps keyboard shortcut key to {Window}.
-  attr_accessor :windows
+  # @return [Set<Window>] list of tiled {Window}s.
+  def windows = Set.new(*@windows.keys)
+
+  # @param value [Hash{String => Window}] maps keybaard shortcut to a window activated by that shortcut.
+  def windows=(value)
+    @windows = {}
+    value.each { |key, window| add_window(key, window) }
+    layout
+  end
 
   # Runs event loop - waits for keys and sends them to active window.
   # The function exits when the 'ESC' or 'q' key is pressed.
@@ -112,13 +120,13 @@ class Screen
   # @param window [Window] the new active window
   def active_window=(window)
     check_locked
-    @windows.each_value { it.active = it == window }
+    @windows.each_key { it.active = it == window }
   end
 
   # @return [Window | nil] current active tiled window.
   def active_window
     check_locked
-    @windows.values.find(&:active?)
+    @windows.keys.find(&:active?)
   end
 
   # Removes a window and calls {:layout}. This should visually "remove" the window. The window will also no longer receive
@@ -131,17 +139,14 @@ class Screen
       repaint
       return
     end
-    e = @windows.find { |k, v| v == window }
-    return if e.nil?
-
-    @windows.delete(e[0])
+    @windows.delete(window)
     layout
   end
 
   # @return [Boolean] if screen contains this window.
   def has_window?(window)
     check_locked
-    @popups.include?(window) || @windows.values.include?(window)
+    @popups.include?(window) || @windows.keys.include?(window)
   end
 
   # Testing only - creates new screen and locks the UI.
@@ -154,8 +159,7 @@ class Screen
 
   # Repositions all tiled window.
   # Default implementation does nothing.
-  def relayout_tiled_windows
-  end
+  def relayout_tiled_windows; end
 
   private
 
@@ -166,9 +170,9 @@ class Screen
     topmost_popup = @popups.last
     return topmost_popup.handle_key(key) unless topmost_popup.nil?
 
-    window_to_activate = @windows[key]
+    window_to_activate = @windows.find { |_, v| v == key }
     if !window_to_activate.nil?
-      self.active_window = window_to_activate
+      self.active_window = window_to_activate[0]
       true
     else
       active_window.handle_key(key)
