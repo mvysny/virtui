@@ -83,7 +83,7 @@ class Window
   # @param new_caption [String | nil]
   def caption=(new_caption)
     @caption = new_caption
-    repaint
+    invalidate
   end
 
   # Sets a new cursor.
@@ -93,7 +93,7 @@ class Window
 
     old_position = @cursor.position
     @cursor = cursor
-    repaint_content if old_position != cursor.position
+    invalidate if old_position != cursor.position
   end
 
   # Scrolls the window contents by setting the new top line
@@ -104,7 +104,7 @@ class Window
     return unless @top_line != new_top_line
 
     @top_line = new_top_line
-    repaint_content
+    invalidate
   end
 
   # @return [Boolean]
@@ -118,7 +118,7 @@ class Window
     return unless @active != active
 
     @active = active
-    repaint_border
+    invalidate
   end
 
   # Sets new position of the window.
@@ -131,19 +131,15 @@ class Window
     prev_width = @rect.width
     @rect = new_rect
     on_width_changed if prev_width != new_rect.width
-    repaint
+    invalidate
   end
 
   # Sets new position of the window. Always repaints, even if the new rectangle is same
   # as the old one.
   # @param new_rect [Rect] new position.
   def set_rect_and_repaint(new_rect)
-    raise "invalid rect #{new_rect}" unless new_rect.is_a? Rect
-
-    prev_width = @rect.width
-    @rect = new_rect
-    on_width_changed if prev_width != new_rect.width
-    repaint
+    self.rect = new_rect
+    invalidate
   end
 
   # Sets new content of the window, as an array of {String}s.
@@ -152,7 +148,8 @@ class Window
     raise 'lines must be Array' unless lines.is_a? Array
 
     @lines = lines
-    repaint_content unless update_top_line_if_auto_scroll
+    update_top_line_if_auto_scroll
+    invalidate
   end
 
   # Fully re-populates the contents of this window in a block:
@@ -178,11 +175,13 @@ class Window
   # Appends given lines.
   # @param lines [Array<String>]
   def add_lines(lines)
+    screen.check_locked
     # split lines by newline
     lines = lines.flat_map { it.to_s.split("\n") }
     @lines += lines.map(&:rstrip)
     # TODO: optimize - if no scrolling is done then perhaps only the new line needs to be painted.
-    repaint_content unless update_top_line_if_auto_scroll
+    update_top_line_if_auto_scroll
+    invalidate
   end
 
   # Called when a character is pressed on the keyboard.
@@ -234,6 +233,11 @@ class Window
   # Called whenever the window width changes. Does nothing by default.
   def on_width_changed; end
 
+  # Invalidates window: causes the window to be repainted by {Screen}
+  def invalidate
+    screen.invalidate(self)
+  end
+
   private
 
   # Scrolls window viewport so that the cursor is visible. Repaints content if viewport was scrolled.
@@ -265,20 +269,18 @@ class Window
     return if @top_line == new_top_line
 
     @top_line = new_top_line
-    repaint_content
+    invalidate
   end
 
   # If auto-scrolling, recalculate the top line and optionally repaint content
   # if top line changed.
-  # @return [Boolean] true if the content was repainted, false if nothing was done
   def update_top_line_if_auto_scroll
-    return false unless @auto_scroll
+    return unless @auto_scroll
 
     new_top_line = (@lines.size - viewport_lines).clamp(0, nil)
-    return false unless @top_line != new_top_line
+    return unless @top_line != new_top_line
 
     self.top_line = new_top_line
-    true
   end
 
   def repaint_border
@@ -459,7 +461,7 @@ class LogWindow < Window
     end
 
     def puts(string)
-      Screen.instance.with_lock do
+      window.screen.with_lock do
         @window.add_line(string)
       end
     end

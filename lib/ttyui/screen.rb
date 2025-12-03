@@ -27,6 +27,10 @@ class Screen
     # Last popup is the topmost one and receives all key events.
     @popups = []
     @size = Size.new(self)
+    # {Set<Window>} invalidated windows (need repaint)
+    @invalidated_windows = Set.new
+    # {Boolean} true after tty resize or when a popup is removed.
+    @needs_full_repaint = true
   end
 
   # @return [Screen] the singleton instance
@@ -58,23 +62,42 @@ class Screen
     print TTY::Cursor.move_to(0, 0), TTY::Cursor.clear_screen
   end
 
-  # Repaints all windows. Call after the screen is initialized.
+  # Repaints all windows.
   def repaint
     check_locked
-    clear
-    @windows.each_key(&:repaint)
-    @popups.each(&:repaint)
+    return if @invalidated_windows.empty?
+
+    clear if @needs_full_repaint
+    tiled_windows_to_repaint = @windows.keys.filter { @invalidated_windows.include? it }
+    tiled_windows_to_repaint.each(&:repaint)
+    popups_to_repaint = if tiled_windows_to_repaint.empty?
+                          @popups.filter { @invalidated_windows.include? it }
+                        else
+                          @popups
+                        end
+    popups_to_repaint.each(&:repaint)
+    @invalidated_windows.clear
+    update_status_bar if @needs_full_repaint
+    @needs_full_repaint = false
   end
 
-  # Repaints all windows. Automatically Called whenever terminal size changes.
+  # Recalculates positions of all windows. Automatically called whenever terminal size changes.
+  # Also call when the app starts.
   def layout
     check_locked
-    clear
+    @needs_full_repaint = true
     relayout_tiled_windows
-    @popups.each do
-      it.center
-      it.repaint
-    end
+    @popups.each(&:center)
+    repaint
+  end
+
+  # Invalidates window: causes the window to be repainted on next call to {:repaint}
+  # @param window [Window]
+  def invalidate(window)
+    check_locked
+    raise unless window.is_a? Window
+
+    @invalidated_windows << window
   end
 
   # Adds a new tiled window.
@@ -85,12 +108,14 @@ class Screen
 
     window.active = true if @windows.empty?
     @windows[window] = shortcut
+    invalidate(window)
   end
 
   # @param [window] the popup to add. will be centered and painted automatically.
   def add_popup(window)
     @popups << window
-    window.center # Also paints the window
+    window.center
+    invalidate(window)
   end
 
   # @return [Set<Window>] list of tiled {Window}s.
@@ -136,7 +161,7 @@ class Screen
   def remove_window(window)
     check_locked
     if @popups.delete(window)
-      repaint
+      @needs_full_repaint = true
       return
     end
     @windows.delete(window)
@@ -163,6 +188,11 @@ class Screen
 
   private
 
+  def update_status_bar
+    print TTY::Cursor.move_to(0, size.height - 1), ' ' * size.width
+    print TTY::Cursor.move_to(0, size.height - 1), "q #{Rainbow('quit').cadetblue}  ", active_window&.keyboard_hint
+  end
+
   # A key has been pressed on the keyboard. Handle it, or forward to active window.
   # @param [String] key
   # @return [Boolean] true if the key was handled by some window.
@@ -186,6 +216,8 @@ class Screen
         handle_key(key)
       end
       break if !handled && ['q', Keys::ESC].include?(key)
+
+      repaint
     rescue StandardError => e
       $log.fatal('Uncaught event loop exception', e)
     end
