@@ -48,5 +48,11 @@ describe Screen do
       screen.add_popup w
       assert screen.has_window? w
     end
+    it 'close removes popup' do
+      w = Window.new
+      screen.add_popup w
+      screen.remove_window w
+      assert !screen.has_window?(w)
+    end
   end
 end
