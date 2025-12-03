@@ -91,11 +91,13 @@ class Screen
   # Called when the active window changes.
   # @param window [Window] the new active window
   def active_window=(window)
+    check_locked
     @windows.each_value { it.active = it == window }
   end
 
   # @return [Window | nil] current active window.
   def active_window
+    check_locked
     @windows.values.find(&:active?)
   end
 
@@ -104,16 +106,30 @@ class Screen
   #
   # Does nothing if the window is not open on this screen.
   def remove_window(window)
+    check_locked
     e = @windows.find { |k, v| v == window }
     return if e.nil?
 
-    @windows.remove(key)
+    @windows.delete(e[0])
     layout
   end
 
   # @return [Boolean] if screen contains this window.
   def has_window?(window)
-    @windows.values.contains?(window)
+    check_locked
+    @windows.values.include?(window)
+  end
+
+  # Testing only - creates new screen and locks the UI.
+  def self.fake
+    Screen.new
+    Screen.instance.lock
+    Screen.instance
+  end
+
+  # Testing only!!!
+  def lock
+    @lock.lock
   end
 
   private
