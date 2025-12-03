@@ -13,7 +13,7 @@ require 'tty-screen'
 # from [:with_lock].
 #
 # A screen contains tiled windows. Tiled windows are visible at all times
-# and don't overlap. TODO how to reposition?
+# and don't overlap. Override {:repaint_tiled_windows} to reposition and redraw the windows.
 #
 # Modal windows: TODO
 class Screen
@@ -23,6 +23,9 @@ class Screen
     @lock = Thread::Mutex.new
     # {Hash{String => Window}} tiled windows; maps key to a window activated by that key shortcut
     @windows = {}
+    # {Array<Window>} modal popup windows, listed in order as they were opened.
+    # Last popup is the topmost one and receives all key events.
+    @popups = []
     @size = Size.new(self)
   end
 
@@ -55,12 +58,23 @@ class Screen
     print TTY::Cursor.move_to(0, 0), TTY::Cursor.clear_screen
   end
 
-  # Re-calculates all window sizes and re-positions them, which draws them. Call after the screen is initialized.
-  #
-  # Default implementation clears the screen.
+  # Repaints all windows. Call after the screen is initialized.
+  def repaint
+    check_locked
+    clear
+    @windows.each_value(&:repaint)
+    @popups.each(&:repaint)
+  end
+
+  # Repaints all windows. Automatically Called whenever terminal size changes.
   def layout
     check_locked
     clear
+    relayout_tiled_windows
+    @popups.each do
+      it.center
+      it.repaint
+    end
   end
 
   # Adds a new tiled window.
@@ -95,7 +109,7 @@ class Screen
     @windows.each_value { it.active = it == window }
   end
 
-  # @return [Window | nil] current active window.
+  # @return [Window | nil] current active tiled window.
   def active_window
     check_locked
     @windows.values.find(&:active?)
@@ -132,11 +146,23 @@ class Screen
     @lock.lock
   end
 
+  protected
+
+  # Repositions all tiled window.
+  # Default implementation does nothing.
+  def relayout_tiled_windows
+  end
+
   private
 
   # A key has been pressed on the keyboard. Handle it, or forward to active window.
   # @param [String] key
   def handle_key(key)
+    topmost_popup = @popups.last
+    unless topmost_popup.nil?
+      topmost_popup.handle_key(key)
+      return
+    end
     window_to_activate = @windows[key]
     if !window_to_activate.nil?
       self.active_window = window_to_activate

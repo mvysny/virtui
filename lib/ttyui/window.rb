@@ -207,7 +207,7 @@ class Window
 
   # @return [Boolean] true if [:rect] is off screen and the window won't paint.
   def visible?
-    !@rect.empty? && !@rect.top.negative? && !@rect.left.negative? && opened?
+    !@rect.empty? && !@rect.top.negative? && !@rect.left.negative? && open?
   end
 
   # Removes the window from the screen.
@@ -218,6 +218,12 @@ class Window
   # @return [Boolean] true if this window is part of a screen. May not be visible.
   def open?
     screen.has_window?(self)
+  end
+
+  # Fully repaints the window: both frame and contents.
+  def repaint
+    repaint_border
+    repaint_content
   end
 
   protected
@@ -270,12 +276,6 @@ class Window
 
     self.top_line = new_top_line
     true
-  end
-
-  # Fully repaints the window: both frame and Contents
-  def repaint
-    repaint_border
-    repaint_content
   end
 
   def repaint_border

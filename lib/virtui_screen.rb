@@ -350,22 +350,10 @@ class AppScreen < Screen
     @vms = VMWindow.new(virt_cache, ballooning)
     @log = LogWindow.new('[3]-Log')
     @log.configure_logger $log
-    self.windows = { '2' => @system, '1' => @vms, '3' => @log }
-    self.active_window = @vms
-  end
-
-  def layout
-    super
-    sw = size.width
-    sh = size.height
-    system_window_width = (sw / 2).clamp(0, 60)
-    sh -= 1 # make way for the status bar
-    system_height = 13
-    vms_height = sh - system_height
-    @system.set_rect_and_repaint(Rect.new(0, vms_height, system_window_width, system_height))
-    @vms.set_rect_and_repaint(Rect.new(0, 0, sw, vms_height))
-    @log.set_rect_and_repaint(Rect.new(system_window_width, vms_height, sw - system_window_width, system_height))
-    update_status_bar
+    with_lock do
+      self.windows = { '2' => @system, '1' => @vms, '3' => @log }
+      self.active_window = @vms
+    end
   end
 
   # Call when windows need to update their contents. Must be run with screen lock held.
@@ -377,6 +365,22 @@ class AppScreen < Screen
 
   def active_window=(window)
     super
+    update_status_bar
+  end
+
+  protected
+
+  def relayout_tiled_windows
+    super
+    sw = size.width
+    sh = size.height
+    system_window_width = (sw / 2).clamp(0, 60)
+    sh -= 1 # make way for the status bar
+    system_height = 13
+    vms_height = sh - system_height
+    @system.set_rect_and_repaint(Rect.new(0, vms_height, system_window_width, system_height))
+    @vms.set_rect_and_repaint(Rect.new(0, 0, sw, vms_height))
+    @log.set_rect_and_repaint(Rect.new(system_window_width, vms_height, sw - system_window_width, system_height))
     update_status_bar
   end
 
