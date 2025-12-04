@@ -146,14 +146,6 @@ class Window
     invalidate
   end
 
-  # Sets new position of the window. Always repaints, even if the new rectangle is same
-  # as the old one.
-  # @param new_rect [Rect] new position.
-  def set_rect_and_repaint(new_rect)
-    self.rect = new_rect
-    invalidate
-  end
-
   # Sets new content of the window, as an array of {String}s.
   # @param lines [Array<String>] new content
   def content=(lines)

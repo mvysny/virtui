@@ -49,8 +49,8 @@ class AppScreen < Screen
     sh -= 1 # make way for the status bar
     system_height = 13
     vms_height = sh - system_height
-    @system.set_rect_and_repaint(Rect.new(0, vms_height, system_window_width, system_height))
-    @vms.set_rect_and_repaint(Rect.new(0, 0, sw, vms_height))
-    @log.set_rect_and_repaint(Rect.new(system_window_width, vms_height, sw - system_window_width, system_height))
+    @system.rect = Rect.new(0, vms_height, system_window_width, system_height)
+    @vms.rect = Rect.new(0, 0, sw, vms_height)
+    @log.rect = Rect.new(system_window_width, vms_height, sw - system_window_width, system_height)
   end
 end
