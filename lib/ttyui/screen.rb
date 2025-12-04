@@ -107,7 +107,6 @@ class Screen
     check_locked
     @windows = {}
     value.each { |key, window| add_window(key, window) }
-    layout
   end
 
   # Runs event loop - waits for keys and sends them to active window.
@@ -128,7 +127,6 @@ class Screen
   def active_window=(window)
     check_locked
     @windows.each_key { it.active = it == window }
-    update_status_bar
   end
 
   # @return [Window | nil] current active tiled window.
@@ -183,7 +181,7 @@ class Screen
     end
     repaint.each(&:repaint)
     @invalidated_windows.clear
-    update_status_bar if @needs_full_repaint
+    update_status_bar
     @needs_full_repaint = false
   end
 

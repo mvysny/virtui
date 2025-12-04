@@ -39,11 +39,6 @@ class AppScreen < Screen
     repaint
   end
 
-  def active_window=(window)
-    super
-    update_status_bar
-  end
-
   protected
 
   def relayout_tiled_windows
