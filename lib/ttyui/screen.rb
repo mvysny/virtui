@@ -62,26 +62,8 @@ class Screen
     print TTY::Cursor.move_to(0, 0), TTY::Cursor.clear_screen
   end
 
-  # Repaints all windows.
-  def repaint
-    check_locked
-    repaint = []
-    if @needs_full_repaint
-      # clear - only needed when tiled windows don't cover the screen entirely... and usually they do.
-      # Don't clear - prevents blinking
-      repaint = @windows.keys + @popups
-    else
-      repaint = @windows.keys.filter { @invalidated_windows.include? it }
-      repaint += repaint.empty? ? @popups.filter { @invalidated_windows.include? it } : @popups
-    end
-    repaint.each(&:repaint)
-    @invalidated_windows.clear
-    update_status_bar if @needs_full_repaint
-    @needs_full_repaint = false
-  end
-
-  # Recalculates positions of all windows. Automatically called whenever terminal size changes.
-  # Also call when the app starts.
+  # Recalculates positions of all windows, and repaints the scene. Automatically called whenever terminal size changes.
+  # Call when the app starts.
   def layout
     check_locked
     @needs_full_repaint = true
@@ -186,6 +168,24 @@ class Screen
   # Repositions all tiled window.
   # Default implementation does nothing.
   def relayout_tiled_windows; end
+
+  # Repaints all windows.
+  def repaint
+    check_locked
+    repaint = []
+    if @needs_full_repaint
+      # clear - only needed when tiled windows don't cover the screen entirely... and usually they do.
+      # Don't clear - prevents blinking
+      repaint = @windows.keys + @popups
+    else
+      repaint = @windows.keys.filter { @invalidated_windows.include? it }
+      repaint += repaint.empty? ? @popups.filter { @invalidated_windows.include? it } : @popups
+    end
+    repaint.each(&:repaint)
+    @invalidated_windows.clear
+    update_status_bar if @needs_full_repaint
+    @needs_full_repaint = false
+  end
 
   private
 
