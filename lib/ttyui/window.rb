@@ -30,19 +30,18 @@ class Rect < Data.define(:left, :top, :width, :height)
   end
 end
 
-# A window with a frame, a [:caption] and text contents. Doesn't support overlapping with other windows:
+# A window with a frame, a {#caption} and text contents. Doesn't support overlapping with other windows:
 # it paints its entire contents and doesn't clip if there are other overlapping windows.
 #
 # The content is a list of lines painted into the window. The lines are automatically
-# clipped horizontally. Vertical scrolling is supported, via [:top_line]; the window
-# can also automatically scroll to the bottom if [:auto_scroll] is enabled.
+# clipped horizontally. Vertical scrolling is supported, via {#top_line}; the window
+# can also automatically scroll to the bottom if {#auto_scroll} is enabled.
 #
-# Cursor is supported too, call [:cursor=] to change the behavior of the cursor.
+# Cursor is supported too, call {#cursor=} to change the behavior of the cursor.
 # The cursor responds to arrows and `jk` and scrolls the window contents automatically.
 #
-# Window is considered invisible if [:rect] is empty or one of left/top is negative.
-# The window won't draw when invisible. You can use this feature: simply set left/top to -1
-# to prevent window from drawing.
+# Window is considered invisible if {#rect} is empty or one of left/top is negative.
+# The window won't draw when invisible.
 class Window
   def initialize(caption = '')
     # {Rect} absolute coordinates of the window.
@@ -61,13 +60,26 @@ class Window
     @active = false
   end
 
-  attr_reader :caption, :rect, :p, :auto_scroll, :top_line, :cursor
+  # @return [String] the current caption, empty by default.
+  attr_reader :caption
+
+  # @return [Rect] the rectangle the windows occupies on screen.
+  attr_reader :rect
+
+  # @return [Boolean] if true and a line is added or a new content is set, auto-scrolls to the bottom
+  attr_reader :auto_scroll
+
+  # @return [Integer] top line of the window viewport. 0 or positive.
+  attr_reader :top_line
+
+  # @return [Cursor] the window's cursor.
+  attr_reader :cursor
 
   # @return [Screen] the screen which owns the window.
   def screen = Screen.instance
 
-  # Moves window to center it on screen. Consults [Rect:width] and [Rect:height]
-  # and modifies [Rect:top] and [Rect:left].
+  # Moves window to center it on screen. Consults {Rect.width} and {Rect.height}
+  # and modifies {Rect.top} and {Rect.left}.
   def center
     self.rect = rect.centered(screen.size.width, screen.size.height)
   end
@@ -80,7 +92,7 @@ class Window
   end
 
   # Sets new caption and repaints the window
-  # @param new_caption [String | nil]
+  # @param new_caption [String]
   def caption=(new_caption)
     @caption = new_caption
     invalidate
@@ -107,12 +119,12 @@ class Window
     invalidate
   end
 
-  # @return [Boolean]
-  def active?
-    @active
-  end
+  # @return [Boolean] if the window is active. Active window has green border and
+  # usually receives keyboard input (unless there's another popup window).
+  def active? = @active
 
-  # @param active [Boolean] true if active. Active window has green border.
+  # @param active [Boolean] true if active. Active window has green border and
+  # usually receives keyboard input (unless there's another popup window).
   def active=(active)
     active = !!active
     return unless @active != active
