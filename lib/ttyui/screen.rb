@@ -235,9 +235,10 @@ class Screen
     end
   end
 
-  # Tracks tty window size, the safe way. Call [:width] and [:height] to obtain
+  # Tracks tty window size, the safe way. Call {#width} and {#height} to obtain
   # current TTY size.
   class Size
+    # @param screen [Screen] the owner screen which gets notified of TTY size changes.
     def initialize(screen)
       @screen = screen
       @height, @width = TTY::Screen.size
@@ -251,7 +252,10 @@ class Screen
       trap_winch
     end
 
-    attr_reader :width, :height
+    # @return [Integer] the current width of the TTY terminal
+    attr_reader :width
+    # @return [Integer] the current height.
+    attr_reader :height
 
     private
 
@@ -283,6 +287,10 @@ class Screen
   end
 end
 
+# Testing only - a screen which doesn't paint anything and pretends that the lock is held.
+# This way, the TTY running the tests is not painted over.
+#
+# Call {Screen.fake} to initialize the fake screen easily.
 class FakeScreen < Screen
   def check_locked; end
   def clear; end
