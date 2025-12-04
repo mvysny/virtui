@@ -155,8 +155,8 @@ class Screen
     @windows.keys.find(&:active?)
   end
 
-  # Removes a window and calls {:layout}. This should visually "remove" the window. The window will also no longer receive
-  # keys.
+  # Removes a window and calls {:layout}. This should visually "remove" the window. The window will also no longer
+  # receive keys.
   #
   # Does nothing if the window is not open on this screen.
   def remove_window(window)
