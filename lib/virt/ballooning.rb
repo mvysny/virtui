@@ -4,6 +4,8 @@ require_relative '../byte_prefixes'
 
 # Controls memory of all VMs via the ballooning virt support. The VM must
 # have ballooning support installed and enabled, see README for instructions.
+#
+# TODO make thread-safe.
 class Ballooning
   # @param virt_cache [VirtCache]
   def initialize(virt_cache)
