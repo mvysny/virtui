@@ -3,6 +3,7 @@
 source 'https://rubygems.org'
 ruby '>= 3.4'
 
+gem 'concurrent-ruby'
 gem 'rainbow', '~> 3.1.0'
 gem 'rufus-scheduler'
 gem 'strings-truncation'
