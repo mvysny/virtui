@@ -117,11 +117,11 @@ class BallooningVM
     end
   end
 
+  # @return [Status] the status of this ballooner.
   attr_reader :status
 
-  def enabled?
-    @enabled
-  end
+  # @return [Boolean] true if automatic ballooning is enabled.
+  def enabled? = @enabled
 
   def was_running?
     @was_running
