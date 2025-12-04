@@ -128,15 +128,20 @@ class VMWindow < Window
   def show_memory_popup
     current_vm = @line_data[cursor.position] || return
     state = @virt_cache.state(current_vm)
-    opts = [['b', 'toggle autoBallooning']]
+    if state != :running
+      $log.error "'#{current_vm}' is not running"
+      return
+    end
+    opts = [['b', 'toggle autoBallooning'], ['m', 'Max memory & disable autoBallooning']]
     PickerWindow.open('Memory', opts) do |key|
       if key == 'b' # toggle Ballooning
-        if state == :running
-          $log.info "Toggling balloning for '#{current_vm}'"
-          @ballooning.toggle_enable(current_vm)
-        else
-          $log.error "'#{current_vm}' is not running"
-        end
+        $log.info "Toggling balloning for '#{current_vm}'"
+        @ballooning.toggle_enable(current_vm)
+      elsif key == 'm'
+        max_memory = @virt_cache.info(current_vm).max_memory
+        $log.info "Disabling balooning & giving max mem (#{format_byte_size(max_memory)}) to '#{current_vm}'"
+        @ballooning.enabled(current_vm, false)
+        @virt_cache.set_actual(current_vm, max_memory)
       end
     end
   end
