@@ -13,9 +13,17 @@ describe Rect do
     rect = Rect.new(-1, -1, 40, 20)
     assert_equal Rect.new(20, 10, 40, 20), rect.centered(80, 40)
   end
+  it 'clamps' do
+    rect = Rect.new(0, 0, 40, 20)
+    assert_equal Rect.new(0, 0, 20, 20), rect.clamp(20, 40)
+    assert_equal Rect.new(0, 0, 40, 20), rect.clamp(50, 40)
+    assert_equal Rect.new(0, 0, 40, 20), rect.clamp(40, 40)
+    assert_equal Rect.new(0, 0, 40, 10), rect.clamp(40, 10)
+  end
 end
 
 describe Window do
+  before { Screen.fake }
   context 'caption' do
     it 'sets caption via constructor' do
       assert_equal '', Window.new.caption

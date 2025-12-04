@@ -10,6 +10,8 @@ require_relative 'screen'
 
 # A rectangle, with {Integer} `left`, `top`, `width` and `height`.
 class Rect < Data.define(:left, :top, :width, :height)
+  def to_s = "#{left},#{top} #{width}x#{height}"
+
   # @return [Boolean] true if either {:width} or {:height} is zero or negative.
   def empty?
     width <= 0 || height <= 0
@@ -27,6 +29,16 @@ class Rect < Data.define(:left, :top, :width, :height)
   # @return [Rect] moved rectangle.
   def centered(screen_width, screen_height)
     at((screen_width - width) / 2, (screen_height - height) / 2)
+  end
+
+  # Clamp both width and height and returns a rectangle.
+  # @param max_width [Integer] the max width
+  # @param max_height [Integer]
+  # @return [Rect]
+  def clamp(max_width, max_height)
+    new_width = width.clamp(nil, max_width)
+    new_height = height.clamp(nil, max_height)
+    new_width == width && new_height == height ? self : Rect.new(left, top, new_width, new_height)
   end
 end
 
