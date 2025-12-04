@@ -198,11 +198,12 @@ class Window
     elsif key == Keys::PAGE_DOWN
       move_top_line_by(viewport_lines)
       true
-    else
-      return false unless @cursor.handle_key(key, @lines.size, viewport_lines)
-
-      repaint_content unless move_viewport_to_cursor
+    elsif @cursor.handle_key(key, @lines.size, viewport_lines)
+      move_viewport_to_cursor
+      invalidate
       true
+    else
+      false
     end
   end
 
