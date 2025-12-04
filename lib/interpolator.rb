@@ -4,6 +4,8 @@
 # The value changes based on current time.
 module Interpolator
   # Always provides given `value` {Object}.
+  #
+  # Immutable, thread-safe.
   class Const < Data.define(:value)
   end
 
@@ -12,6 +14,8 @@ module Interpolator
   #
   # Both `value_from` and `value_to` must be {Numeric} (ideally {Float}); both `time_from` and `time_from`
   # must be {Time}.
+  #
+  # Immutable, thread-safe.
   class Linear < Data.define(:value_from, :value_to, :time_from, :time_to)
     def initialize(hash)
       super

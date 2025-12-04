@@ -9,11 +9,13 @@ class VMEmulator
   # @param hostinfo [CpuInfo]
   def initialize(hostinfo: CpuInfo.new('emulator', 1, 4, 2))
     @hostinfo = hostinfo
-    # Hash{String => VM}
+    # {Hash{String => VM}}
     @vms = {}
+    # {Boolean} For debugging purposes
     @allow_set_actual = true
   end
 
+  # @return [CpuInfo]
   attr_reader :hostinfo
   attr_accessor :allow_set_actual
 
@@ -32,7 +34,7 @@ class VMEmulator
     # @param info [DomainInfo]
     # @param initial_actual [Integer] the value of [MemStat.actual] when the VM is started.
     # @param started_initial_apps [Integer] when the VM is started, it pretends that its app will use this amount of
-    #   memory. Once started, the VM mem usage slowly climbs to this value. You can call {:set_used} to set a new usage
+    #   memory. Once started, the VM mem usage slowly climbs to this value. You can call {#set_used} to set a new usage
     #   value.
     def initialize(info, initial_actual, started_initial_apps)
       raise "max_memory must be #{MIN_ACTUAL} or higher" if info.max_memory < 128.MiB
@@ -61,8 +63,14 @@ class VMEmulator
       info.name
     end
 
-    attr_reader :info, :started_initial_apps
+    # @return [DomainInfo]
+    attr_reader :info
+    # @return [Integer] when the VM is started, it pretends that its app will use this amount of
+    #   memory. Once started, the VM mem usage slowly climbs to this value. You can call {#set_used} to set a new usage
+    #   value.
+    attr_reader :started_initial_apps
 
+    # @return [Boolean]
     def running?
       !@started_at.nil? && (@shut_down_at.nil? || Time.now - @shut_down_at < @shutdown_seconds)
     end
