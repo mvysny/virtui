@@ -95,8 +95,6 @@ class VMWindow < Window
     current_vm = @line_data[cursor.position]
     return false if current_vm.nil?
 
-    state = @virt_cache.state(current_vm)
-
     if key == 'p' # Power menu
       show_power_popup
       true
@@ -104,13 +102,8 @@ class VMWindow < Window
       $log.info "Launching viewer for '#{current_vm}'"
       Run.async("virt-manager --connect qemu:///system --show-domain-console '#{current_vm}'")
       true
-    elsif key == 'b' # toggle Ballooning
-      if state == :running
-        $log.info "Toggling balloning for '#{current_vm}'"
-        @ballooning.toggle_enable(current_vm)
-      else
-        $log.error "'#{current_vm}' is not running"
-      end
+    elsif key == 'm' # memory
+      show_memory_popup
       true
     elsif key == 'd'
       self.show_disk_stat = !show_disk_stat
@@ -121,7 +114,7 @@ class VMWindow < Window
   end
 
   def keyboard_hint
-    "p #{Rainbow('Power').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  b #{Rainbow('toggle autoBallooning').cadetblue}  d #{Rainbow('toggle Disk stat').cadetblue}"
+    "p #{Rainbow('Power').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  m #{Rainbow('Memory').cadetblue}  d #{Rainbow('toggle Disk stat').cadetblue}"
   end
 
   protected
@@ -131,6 +124,22 @@ class VMWindow < Window
   end
 
   private
+
+  def show_memory_popup
+    current_vm = @line_data[cursor.position] || return
+    state = @virt_cache.state(current_vm)
+    opts = [['b', 'toggle autoBallooning']]
+    PickerWindow.open('Memory', opts) do |key|
+      if key == 'b' # toggle Ballooning
+        if state == :running
+          $log.info "Toggling balloning for '#{current_vm}'"
+          @ballooning.toggle_enable(current_vm)
+        else
+          $log.error "'#{current_vm}' is not running"
+        end
+      end
+    end
+  end
 
   def show_power_popup
     current_vm = @line_data[cursor.position] || return
