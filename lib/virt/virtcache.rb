@@ -3,8 +3,11 @@
 require_relative '../sysinfo'
 require_relative 'virt'
 require_relative '../byte_prefixes'
+require 'concurrent-ruby'
 
 # Caches all VM runtime info for speedy access.
+#
+# Thread-safe.
 class VirtCache
   # @property [MemoryStat]
   attr_reader :host_mem_stat
@@ -16,23 +19,24 @@ class VirtCache
   # @property [Map{String => DiskUsage}] maps physical disk name to usage information.
   attr_reader :disks
 
+  # @return [Set<String>] CPU flags such as `npt`, `nx` etc. Not just virtualization-related.
   attr_reader :cpu_flags
 
-  # @param virt [VirtCmd | LibVirtClient] virt client
+  # @param virt [VirtCmd] virt client
   # @param sysinfo [SysInfo]
   def initialize(virt, sysinfo)
+    # {VirtCmd}- compatible client.
     @virt = virt
     # {CpuInfo}
     @cpu_info = virt.hostinfo
     # {Set<String>}
     @cpu_flags = sysinfo.cpu_flags
-
     # {SysInfo}
     @sysinfo = sysinfo
     # {Integer}
     @cpu_count = @cpu_info.cpus
-    # Hash{String => VMCache}
-    @cache = {}
+    # {Hash{String => VMCache}}
+    @cache = Concurrent::Map.new
     update
   end
 
@@ -103,6 +107,8 @@ class VirtCache
   # - `cpu_usage` {Float} CPU usage in %; 100% means one CPU core was fully utilized. 0 or greater, may be greater than
   #    100.
   # - `mem_data_age_seconds` {Float} memory data age in seconds; `nil` if balloon unavailable or VM is shot down.
+  #
+  # Immutable, thread-safe.
   class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds)
     # @param prev_data [DomainData | nil] previous VM data
     # @param next_data [DomainData] current VM data
@@ -143,7 +149,9 @@ class VirtCache
     old_cache = @cache
     # {Hash<String => DomainData>} domain data, maps VM name to {DomainData}
     domain_data = @virt.domain_data
-    @cache = domain_data.map { |did, data| [did, VMCache.diff(old_cache[did]&.data, data)] }.to_h
+    cache = Concurrent::Map.new(options: { initial_capacity: domain_data.length })
+    domain_data.each { |did, data| cache[did] = VMCache.diff(old_cache[did]&.data, data) }
+    @cache = cache
 
     # {MemoryStat} host stats
     @host_mem_stat = @sysinfo.memory_stats
