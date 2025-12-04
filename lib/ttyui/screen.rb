@@ -7,17 +7,24 @@ require 'tty-screen'
 
 # The TTY screen. There is exactly one screen per app.
 #
-# A screen runs the event loop; call [:run_event_loop] to do that.
+# A screen runs the event loop; call {#run_event_loop} to do that.
 #
 # A screen holds the screen lock; any UI modifications must run
-# from [:with_lock].
+# from {#with_lock}.
 #
 # A screen contains tiled windows. Tiled windows are visible at all times
-# and don't overlap. Override {:repaint_tiled_windows} to reposition and redraw the windows.
+# and don't overlap. Override {#relayout_tiled_windows} to reposition and redraw the windows.
 #
-# Modal windows: TODO
+# Moddal/popup windows are supported too, via {#add_popup}. They are centered
+# (which mean that they need to provide their desired width and height) and drawn over some tiled windows.
+#
+# The drawing procedure is very simple: when a window needs repaint, it invalidates itself,
+# but won't draw immediately. After the keyboard press event processing is done in the event loop,
+# {#repaint} is called which then repaints all invalidated windows. This prevents repeated
+# paintings.
 class Screen
   def initialize
+    # {Screen} store the singleton instance for later retrieval.
     @@instance = self
     # Every UI modification must hold this lock.
     @lock = Thread::Mutex.new
@@ -40,7 +47,7 @@ class Screen
     @@instance
   end
 
-  # Provides [:width] and [:height] of the screen.
+  # Provides access to {Size.width} and {Size.height} of the screen.
   attr_reader :size
 
   # Runs block with the UI lock held.
@@ -155,7 +162,8 @@ class Screen
     @popups.include?(window) || @windows.keys.include?(window)
   end
 
-  # Testing only - creates new screen and locks the UI.
+  # Testing only - creates new screen, locks the UI, and prevents any redraws,
+  # so that test TTY is not painted over.
   def self.fake
     FakeScreen.new
     Screen.instance
@@ -167,7 +175,8 @@ class Screen
   # Default implementation does nothing.
   def relayout_tiled_windows; end
 
-  # Repaints all windows.
+  # Repaints the screen; tries to be as effective as possible, by only considering
+  # invalidated windows.
   def repaint
     check_locked
     repaint = []
@@ -177,6 +186,12 @@ class Screen
       repaint = @windows.keys + @popups
     else
       repaint = @windows.keys.filter { @invalidated_windows.include? it }
+      # This simple TUI framework doesn't support window clipping since
+      # tiled windows are not expected to overlap. If there rarely is a popup,
+      # we just repaint all windows in correct order - sure they will paint over
+      # other windows, but if this is done in the right order, the final drawing will
+      # look okay. Not the most effective algorithm, but very simple and very fast
+      # in common cases.
       repaint += repaint.empty? ? @popups.filter { @invalidated_windows.include? it } : @popups
     end
     repaint.each(&:repaint)
