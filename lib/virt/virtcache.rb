@@ -7,7 +7,9 @@ require 'concurrent-ruby'
 
 # Caches all VM runtime info for speedy access.
 #
-# Thread-safe.
+# Thread-safe: the {#update} is guarded by `@write_lock` and reads
+# return immutable data which may be a bit stale in the worst case: this is okay since
+# it's only for display purposes.
 class VirtCache
   # @property [MemoryStat]
   attr_reader :host_mem_stat
@@ -37,6 +39,8 @@ class VirtCache
     @cpu_count = @cpu_info.cpus
     # {Hash{String => VMCache}}
     @cache = Concurrent::Map.new
+    # So that {#update} won't be run concurrently.
+    @write_lock = Thread::Mutex.new
     update
   end
 
@@ -144,23 +148,25 @@ class VirtCache
     end
   end
 
-  # Updates the cache
+  # Updates the cache. Guarded by `@write_lock`.
   def update
-    old_cache = @cache
-    # {Hash<String => DomainData>} domain data, maps VM name to {DomainData}
-    domain_data = @virt.domain_data
-    cache = Concurrent::Map.new(options: { initial_capacity: domain_data.length })
-    domain_data.each { |did, data| cache[did] = VMCache.diff(old_cache[did]&.data, data) }
-    @cache = cache
+    @write_lock.synchronize do
+      old_cache = @cache
+      # {Hash<String => DomainData>} domain data, maps VM name to {DomainData}
+      domain_data = @virt.domain_data
+      cache = Concurrent::Map.new(options: { initial_capacity: domain_data.length })
+      domain_data.each { |did, data| cache[did] = VMCache.diff(old_cache[did]&.data, data) }
+      @cache = cache
 
-    # {MemoryStat} host stats
-    @host_mem_stat = @sysinfo.memory_stats
-    # {CpuUsage}
-    @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
+      # {MemoryStat} host stats
+      @host_mem_stat = @sysinfo.memory_stats
+      # {CpuUsage}
+      @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
 
-    qcow2_files = domain_data.values.flat_map { it.disk_stat }.filter { !it.path.nil? }.map { [it.path, it.physical] }
-    # {Map{String => DiskUsage}} maps physical disk name to usage information.
-    @disks = @sysinfo.disk_usage(qcow2_files)
+      qcow2_files = domain_data.values.flat_map { it.disk_stat }.filter { !it.path.nil? }.map { [it.path, it.physical] }
+      # {Map{String => DiskUsage}} maps physical disk name to usage information.
+      @disks = @sysinfo.disk_usage(qcow2_files)
+    end
   end
 
   # @param disk_stat [DiskStat]
