@@ -113,6 +113,8 @@ class BallooningVM
   # - `text` [String] textual representation of the change, useful for debug purposes.
   # - `memory_delta` [Integer] no change applied to memory if zero; memory increased if positive; memory decreased if
   #    negative.
+  #
+  # Immutable, thread-safe.
   class Status < Data.define(:text, :memory_delta)
     def to_s
       "#{text}; d=#{memory_delta}"
@@ -125,9 +127,8 @@ class BallooningVM
   # @return [Boolean] true if automatic ballooning is enabled.
   def enabled? = @enabled
 
-  def was_running?
-    @was_running
-  end
+  # @return [Boolean] if the VM was running during the last ballooning update
+  def was_running? = @was_running
 
   def enabled=(enabled)
     @enabled = !!enabled
