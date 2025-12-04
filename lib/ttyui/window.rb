@@ -314,7 +314,8 @@ class Window
         line = truncated_line
       end
 
-      print TTY::Cursor.move_to(@rect.left + 2, line_no + @rect.top + 1)
+      line = " #{line} "
+      print TTY::Cursor.move_to(@rect.left + 1, line_no + @rect.top + 1)
       is_cursor = line_index < @lines.size && @cursor.position == line_index
       if is_cursor
         print Rainbow(Rainbow.uncolor(line)).bg(:darkslategray)
