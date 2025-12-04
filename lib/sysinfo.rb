@@ -3,7 +3,7 @@
 require_relative 'utils'
 require_relative 'byte_prefixes'
 
-# Resource usage: `total` and `available`, in bytes, both {Integer}
+# Resource usage: `total` and `available`, in bytes, both {Integer}. Immutable, thread-safe.
 class MemoryUsage < Data.define(:total, :available)
   ZERO = MemoryUsage.new(0, 0)
   def self.of(total, used) = MemoryUsage.new(total: total, available: total - used)
@@ -18,14 +18,16 @@ class MemoryUsage < Data.define(:total, :available)
   end
 end
 
-# Memory statistics: `ram` and `swap`, both {MemoryUsage}.
+# Memory statistics: `ram` and `swap`, both {MemoryUsage}. Immutable, thread-safe.
 class MemoryStat < Data.define(:ram, :swap)
   def to_s
     "RAM: #{ram}, SWAP: #{swap}"
   end
 end
 
-# Obtains system information from host Linux
+# Obtains system information from host Linux.
+#
+# Thread-safe, has no state.
 class SysInfo
   # @return [MemoryStat] memory statistics
   def memory_stats(meminfo_file = nil)
@@ -98,6 +100,8 @@ end
 # - `usage` {MemoryUsage} the disk usage
 # - `vm_usage` {Integer} bytes used by VM qcow2 files
 # - `qcow2_files` {Array<String>} qcow2 files stored on this disk
+#
+# Immutable, thread-safe.
 class DiskUsage < Data.define(:usage, :vm_usage, :qcow2_files)
   def to_s = "#{usage} (#{format_byte_size(vm_usage)} VMs)"
   # @param physical [Integer] qcow2 file size
@@ -107,6 +111,8 @@ class DiskUsage < Data.define(:usage, :vm_usage, :qcow2_files)
 end
 
 # A representation of a single `cpu` line from `/proc/stat`. `name` is {String} `cpu`; others are {Integer}s.
+#
+# Immutable, thread-safe.
 class CpuStat < Data.define(:name, :user, :nice, :system, :idle, :iowait, :irq, :softirq, :steal, :guest, :guest_nice)
   def clocks_idle
     idle + iowait
@@ -140,10 +146,14 @@ end
 
 # A CPU usage. `usage_percent` is {Float} 0..100% and represents a CPU usage single last sampling.
 # `last_cpu_stat` is the most up-to-date representation of CPU clocks, {CpuStat}.
+#
+# Immutable, thread-safe.
 class CpuUsage < Data.define(:usage_percent, :last_cpu_stat)
 end
 
 # A [SysInfo] compatible class which provides dummy predictable results.
+#
+# Has no state, thread-safe.
 class PcEmulator
   # @return [MemoryStat] memory statistics
   def memory_stats
