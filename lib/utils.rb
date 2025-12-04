@@ -2,12 +2,13 @@
 
 require 'open3'
 
-# Replacement for all exec methods. Raise error if the command not found or fails.
+# Replacement for all exec methods - fails eagerly and cleanly when the command goes wrong.
+# Raises error if the command not found or fails.
 module Run
   # Runs command asynchronously, logging stderr lazily once it fails.
   # The function terminates immediately.
   # @param command [String] the command to run
-  # @return [Thread] executing the command. Call [Thread.join] to wait for the result.
+  # @return [Thread] executing the command. Call {Thread.join} to wait for the result.
   def self.async(command)
     _stdin, combined_output, wait_thr = Open3.popen2e(command)
 
