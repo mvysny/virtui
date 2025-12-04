@@ -24,9 +24,11 @@ class PickerWindow < Window
     @block = block
     self.content = options.map { "#{it.key} #{Rainbow(it.caption).cadetblue}" }
     self.cursor = Cursor.new
+    # ideal width/height
     width = options.map { it.caption.length }.max + 6
     height = options.length.clamp(..MAX_ITEMS) + 2
-    self.rect = Rect.new(-1, -1, width, height)
+    # clamp it to 80% of screen width/height
+    self.rect = Rect.new(-1, -1, width, height).clamp(screen.size.width * 4 / 5, screen.size.height * 4 / 5)
   end
 
   def handle_key(key)
