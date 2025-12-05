@@ -256,7 +256,8 @@ class VirtCmd
   # Shuts down a VM gracefully - basically asks the VM to shut off.
   # @param domain_name [String] VM name
   def shutdown(domain_name)
-    Run.sync("virsh shutdown '#{domain_name}'")
+    # Async - this can take 0,5-5s during which the UI appears frozen.
+    Run.async("virsh shutdown '#{domain_name}'")
   end
 
   # Asks the VM to reboot itself gracefully.
