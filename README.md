@@ -21,13 +21,15 @@ bin/virtui
 
 Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
 
-- `s` - starts a VM
-- `o` - sends a shutdown signal to the guest OS which should gracefully shut down the VM.
-- `Shift+o` - powers down the VM immediately.
+- `ps` - starts a VM
+- `po` - sends a shutdown signal to the guest OS which should gracefully shut down the VM.
+- `pr` - sends a reset signal to the guest OS to gracefully reboot the machine.
+- `pR` - forcefully reboots the VM.
 - `v` - runs a graphical viewer for the VM (`virt-manager` needs to be installed)
-- `b` - toggles automatic ballooning for a VM
-- `r` - sends a reset signal to the guest OS to gracefully reboot the machine.
-- `Shift+r` - forcefully reboots the VM.
+- `mb` - toggles automatic ballooning for a VM
+- `mm` - disables automatic ballooning and gives the VM max memory configured for that VM. A quick mechanism
+  when VM needs more memory fast.
+- `d` - toggles disk stats for all VMs, not just running ones. Clutters the list a bit.
 
 # Ballooning
 
