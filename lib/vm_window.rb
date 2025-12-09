@@ -132,7 +132,7 @@ class VMWindow < Window
       $log.error "'#{current_vm}' is not running"
       return
     end
-    opts = [['b', 'toggle autoBallooning'], ['m', 'Max memory & disable autoBallooning']]
+    opts = [['b', 'toggle autoBallooning'], ['m', 'Max memory & disable autoballooning']]
     PickerWindow.open('Memory', opts) do |key|
       if key == 'b' # toggle Ballooning
         $log.info "Toggling balloning for '#{current_vm}'"
