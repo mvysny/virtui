@@ -31,6 +31,7 @@ describe BallooningVM do
     assert_equal 2.GiB, vm.to_mem_stat.actual
 
     b = BallooningVM.new(virt_cache, 'vm0')
+    b.min_actual = 2.GiB
     b.update
     # should issue no update - the VM is just starting
     assert_equal 'only 0% memory used, but backing off for 20.0s; d=0', b.status.to_s

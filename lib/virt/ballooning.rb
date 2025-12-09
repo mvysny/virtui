@@ -66,8 +66,9 @@ class BallooningVM
   def initialize(virt_cache, vmid)
     @virt_cache = virt_cache
     @vmid = vmid
-    # Don't let the VM fall below 2GB
-    @min_actual = 2.GiB
+    # {Integer} Don't let the VM fall below this value. Note that QEMU needs some memory for itself, so the amount
+    # of memory available to the guest OS will be smaller.
+    @min_actual = 4.GiB
     # After Ballooning decreases active memory, it will back off for 20 seconds
     # before trying to decrease the memory again. Observation shows that
     # the effects of the memory decrease command in Linux guest isn't instant: instead it is gradual, and takes
@@ -109,6 +110,10 @@ class BallooningVM
     # {Status}
     @status = Status.new('', 0)
   end
+
+  # @return [Integer] Don't let the VM fall below this value. Note that QEMU needs some memory for itself, so the amount
+  # of memory available to the guest OS will be smaller.
+  attr_accessor :min_actual
 
   # - `text` [String] textual representation of the change, useful for debug purposes.
   # - `memory_delta` [Integer] no change applied to memory if zero; memory increased if positive; memory decreased if
