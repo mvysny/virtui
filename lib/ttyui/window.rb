@@ -255,6 +255,18 @@ class Window
     screen.invalidate(self)
   end
 
+  # Paints the window border.
+  def repaint_border
+    return unless visible?
+
+    frame = TTY::Box.frame(
+      width: @rect.width, height: @rect.height, top: @rect.top, left: @rect.left,
+      title: { top_left: @caption || '' }
+    )
+    frame = Rainbow(frame).green if @active
+    print frame
+  end
+
   private
 
   # Scrolls window viewport so that the cursor is visible. Repaints content if viewport was scrolled.
@@ -298,17 +310,6 @@ class Window
     return unless @top_line != new_top_line
 
     self.top_line = new_top_line
-  end
-
-  def repaint_border
-    return unless visible?
-
-    frame = TTY::Box.frame(
-      width: @rect.width, height: @rect.height, top: @rect.top, left: @rect.left,
-      title: { top_left: @caption || '' }
-    )
-    frame = Rainbow(frame).green if @active
-    print frame
   end
 
   def repaint_content

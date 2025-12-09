@@ -123,6 +123,17 @@ class VMWindow < Window
     update
   end
 
+  def repaint_border
+    super
+    return unless visible?
+
+    y = rect.top
+    fourth = rect.width / 4
+    color = active? ? :green : :white
+    print TTY::Cursor.move_to(rect.left + fourth - 5, y), Rainbow(' Guest usage ').fg(:black).bg(color)
+    print TTY::Cursor.move_to(rect.left + 3 * fourth - 5, y), Rainbow(' Host usage ').fg(:black).bg(color)
+  end
+
   private
 
   def show_memory_popup
