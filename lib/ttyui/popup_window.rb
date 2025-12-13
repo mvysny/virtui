@@ -46,3 +46,15 @@ class PopupWindow < Window
     self.cursor = Cursor.new if content.length > max_height
   end
 end
+
+# Shows a bunch of lines as a helpful info.
+class InfoPopupWindow < PopupWindow
+  # Opens the info window
+  # @param caption [String]
+  # @param lines [Array<String>] the content, may contain formatting.
+  def self.open(caption, lines)
+    w = InfoPopupWindow.new(caption)
+    w.content = lines
+    w.open
+  end
+end
