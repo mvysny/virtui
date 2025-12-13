@@ -2,9 +2,9 @@
 
 require 'rainbow'
 require_relative 'keys'
-require_relative 'window'
+require_relative 'popup_window'
 
-class PickerWindow < Window
+class PickerWindow < PopupWindow
   # Scrolls the window when more items
   MAX_ITEMS = 10
 
@@ -23,21 +23,14 @@ class PickerWindow < Window
     @options = options
     @block = block
     self.content = options.map { "#{it.key} #{Rainbow(it.caption).cadetblue}" }
+    # Always enable cursor
     self.cursor = Cursor.new
-    # ideal width/height
-    width = options.map { it.caption.length }.max + 6
-    height = options.length.clamp(..MAX_ITEMS) + 2
-    # clamp it to 80% of screen width/height
-    self.rect = Rect.new(-1, -1, width, height).clamp(screen.size.width * 4 / 5, screen.size.height * 4 / 5)
   end
 
   def handle_key(key)
     return true if super
 
-    if [Keys::ESC, 'q'].include?(key)
-      close
-      true
-    elsif @options.any? { it.key == key }
+    if @options.any? { it.key == key }
       select_option(key)
       true
     elsif key == Keys::ENTER
@@ -55,7 +48,7 @@ class PickerWindow < Window
   # @return [PickerWindow]
   def self.open(caption, options, &block)
     picker = PickerWindow.new(caption, options, &block)
-    picker.screen.add_popup(picker)
+    picker.open
     picker
   end
 
