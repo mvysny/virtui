@@ -220,6 +220,8 @@ class Window
   end
 
   # @return [String] formatted keyboard hint for users. Empty by default.
+  # Example: `p #{Rainbow('Power').cadetblue}`. If the window responds to keys,
+  # override {handle_key}
   def keyboard_hint
     ''
   end
