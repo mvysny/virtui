@@ -49,6 +49,8 @@ class Screen
 
   # Provides access to {Size.width} and {Size.height} of the screen.
   attr_reader :size
+  # @return [Array<Window>] currently active popup windows. The array must not be modified!
+  attr_reader :popups
 
   # Runs block with the UI lock held.
   def with_lock(&block)
