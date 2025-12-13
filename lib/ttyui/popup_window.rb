@@ -47,7 +47,8 @@ class PopupWindow < Window
   end
 end
 
-# Shows a bunch of lines as a helpful info.
+# Shows a bunch of lines as a helpful info. Call {#open}
+# to quickly open the window.
 class InfoPopupWindow < PopupWindow
   # Opens the info window
   # @param caption [String]
