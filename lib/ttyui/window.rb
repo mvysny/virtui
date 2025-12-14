@@ -90,12 +90,6 @@ class Window
   # @return [Screen] the screen which owns the window.
   def screen = Screen.instance
 
-  # Moves window to center it on screen. Consults {Rect.width} and {Rect.height}
-  # and modifies {Rect.top} and {Rect.left}.
-  def center
-    self.rect = rect.centered(screen.size.width, screen.size.height)
-  end
-
   # Sets the new auto_scroll. If true, immediately scrolls to the bottom.
   # @param new_auto_scroll [Boolean] if true, keep scrolled to the bottom.
   def auto_scroll=(new_auto_scroll)

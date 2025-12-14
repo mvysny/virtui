@@ -12,6 +12,12 @@ class PopupWindow < Window
     screen.add_popup(self)
   end
 
+  # Moves window to center it on screen. Consults {Rect.width} and {Rect.height}
+  # and modifies {Rect.top} and {Rect.left}. Should only be used on popup
+  def center
+    self.rect = rect.centered(screen.size.width, screen.size.height)
+  end
+
   # The max height of the window, defaults to 12 (10 rows + 2 chars border).
   # The window automatically enables cursor + scrolling when there are more items.
   def max_height = 12

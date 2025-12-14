@@ -2,6 +2,7 @@
 
 require_relative '../spec_helper'
 require 'ttyui/screen'
+require 'ttyui/popup_window'
 
 describe Screen do
   let(:screen) { Screen.fake }
@@ -44,12 +45,12 @@ describe Screen do
 
   context 'popups' do
     it 'adds popup' do
-      w = Window.new
+      w = PopupWindow.new
       screen.add_popup w
       assert screen.has_window? w
     end
     it 'close removes popup' do
-      w = Window.new
+      w = PopupWindow.new
       screen.add_popup w
       screen.remove_window w
       assert !screen.has_window?(w)
