@@ -206,7 +206,7 @@ class Window
       true
     elsif @cursor.handle_key(key, @lines.size, viewport_lines)
       move_viewport_to_cursor
-      invalidate
+      invalidate # the cursor has been moved, repaint
       true
     else
       false
@@ -266,19 +266,15 @@ class Window
   private
 
   # Scrolls window viewport so that the cursor is visible. Repaints content if viewport was scrolled.
-  # @return [Boolean] true if the viewport was moved and the window repainted, false if nothing was done.
   def move_viewport_to_cursor
     pos = @cursor.position
-    return false unless pos >= 0
+    return unless pos >= 0
 
     if @top_line > pos
       self.top_line = pos
-      return true
     elsif pos > @top_line + rect.height - 3
       self.top_line = pos - rect.height + 3
-      return true
     end
-    false
   end
 
   # @return [Integer] the max value of {@top_line}
