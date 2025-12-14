@@ -24,6 +24,7 @@ class PopupWindow < Window
 
   def content=(lines)
     super
+    # Re-center the popup window after its contents have been updated.
     update_rect
   end
 
