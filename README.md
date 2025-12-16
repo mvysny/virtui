@@ -1,6 +1,6 @@
 # virtui
 
-A TUI client for libvirt/virsh. Under development. Requires Ruby 3.4+. Currently runs `virsh`.
+A TUI client for libvirt/virsh. Requires Ruby 3.4+. 
 Currently only tested on Linux host: probably won't work on Windows nor MacOS.
 
 ![Screenshot](docs/screenshot.png)
