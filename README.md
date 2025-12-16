@@ -7,7 +7,7 @@ Currently only tested on Linux host: probably won't work on Windows nor MacOS.
 
 ## Setup
 
-- [Install Ruby via Mise](https://github.com/mvysny/lazyvim-ubuntu).
+- [Install Ruby via Mise](https://mise.jdx.dev/lang/ruby.html).
 - git clone this project, then run `bundle install` to install project dependencies.
 - To use virtui over `virsh` binary, run `sudo apt install libvirt-clients` (recommended, the default)
 - To use direct connection to `libvirt` (experimental, [broken at the moment](https://github.com/mvysny/virtui/issues/1)),
