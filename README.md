@@ -1,6 +1,6 @@
 # virtui
 
-A TUI client for libvirt/virsh. Requires Ruby 3.4+. 
+A TUI client for libvirt/virsh. Requires Ruby 3.4+.
 Currently only tested on Linux host: probably won't work on Windows nor MacOS.
 
 ![Screenshot](docs/screenshot.png)
@@ -98,5 +98,5 @@ $ bundle exec rake spec
 # Future plans
 
 - `+-` increases/shrinks active memory by 10% and disables automatic ballooning
-- Add [libvirt](https://ruby.libvirt.org/) client: blocked by [bug #14](https://gitlab.com/libvirt/libvirt-ruby/-/issues/14)
+- Add [libvirt](https://ruby.libvirt.org/) client: blocked by [bug #1](https://github.com/mvysny/virtui/issues/1)
 
