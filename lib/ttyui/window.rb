@@ -446,10 +446,10 @@ class Window
       end
 
       def go_up_by(lines)
-        prev_index = @positions.rindex { it <= @position - lines }
-        return go_to_first if prev_index.nil?
+        prev_pos = @positions.reverse_each.find { it <= @position - lines }
+        return go_to_first if prev_pos.nil?
 
-        go(@positions[prev_index])
+        go(prev_pos)
       end
 
       def go_to_first
