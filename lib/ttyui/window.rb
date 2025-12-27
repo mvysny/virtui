@@ -260,7 +260,7 @@ class Window
       title: { top_left: @caption || '' }
     )
     frame = Rainbow(frame).green if @active
-    print frame
+    screen.print frame
   end
 
   private
@@ -304,34 +304,46 @@ class Window
     self.top_line = new_top_line
   end
 
+  # Trims string exactly to [width] columns.
+  # @return [String] trimmed string
+  def trim_to(str, width)
+    # truncate() takes ANSI sequences into account.
+    truncated_line = Strings::Truncation.truncate(str, length: width)
+    return truncated_line unless truncated_line == str
+
+    # nothing was truncated, perhaps we need to add whitespaces,
+    # to repaint over old content.
+    # strip the formatting before counting printable characters
+    length = Unicode::DisplayWidth.of(Rainbow.uncolor(str))
+    str += ' ' * (width - length) if length < width
+    str
+  end
+
+  # @param index [Integer] 0-based index to {@lines}
+  # @param width [Integer] number of columns for String to exactly occupy.
+  # @return [String] paintable line {width} columns wide; shows cursor if needed.
+  def paintable_line(index, width)
+    line = (@lines[index] || '').to_s
+    line = trim_to(line, width - 2)
+    line = " #{line} "
+    is_cursor = index < @lines.size && @cursor.position == index
+    if is_cursor
+      Rainbow(Rainbow.uncolor(line)).bg(:darkslategray)
+    else
+      line
+    end
+  end
+
+  # Repaints window contents.
   def repaint_content
     return unless visible?
 
-    width = @rect.width - 4 # 1 character for window frame, 1 character for padding, both sides
+    width = @rect.width - 2
 
     (0..(@rect.height - 3)).each do |line_no|
       line_index = line_no + @top_line
-      line = (@lines[line_index] || '').to_s
-      truncated_line = Strings::Truncation.truncate(line, length: width)
-
-      if truncated_line == line
-        # nothing was truncated, perhaps we need to add whitespaces,
-        # to repaint over old content.
-        # strip the formatting before counting printable characters
-        length = Unicode::DisplayWidth.of(Rainbow.uncolor(line))
-        line += ' ' * (width - length) if length < width
-      else
-        line = truncated_line
-      end
-
-      line = " #{line} "
-      print TTY::Cursor.move_to(@rect.left + 1, line_no + @rect.top + 1)
-      is_cursor = line_index < @lines.size && @cursor.position == line_index
-      if is_cursor
-        print Rainbow(Rainbow.uncolor(line)).bg(:darkslategray)
-      else
-        print line
-      end
+      line = paintable_line(line_index, width)
+      screen.print TTY::Cursor.move_to(@rect.left + 1, line_no + @rect.top + 1), line
     end
   end
 

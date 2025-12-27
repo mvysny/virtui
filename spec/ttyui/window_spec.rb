@@ -127,6 +127,18 @@ describe Window do
       assert !Window.new.active?
     end
   end
+
+  context 'repaint' do
+    it 'smokes' do
+      w = Window.new
+      w.rect = Rect.new(0, 0, 20, 20)
+      Screen.instance.add_window('1', w)
+      assert w.visible?
+      assert Screen.instance.prints.empty?
+      w.repaint
+      assert !Screen.instance.prints.empty?
+    end
+  end
 end
 
 describe LogWindow do
