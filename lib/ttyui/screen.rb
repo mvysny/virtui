@@ -171,10 +171,15 @@ class Screen
     Screen.instance
   end
 
+  def print(*args)
+    Kernel.print(*args)
+  end
+
   protected
 
   # Repositions all tiled window.
-  # Default implementation does nothing.
+  # Default implementation does nothing; it's up to AppWindow to override
+  # and reposition its tiled windows.
   def relayout_tiled_windows; end
 
   # Repaints the screen; tries to be as effective as possible, by only considering
@@ -296,6 +301,12 @@ end
 #
 # Call {Screen.fake} to initialize the fake screen easily.
 class FakeScreen < Screen
+  def initialize
+    super
+    @prints = []
+  end
+  attr_reader :prints
+
   def check_locked; end
   def clear; end
 
@@ -303,5 +314,7 @@ class FakeScreen < Screen
     yield # no lock necessary when testing
   end
 
-  def repaint; end
+  def print(*args)
+    @prints += args
+  end
 end
