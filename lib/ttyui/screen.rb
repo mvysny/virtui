@@ -261,6 +261,7 @@ class Screen
 
     private
 
+    # Polls {@winch_pipe_r}, calling {layout} on terminal resize.
     def poll_winch_pipe
       loop do
         @winch_pipe_r.gets # block until winch
@@ -273,6 +274,7 @@ class Screen
       end
     end
 
+    # Sets up the WINCH handler (called when terminal resizes)
     def trap_winch
       # Trap the WINCH signal (sent on terminal resize)
       trap('WINCH') do
