@@ -353,7 +353,6 @@ class Window
   class Cursor
     # @param position [Integer] the initial cursor position
     def initialize(position: 0)
-      # {Integer} 0-based index of line
       @position = position
     end
 
@@ -369,6 +368,7 @@ class Window
       end
     end
 
+    # @return [Integer] 0-based line index of the current cursor position
     attr_reader :position
 
     # @param key [String] pressed keyboard key
@@ -402,6 +402,9 @@ class Window
 
     protected
 
+    # Moves the cursor to the new position.
+    # @param new_position [Integer | nil] new 0-based cursor position. If `nil`, nothing is done.
+    # @return [Boolean] true if the cursor position changed.
     def go(new_position)
       return false if new_position.nil?
 
