@@ -13,6 +13,7 @@ GEM
     raabro (1.4.0)
     rainbow (3.1.1)
     rake (13.3.1)
+    redcarpet (3.6.1)
     rspec-core (3.13.6)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.6)
@@ -51,6 +52,7 @@ DEPENDENCIES
   minitest (~> 5.26.0)
   rainbow (~> 3.1.0)
   rake (~> 13.2)
+  redcarpet
   rspec-core (~> 3.13)
   rufus-scheduler
   strings-truncation

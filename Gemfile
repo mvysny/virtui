@@ -15,6 +15,7 @@ gem 'unicode-display_width'
 
 group :development do
   gem 'rake', '~> 13.2'
+  gem 'redcarpet' # Markdown formatting for Yard
   gem 'yard', '~> 0.9.37'
 end
 
