@@ -171,6 +171,8 @@ class Screen
     Screen.instance
   end
 
+  # Prints given strings
+  # @param args [Array<String>] stuff to print.
   def print(*args)
     Kernel.print(*args)
   end
@@ -305,15 +307,20 @@ class FakeScreen < Screen
     super
     @prints = []
   end
+  # @return [Array<String>] whatever {#print} printed so far.
   attr_reader :prints
 
   def check_locked; end
-  def clear; end
+
+  def clear
+    @prints.clear
+  end
 
   def with_lock
     yield # no lock necessary when testing
   end
 
+  # Doesn't print anything: collects all strings in {#prints}
   def print(*args)
     @prints += args
   end
