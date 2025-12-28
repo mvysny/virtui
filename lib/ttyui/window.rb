@@ -215,12 +215,12 @@ class Window
 
   # @return [String] formatted keyboard hint for users. Empty by default.
   # Example: `p #{Rainbow('Power').cadetblue}`. If the window responds to keys,
-  # override {handle_key}
+  # override {#handle_key}
   def keyboard_hint
     ''
   end
 
-  # @return [Boolean] true if [:rect] is off screen and the window won't paint.
+  # @return [Boolean] true if {#rect} is off screen and the window won't paint.
   def visible?
     !@rect.empty? && !@rect.top.negative? && !@rect.left.negative? && open?
   end
@@ -246,7 +246,7 @@ class Window
   # Called whenever the window width changes. Does nothing by default.
   def on_width_changed; end
 
-  # Invalidates window: causes the window to be repainted by {Screen}
+  # Invalidates window: causes the window to be repainted by {Screen} later on.
   def invalidate
     screen.invalidate(self)
   end
@@ -307,6 +307,8 @@ class Window
   # Trims string exactly to [width] columns.
   # @return [String] trimmed string
   def trim_to(str, width)
+    return ' ' * width if str.empty? # optimization
+
     # truncate() takes ANSI sequences into account.
     truncated_line = Strings::Truncation.truncate(str, length: width)
     return truncated_line unless truncated_line == str
