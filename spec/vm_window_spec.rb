@@ -52,7 +52,7 @@ describe VMWindow do
       assert_equal 8, window.cursor.position
     end
     it 'moves cursor up correctly' do
-      window.cursor.position = 8
+      window.cursor.go(8)
       assert_equal 8, window.cursor.position
       window.handle_key("\e[A")
       assert_equal 4, window.cursor.position

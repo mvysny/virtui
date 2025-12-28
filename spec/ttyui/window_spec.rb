@@ -191,7 +191,7 @@ describe Window::Cursor::None do
     assert !c.handle_key('k', 20, 10)
   end
   it 'cant move position' do
-    assert_raises(StandardError) { c.position = 1 }
+    assert_raises(StandardError) { c.go(1) }
   end
 end
 
@@ -213,7 +213,7 @@ describe Window::Cursor::Limited do
     assert_equal 8, cursor.position
   end
   it 'moves cursor up correctly' do
-    cursor.position = 8
+    cursor.go(8)
     assert_equal 8, cursor.position
     cursor.handle_key(Keys::UP_ARROW, 10, 10)
     assert_equal 4, cursor.position

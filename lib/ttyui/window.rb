@@ -394,15 +394,7 @@ class Window
       end
     end
 
-    def position=(position)
-      raise 'must be integer 0 or greater' if position.negative? || !position.is_a?(Integer)
-
-      @position = position
-    end
-
-    protected
-
-    # Moves the cursor to the new position.
+    # Moves the cursor to the new position. Public only because of testing - don't call directly from outside of this class!
     # @param new_position [Integer | nil] new 0-based cursor position. If `nil`, nothing is done.
     # @return [Boolean] true if the cursor position changed.
     def go(new_position)
@@ -414,6 +406,8 @@ class Window
       @position = new_position
       true
     end
+
+    protected
 
     def go_down_by(lines, line_count)
       go((@position + lines).clamp(nil, line_count - 1))
