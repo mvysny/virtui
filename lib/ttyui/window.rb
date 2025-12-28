@@ -395,11 +395,9 @@ class Window
     end
 
     # Moves the cursor to the new position. Public only because of testing - don't call directly from outside of this class!
-    # @param new_position [Integer | nil] new 0-based cursor position. If `nil`, nothing is done.
+    # @param new_position [Integer] new 0-based cursor position.
     # @return [Boolean] true if the cursor position changed.
     def go(new_position)
-      return false if new_position.nil?
-
       new_position = new_position.clamp(0, nil)
       return false if @position == new_position
 
