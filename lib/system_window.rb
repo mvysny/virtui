@@ -103,10 +103,8 @@ class SystemWindow < Window
   def show_help_window
     lines = []
     flags = @virt_cache.cpu_flags
-    lines += [['vmx', 'Intel VT-x (Virtualization Technology) - required for KVM on Intel']] if flags.include? 'vmx'
-    if flags.include? 'svm'
-      lines += [['svm', 'AMD-V (AMD Secure Virtual Machine, aka AMD-V) - required for KVM on AMD']]
-    end
+    lines += [['vmx', 'Intel VT-x (Virtualization Technology) - required for KVM']] if flags.include? 'vmx'
+    lines += [['svm', 'AMD-V (AMD Secure Virtual Machine, aka AMD-V) - required for KVM']] if flags.include? 'svm'
     lines += [['software', 'No virtualization supported by CPU, using slow software emulation']] if lines.empty?
     lines += [['ept', "Intel's Extended Page Tables memory virtualization"]] if flags.include? 'ept'
     lines += [['npt', "AMD's Nested Page Tables memory virtualization"]] if flags.include? 'npt'
@@ -114,15 +112,17 @@ class SystemWindow < Window
     if flags.include? 'pcid'
       lines += [['pcid', 'Process-Context Identifiers – speeds up context switches and TLB flushes in guests']]
     end
-    lines += [['vpid', '(Intel) → tagged TLB, speeds up guest transitions']] if flags.include? 'vpid'
+    if flags.include? 'vpid'
+      lines += [['vpid', '(Intel) → tagged TLB (Translation Lookaside Buffer), speeds up guest transitions']]
+    end
     if flags.include? 'invpcid'
       lines += [['invpcid', 'Single-instruction invalidation of PCID – further improves TLB performance']]
     end
     if flags.include? 'pdpe1gb'
       lines += [['pdpe1gb', '1GB huge pages support (greatly improves memory performance for VMs)']]
     end
-    lines += [['xsave', 'Faster saving/restoring of extended CPU state during VM entry/exit']] if flags.any? do
-      it.start_with? 'xsave'
+    if flags.any? { it.start_with? 'xsave' }
+      lines += [['xsave', 'Faster saving/restoring of extended CPU state during VM entry/exit']]
     end
 
     InfoPopupWindow.open('Help', lines.map { it[0] + ': ' + Rainbow(it[1]).cadetblue })
