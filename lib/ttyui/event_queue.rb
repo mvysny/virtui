@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'keys'
+
 # An event queue. The idea is that all UI-related updates
 # run from the thread which runs the event queue only;
 # this removes any need for locking and/or need for
@@ -34,21 +36,15 @@ class EventQueue
   #
   # Any exception raised by block is re-thrown, causing this function to terminate.
   def run
+    start_key_thread
     loop do
-      event = @queue.pop
+      event = next_event
       break if event.nil?
-
-      if event.is_a? ErrorEvent
-        begin
-          raise event.error
-        rescue StandardError
-          raise 'Nested error' # fills in cause
-        end
-      end
 
       yield event
     end
   ensure
+    @key_thread.kill
     @queue.clear
   end
 
@@ -68,5 +64,31 @@ class EventQueue
   # TTY has been resized. Contains `width` and `height`, both {Integer}s,
   # which hold the current width of the TTY terminal
   class TTYSizeEvent < Data.define(:width, :height)
+  end
+
+  private
+
+  # @return event next event from {@queue}
+  def next_event
+    event = @queue.pop
+    return event unless event.is_a? ErrorEvent
+
+    begin
+      raise event.error
+    rescue StandardError
+      raise 'Nested error' # fills in cause
+    end
+  end
+
+  # Starts listening for stdin, firing {KeyEvent} on keypress.
+  def start_key_thread
+    @key_thread = Thread.new do
+      loop do
+        key = Keys.getkey
+        post KeyEvent.new(key)
+      end
+    rescue StandardError => e
+      post ErrorEvent.new(e)
+    end
   end
 end
