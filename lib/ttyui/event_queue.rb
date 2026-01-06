@@ -64,4 +64,9 @@ class EventQueue
   # An error event, causes {EventQueue#run} to throw {StandardError} with {#error} as its origin.
   class ErrorEvent < Data.define(:error)
   end
+
+  # TTY has been resized. Contains `width` and `height`, both {Integer}s,
+  # which hold the current width of the TTY terminal
+  class TTYSizeEvent < Data.define(:width, :height)
+  end
 end
