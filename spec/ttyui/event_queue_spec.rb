@@ -21,9 +21,10 @@ describe EventQueue do
   it 'yields events' do
     t = run_thread
     queue.post 'Hello'
+    sleep 0.2 # hopefully this is enough
+    assert_equal ['Hello'], events
     queue.stop
     assert t.join(1)
-    assert_equal ['Hello'], events
   end
 
   it 'rethrows errors' do
