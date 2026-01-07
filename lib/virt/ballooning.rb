@@ -121,9 +121,7 @@ class BallooningVM
   #
   # Immutable, thread-safe.
   class Status < Data.define(:text, :memory_delta)
-    def to_s
-      "#{text}; d=#{memory_delta}"
-    end
+    def to_s = "#{text}; d=#{memory_delta}"
   end
 
   # @return [Status] the status of this ballooner.
@@ -239,11 +237,7 @@ class BallooningVM
       "VM reports #{format_byte_size(used_mem)} (#{percent_used}%), updating actual by #{memory_delta}% to #{format_byte_size(new_actual)}", memory_delta
     )
     @last_update_at = mem_stat.last_updated
-    Thread.new do
-      @virt_cache.set_actual(@vmid, new_actual)
-    rescue StandardError => e
-      $log.error("Failed to set actual #{format_byte_size(new_actual)} to #{@vmid}", e)
-    end
+    @virt_cache.set_actual(@vmid, new_actual)
   end
 
   private
