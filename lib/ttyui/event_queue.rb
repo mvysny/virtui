@@ -19,6 +19,7 @@ class EventQueue
   def initialize(listen_for_keys: true)
     @queue = Thread::Queue.new
     @listen_for_keys = listen_for_keys
+    @run_lock = Mutex.new
   end
 
   # Posts event into the event queue. The event may be of any type.
@@ -56,16 +57,21 @@ class EventQueue
   def run(&)
     raise 'block missing' unless block_given?
 
-    start_key_thread if @listen_for_keys
-    begin
-      trap_winch
-      event_loop(&)
-    ensure
-      Signal.trap('WINCH', 'SYSTEM_DEFAULT')
-      @key_thread&.kill
-      @queue.clear
+    @run_lock.synchronize do
+      start_key_thread if @listen_for_keys
+      begin
+        trap_winch
+        event_loop(&)
+      ensure
+        Signal.trap('WINCH', 'SYSTEM_DEFAULT')
+        @key_thread&.kill
+        @queue.clear
+      end
     end
   end
+
+  # @return [Boolean] true if this thread is running inside an event queue.
+  def has_lock? = @run_lock.owned?
 
   # Stops ongoing {#run}. The stop may not be immediate:
   # {#run} may process a bunch of events before terminating.
