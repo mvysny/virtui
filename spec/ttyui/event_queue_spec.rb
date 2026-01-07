@@ -36,4 +36,15 @@ describe EventQueue do
     end
     assert_equal ['Hi'], events
   end
+
+  it 'runs submitted blocks' do
+    t = run_thread
+    called = false
+    queue.submit { called = true }
+    queue.await_empty
+    assert called
+
+    queue.stop
+    assert t.join(1)
+  end
 end

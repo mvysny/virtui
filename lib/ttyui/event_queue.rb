@@ -2,6 +2,7 @@
 
 require_relative 'keys'
 require 'tty-screen'
+require 'concurrent'
 
 # An event queue. The idea is that all UI-related updates
 # run from the thread which runs the event queue only;
@@ -30,6 +31,20 @@ class EventQueue
     raise "#{event} is not frozen" unless event.frozen?
 
     @queue << event
+  end
+
+  # Submits block to be run in the event queue.
+  #
+  # The function may be called from any thread.
+  def submit(&block)
+    @queue << block
+  end
+
+  # Awaits until the event queue is empty (all events have been processed).
+  def await_empty
+    latch = Concurrent::CountDownLatch.new(1)
+    submit { latch.count_down }
+    latch.wait
   end
 
   # Runs the event loop and blocks. Must be run from at most one thread at the same time.
@@ -92,8 +107,11 @@ class EventQueue
         rescue StandardError
           raise 'Nested error' # fills in cause
         end
+      elsif event.is_a? Proc
+        event.call
+      else
+        yield event
       end
-      yield event
     end
   end
 
