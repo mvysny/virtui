@@ -34,11 +34,24 @@ class EventQueue
     @queue << event
   end
 
-  # Submits block to be run in the event queue.
+  # Submits block to be run in the event queue. Returns immediately.
   #
   # The function may be called from any thread.
   def submit(&block)
     @queue << block
+  end
+
+  # Submits block to be run in the event queue. Waits until the block was processed.
+  #
+  # The function may be called from any thread.
+  def submit_and_wait
+    latch = Concurrent::CountDownLatch.new(1)
+    submit do
+      yield
+    ensure
+      latch.count_down
+    end
+    latch.wait
   end
 
   # Awaits until the event queue is empty (all events have been processed).
@@ -54,7 +67,7 @@ class EventQueue
   # this function.
   #
   # Any exception raised by block is re-thrown, causing this function to terminate.
-  def run(&)
+  def run_loop(&)
     raise 'block missing' unless block_given?
 
     @run_lock.synchronize do
@@ -73,8 +86,8 @@ class EventQueue
   # @return [Boolean] true if this thread is running inside an event queue.
   def has_lock? = @run_lock.owned?
 
-  # Stops ongoing {#run}. The stop may not be immediate:
-  # {#run} may process a bunch of events before terminating.
+  # Stops ongoing {#run_loop}. The stop may not be immediate:
+  # {#run_loop} may process a bunch of events before terminating.
   #
   # Can be called from any thread, including the thread which runs the event loop.
   def stop

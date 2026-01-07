@@ -8,7 +8,7 @@ describe EventQueue do
   let(:events) { [] }
   let(:run_thread) do
     Thread.new do
-      queue.run { events << it }
+      queue.run_loop { events << it }
     end
   end
 
@@ -42,6 +42,16 @@ describe EventQueue do
     called = false
     queue.submit { called = true }
     queue.await_empty
+    assert called
+
+    queue.stop
+    assert t.join(1)
+  end
+
+  it 'runs called blocks' do
+    t = run_thread
+    called = false
+    queue.submit_and_wait { called = true }
     assert called
 
     queue.stop
