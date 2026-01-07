@@ -14,8 +14,10 @@ require 'tty-screen'
 # the event queue: this causes the events to be processed
 # centrally, by a single thread only.
 class EventQueue
-  def initialize
+  # @param listen_for_keys [Boolean] if true, fires {KeyEvent}
+  def initialize(listen_for_keys: true)
     @queue = Thread::Queue.new
+    @listen_for_keys = listen_for_keys
   end
 
   # Posts event into the event queue. The event may be of any type.
@@ -39,13 +41,13 @@ class EventQueue
   def run(&block)
     raise 'block missing' unless block_given?
 
-    start_key_thread
+    start_key_thread if @listen_for_keys
     begin
       trap_winch
       event_loop(&block)
     ensure
       Signal.trap('WINCH', 'SYSTEM_DEFAULT')
-      @key_thread.kill
+      @key_thread&.kill
       @queue.clear
     end
   end

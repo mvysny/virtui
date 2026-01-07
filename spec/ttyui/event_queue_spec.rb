@@ -4,7 +4,7 @@ require_relative '../spec_helper'
 require 'ttyui/event_queue'
 
 describe EventQueue do
-  let(:queue) { EventQueue.new }
+  let(:queue) { EventQueue.new(listen_for_keys: false) }
   let(:events) { [] }
   let(:run_thread) do
     Thread.new do
