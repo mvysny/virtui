@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'io/console'
+
 # https://en.wikipedia.org/wiki/ANSI_escape_code
 module Keys
   DOWN_ARROW = "\e[B"
