@@ -3,6 +3,7 @@
 require_relative 'keys'
 require 'tty-screen'
 require 'concurrent'
+require 'singleton'
 
 # An event queue. The idea is that all UI-related updates
 # run from the thread which runs the event queue only;
@@ -118,10 +119,18 @@ class EventQueue
     end
   end
 
+  # Emitted once when the queue is cleared, all messages are processed
+  # and the event loop will block waiting for more messages. Perfect time for
+  # repainting windows.
+  class EmptyQueueEvent
+    include Singleton
+  end
+
   private
 
   def event_loop
     loop do
+      yield EmptyQueueEvent.instance if @queue.empty?
       event = @queue.pop
       break if event.nil?
 

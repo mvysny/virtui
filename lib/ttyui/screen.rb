@@ -231,14 +231,12 @@ class Screen
       if event.is_a? EventQueue::KeyEvent
         key = event.key
         handled = handle_key(key)
-        if !handled && ['q', Keys::ESC].include?(key)
-          @event_queue.stop
-        else
-          repaint
-        end
+        @event_queue.stop if !handled && ['q', Keys::ESC].include?(key)
       elsif event.is_a? EventQueue::TTYSizeEvent
         @size = event
         layout
+      elsif event.is_a? EventQueue::EmptyQueueEvent
+        repaint
       end
     rescue StandardError => e
       $log.fatal('Uncaught event loop exception', e)

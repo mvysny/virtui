@@ -22,7 +22,7 @@ describe EventQueue do
     t = run_thread
     queue.post 'Hello'
     sleep 0.2 # hopefully this is enough
-    assert_equal ['Hello'], events
+    assert_equal ['Hello', EventQueue::EmptyQueueEvent.instance], events
     queue.stop
     assert t.join(1)
   end
