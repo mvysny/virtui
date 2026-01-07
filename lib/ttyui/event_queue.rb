@@ -30,25 +30,24 @@ class EventQueue
     @queue << event
   end
 
-  # Runs the event queue and blocks. Must be run from at most one thread at the same time.
+  # Runs the event loop and blocks. Must be run from at most one thread at the same time.
   # Blocks until some thread calls {#stop}. Calls block for all events
   # submitted via {#post}; the block is always called from the thread running
   # this function.
   #
   # Any exception raised by block is re-thrown, causing this function to terminate.
-  def run
-    start_key_thread
-    watch_winch
-    loop do
-      event = next_event
-      break if event.nil?
+  def run(&block)
+    raise 'block missing' unless block_given?
 
-      yield event
+    start_key_thread
+    begin
+      trap_winch
+      event_loop(&block)
+    ensure
+      Signal.trap('WINCH', 'SYSTEM_DEFAULT')
+      @key_thread.kill
+      @queue.clear
     end
-  ensure
-    Signal.trap('WINCH', 'SYSTEM_DEFAULT')
-    @key_thread.kill
-    @queue.clear
   end
 
   # Stops ongoing {#run}. The stop may not be immediate:
@@ -80,15 +79,19 @@ class EventQueue
 
   private
 
-  # @return event next event from {@queue}
-  def next_event
-    event = @queue.pop
-    return event unless event.is_a? ErrorEvent
+  def event_loop
+    loop do
+      event = @queue.pop
+      break if event.nil?
 
-    begin
-      raise event.error
-    rescue StandardError
-      raise 'Nested error' # fills in cause
+      if event.is_a? ErrorEvent
+        begin
+          raise event.error
+        rescue StandardError
+          raise 'Nested error' # fills in cause
+        end
+      end
+      yield event
     end
   end
 
@@ -106,7 +109,7 @@ class EventQueue
 
   # Trap the WINCH signal (TTY resize signal) and
   # fire {TTYSizeEvent}.
-  def watch_winch
+  def trap_winch
     Signal.trap('WINCH') do
       post TTYSizeEvent.create
     rescue StandardError => e
