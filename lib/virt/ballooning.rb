@@ -5,7 +5,7 @@ require_relative '../byte_prefixes'
 # Controls memory of all VMs via the ballooning virt support. The VM must
 # have ballooning support installed and enabled, see README for instructions.
 #
-# TODO make thread-safe.
+# Must be called from UI only.
 class Ballooning
   # @param virt_cache [VirtCache]
   def initialize(virt_cache)
@@ -238,8 +238,12 @@ class BallooningVM
     @status = Status.new(
       "VM reports #{format_byte_size(used_mem)} (#{percent_used}%), updating actual by #{memory_delta}% to #{format_byte_size(new_actual)}", memory_delta
     )
-    @virt_cache.set_actual(@vmid, new_actual)
     @last_update_at = mem_stat.last_updated
+    Thread.new do
+      @virt_cache.set_actual(@vmid, new_actual)
+    rescue StandardError => e
+      $log.error("Failed to set actual #{format_byte_size(new_actual)} to #{@vmid}", e)
+    end
   end
 
   private

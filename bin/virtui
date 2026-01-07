@@ -37,10 +37,8 @@ begin
   # https://github.com/jmettraux/rufus-scheduler
   scheduler.every '2s' do
     virt_cache.update
-    # Needs to go after virt_cache.update so that it reads up-to-date values
-    ballooning.update
-    # Needs to go last, to correctly update current ballooning status
     screen.with_lock do
+      ballooning.update
       screen.update_data
     end
   rescue StandardError => e
