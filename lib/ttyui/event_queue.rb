@@ -38,13 +38,13 @@ class EventQueue
   # this function.
   #
   # Any exception raised by block is re-thrown, causing this function to terminate.
-  def run(&block)
+  def run(&)
     raise 'block missing' unless block_given?
 
     start_key_thread if @listen_for_keys
     begin
       trap_winch
-      event_loop(&block)
+      event_loop(&)
     ensure
       Signal.trap('WINCH', 'SYSTEM_DEFAULT')
       @key_thread&.kill
