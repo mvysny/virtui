@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'keys'
+require 'tty-screen'
 
 # An event queue. The idea is that all UI-related updates
 # run from the thread which runs the event queue only;
@@ -29,14 +30,15 @@ class EventQueue
     @queue << event
   end
 
-  # Runs the event queue. Must be run from at most one thread at the same time.
-  # Blocks until some other thread calls {#stop}. Calls block for all events
+  # Runs the event queue and blocks. Must be run from at most one thread at the same time.
+  # Blocks until some thread calls {#stop}. Calls block for all events
   # submitted via {#post}; the block is always called from the thread running
   # this function.
   #
   # Any exception raised by block is re-thrown, causing this function to terminate.
   def run
     start_key_thread
+    watch_winch
     loop do
       event = next_event
       break if event.nil?
@@ -44,12 +46,17 @@ class EventQueue
       yield event
     end
   ensure
+    Signal.trap('WINCH', 'SYSTEM_DEFAULT')
     @key_thread.kill
     @queue.clear
   end
 
-  # Stops ongoing {#run}. Can be called from any thread.
+  # Stops ongoing {#run}. The stop may not be immediate:
+  # {#run} may process a bunch of events before terminating.
+  #
+  # Can be called from any thread, including the thread which runs the event loop.
   def stop
+    @queue.clear
     post(nil)
   end
 
@@ -64,6 +71,11 @@ class EventQueue
   # TTY has been resized. Contains `width` and `height`, both {Integer}s,
   # which hold the current width of the TTY terminal
   class TTYSizeEvent < Data.define(:width, :height)
+    # @return [TTYSizeEvent] event with current TTY size
+    def self.create
+      height, width = TTY::Screen.size
+      TTYSizeEvent.new(width, height)
+    end
   end
 
   private
@@ -87,6 +99,16 @@ class EventQueue
         key = Keys.getkey
         post KeyEvent.new(key)
       end
+    rescue StandardError => e
+      post ErrorEvent.new(e)
+    end
+  end
+
+  # Trap the WINCH signal (TTY resize signal) and
+  # fire {TTYSizeEvent}.
+  def watch_winch
+    Signal.trap('WINCH') do
+      post TTYSizeEvent.create
     rescue StandardError => e
       post ErrorEvent.new(e)
     end
