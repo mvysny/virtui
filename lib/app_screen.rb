@@ -21,14 +21,12 @@ class AppScreen < Screen
   def initialize(virt_cache, ballooning)
     super()
     @virt_cache = virt_cache
-    with_lock do
-      @system = SystemWindow.new(virt_cache)
-      @vms = VMWindow.new(virt_cache, ballooning)
-      @log = LogWindow.new('[3]-Log')
-      @log.configure_logger $log
-      self.windows = { '2' => @system, '1' => @vms, '3' => @log }
-      self.active_window = @vms
-    end
+    @system = SystemWindow.new(virt_cache)
+    @vms = VMWindow.new(virt_cache, ballooning)
+    @log = LogWindow.new('[3]-Log')
+    @log.configure_logger $log
+    self.windows = { '2' => @system, '1' => @vms, '3' => @log }
+    self.active_window = @vms
   end
 
   # Call when windows need to update their contents. Must be run with screen lock held.

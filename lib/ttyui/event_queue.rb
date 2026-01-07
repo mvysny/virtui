@@ -45,6 +45,11 @@ class EventQueue
   #
   # The function may be called from any thread.
   def submit_and_wait
+    if has_lock?
+      yield
+      return
+    end
+
     latch = Concurrent::CountDownLatch.new(1)
     submit do
       yield

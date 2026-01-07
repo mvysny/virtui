@@ -484,7 +484,7 @@ class LogWindow < Window
     end
 
     def puts(string)
-      @window.screen.with_lock do
+      @window.screen.event_queue.submit do
         @window.add_line(string)
       end
     end

@@ -11,36 +11,22 @@ describe Screen do
     assert_equal screen, Screen.instance
   end
 
-  it 'with_lock is reentrant' do
-    foo = 'foo'
-    screen.with_lock do
-      screen.with_lock do
-        foo = 'bar'
-      end
-    end
-    assert_equal 'bar', foo
-  end
-
   context 'active_window' do
     it 'is nil when no windows' do
-      screen.with_lock { assert_nil screen.active_window }
+      assert_nil screen.active_window
     end
     it 'returns the active window' do
-      screen.with_lock do
-        w = Window.new
-        screen.add_window '0', w
-        assert_equal w, screen.active_window
-      end
+      w = Window.new
+      screen.add_window '0', w
+      assert_equal w, screen.active_window
     end
   end
 
   it 'removes window' do
-    screen.with_lock do
-      w = Window.new
-      screen.add_window '1', w
-      screen.remove_window(w)
-      assert !screen.has_window?(w)
-    end
+    w = Window.new
+    screen.add_window '1', w
+    screen.remove_window(w)
+    assert !screen.has_window?(w)
   end
 
   context 'popups' do
