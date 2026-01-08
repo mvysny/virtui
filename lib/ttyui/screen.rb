@@ -251,6 +251,7 @@ end
 class FakeScreen < Screen
   def initialize
     super
+    @event_queue = FakeEventQueue.new
     @prints = []
   end
   # @return [Array<String>] whatever {#print} printed so far.
