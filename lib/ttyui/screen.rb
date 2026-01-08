@@ -38,6 +38,9 @@ class Screen
     @invalidated_windows = Set.new
     # {Boolean} true after tty resize or when a popup is removed.
     @needs_full_repaint = true
+    # Until the event loop is run, we pretend we're in the UI thread.
+    # This allows AppScreen to initialize.
+    @pretend_ui_lock = true
   end
 
   # @return [Screen] the singleton instance
@@ -56,8 +59,7 @@ class Screen
 
   # Checks that the UI lock is held and the current code runs in the 'UI thread'.
   def check_locked
-    # TODO: revisit
-    # raise 'UI lock not held' unless @event_queue.has_lock?
+    raise 'UI lock not held' unless @pretend_ui_lock || @event_queue.has_lock?
   end
 
   # Clears the TTY screen
@@ -115,6 +117,7 @@ class Screen
   # Runs event loop - waits for keys and sends them to active window.
   # The function exits when the 'ESC' or 'q' key is pressed.
   def run_event_loop
+    @pretend_ui_lock = false
     $stdin.echo = false
     print TTY::Cursor.hide
     $stdin.raw do

@@ -28,7 +28,7 @@ virt_cache = VirtCache.new(virt, SysInfo.new)
 
 ballooning = Ballooning.new(virt_cache)
 screen = AppScreen.new(virt_cache, ballooning)
-screen.event_queue.submit { screen.layout }
+screen.layout
 
 scheduler = Rufus::Scheduler.new
 begin
