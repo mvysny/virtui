@@ -8,6 +8,7 @@ describe EventQueue do
   let(:events) { [] }
   let(:run_thread) do
     Thread.new do
+      Thread.current.report_on_exception = false # avoid stdout cluttering when running tests
       queue.run_loop { events << it }
     end
   end
