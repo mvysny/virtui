@@ -28,16 +28,14 @@ virt_cache = VirtCache.new(virt, SysInfo.new)
 
 ballooning = Ballooning.new(virt_cache)
 screen = AppScreen.new(virt_cache, ballooning)
-screen.with_lock do
-  screen.layout
-end
+screen.layout
 
 scheduler = Rufus::Scheduler.new
 begin
   # https://github.com/jmettraux/rufus-scheduler
   scheduler.every '2s' do
     virt_cache.update
-    screen.with_lock do
+    screen.event_queue.submit do
       ballooning.update
       screen.update_data
     end

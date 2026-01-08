@@ -8,7 +8,7 @@ describe EventQueue do
   let(:events) { [] }
   let(:run_thread) do
     Thread.new do
-      queue.run { events << it }
+      queue.run_loop { events << it }
     end
   end
 
@@ -22,7 +22,7 @@ describe EventQueue do
     t = run_thread
     queue.post 'Hello'
     sleep 0.2 # hopefully this is enough
-    assert_equal ['Hello'], events
+    assert_equal ['Hello', EventQueue::EmptyQueueEvent.instance], events
     queue.stop
     assert t.join(1)
   end

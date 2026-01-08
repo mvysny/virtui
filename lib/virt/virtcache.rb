@@ -148,7 +148,7 @@ class VirtCache
     end
   end
 
-  # Updates the cache. Guarded by `@write_lock`.
+  # Updates the cache. Guarded by `@write_lock`. Must not be run from the UI thread.
   def update
     @write_lock.synchronize do
       old_cache = @cache

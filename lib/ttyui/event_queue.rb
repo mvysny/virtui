@@ -3,6 +3,7 @@
 require_relative 'keys'
 require 'tty-screen'
 require 'concurrent'
+require 'singleton'
 
 # An event queue. The idea is that all UI-related updates
 # run from the thread which runs the event queue only;
@@ -34,7 +35,7 @@ class EventQueue
     @queue << event
   end
 
-  # Submits block to be run in the event queue.
+  # Submits block to be run in the event queue. Returns immediately.
   #
   # The function may be called from any thread.
   def submit(&block)
@@ -54,7 +55,7 @@ class EventQueue
   # this function.
   #
   # Any exception raised by block is re-thrown, causing this function to terminate.
-  def run(&)
+  def run_loop(&)
     raise 'block missing' unless block_given?
 
     @run_lock.synchronize do
@@ -73,8 +74,8 @@ class EventQueue
   # @return [Boolean] true if this thread is running inside an event queue.
   def has_lock? = @run_lock.owned?
 
-  # Stops ongoing {#run}. The stop may not be immediate:
-  # {#run} may process a bunch of events before terminating.
+  # Stops ongoing {#run_loop}. The stop may not be immediate:
+  # {#run_loop} may process a bunch of events before terminating.
   #
   # Can be called from any thread, including the thread which runs the event loop.
   def stop
@@ -100,10 +101,18 @@ class EventQueue
     end
   end
 
+  # Emitted once when the queue is cleared, all messages are processed
+  # and the event loop will block waiting for more messages. Perfect time for
+  # repainting windows.
+  class EmptyQueueEvent
+    include Singleton
+  end
+
   private
 
   def event_loop
     loop do
+      yield EmptyQueueEvent.instance if @queue.empty?
       event = @queue.pop
       break if event.nil?
 
@@ -142,4 +151,23 @@ class EventQueue
       post ErrorEvent.new(e)
     end
   end
+end
+
+# A "synchronous" event queue - no loop is run, submitted blocks are run
+# right away and submitted events are thrown away. Intended for testing only.
+class FakeEventQueue
+  def has_lock? = true
+  def stop; end
+
+  def run_loop
+    raise 'No loop'
+  end
+
+  def await_empty; end
+
+  def submit
+    yield
+  end
+
+  def post(event); end
 end

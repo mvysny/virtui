@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'window'
+require_relative 'event_queue'
 require 'io/console'
 require 'tty-cursor'
 require 'tty-screen'
@@ -9,8 +10,7 @@ require 'tty-screen'
 #
 # A screen runs the event loop; call {#run_event_loop} to do that.
 #
-# A screen holds the screen lock; any UI modifications must run
-# from {#with_lock}.
+# A screen holds the screen lock; any UI modifications must be called from the event queue.
 #
 # A screen contains tiled windows. Tiled windows are visible at all times
 # and don't overlap. Override {#relayout_tiled_windows} to reposition and redraw the windows.
@@ -26,18 +26,21 @@ class Screen
   def initialize
     # {Screen} store the singleton instance for later retrieval.
     @@instance = self
-    # Every UI modification must hold this lock.
-    @lock = Thread::Mutex.new
+    # {EventQueue} Event queue
+    @event_queue = EventQueue.new
     # {Hash{Window => String}} tiled windows; maps key to a window activated by that key shortcut
     @windows = {}
     # {Array<Window>} modal popup windows, listed in order as they were opened.
     # Last popup is the topmost one and receives all key events.
     @popups = []
-    @size = Size.new(self)
+    @size = EventQueue::TTYSizeEvent.create
     # {Set<Window>} invalidated windows (need repaint)
     @invalidated_windows = Set.new
     # {Boolean} true after tty resize or when a popup is removed.
     @needs_full_repaint = true
+    # Until the event loop is run, we pretend we're in the UI thread.
+    # This allows AppScreen to initialize.
+    @pretend_ui_lock = true
   end
 
   # @return [Screen] the singleton instance
@@ -51,19 +54,12 @@ class Screen
   attr_reader :size
   # @return [Array<Window>] currently active popup windows. The array must not be modified!
   attr_reader :popups
-
-  # Runs block with the UI lock held.
-  def with_lock(&block)
-    if @lock.owned?
-      block.call
-    else
-      @lock.synchronize(&block)
-    end
-  end
+  # @return [EventQueue] the event queue
+  attr_reader :event_queue
 
   # Checks that the UI lock is held and the current code runs in the 'UI thread'.
   def check_locked
-    raise 'UI lock not held' unless @lock.owned?
+    raise 'UI lock not held' unless @pretend_ui_lock || @event_queue.has_lock?
   end
 
   # Clears the TTY screen
@@ -121,6 +117,7 @@ class Screen
   # Runs event loop - waits for keys and sends them to active window.
   # The function exits when the 'ESC' or 'q' key is pressed.
   def run_event_loop
+    @pretend_ui_lock = false
     $stdin.echo = false
     print TTY::Cursor.hide
     $stdin.raw do
@@ -233,67 +230,19 @@ class Screen
   end
 
   def event_loop
-    loop do
-      key = Keys.getkey
-      handled = with_lock { handle_key(key) }
-      break if !handled && ['q', Keys::ESC].include?(key)
-
-      with_lock { repaint }
+    @event_queue.run_loop do |event|
+      if event.is_a? EventQueue::KeyEvent
+        key = event.key
+        handled = handle_key(key)
+        @event_queue.stop if !handled && ['q', Keys::ESC].include?(key)
+      elsif event.is_a? EventQueue::TTYSizeEvent
+        @size = event
+        layout
+      elsif event.is_a? EventQueue::EmptyQueueEvent
+        repaint
+      end
     rescue StandardError => e
       $log.fatal('Uncaught event loop exception', e)
-    end
-  end
-
-  # Tracks tty window size, the safe way. Call {#width} and {#height} to obtain
-  # current TTY size.
-  class Size
-    # @param screen [Screen] the owner screen which gets notified of TTY size changes.
-    def initialize(screen)
-      @screen = screen
-      @height, @width = TTY::Screen.size
-      @winch_pipe_r, @winch_pipe_w = IO.pipe
-
-      Thread.new do
-        poll_winch_pipe
-      rescue StandardError => e
-        $log.fatal('winch thread failed', e)
-      end
-      trap_winch
-    end
-
-    # @return [Integer] the current width of the TTY terminal
-    attr_reader :width
-    # @return [Integer] the current height.
-    attr_reader :height
-
-    private
-
-    # Polls {@winch_pipe_r}, calling {layout} on terminal resize.
-    def poll_winch_pipe
-      loop do
-        @winch_pipe_r.gets # block until winch
-        @screen.with_lock do
-          @height, @width = TTY::Screen.size
-          @screen.layout
-        end
-      rescue StandardError => e
-        $log.fatal('winch handling failed', e)
-      end
-    end
-
-    # Sets up the WINCH handler (called when terminal resizes)
-    def trap_winch
-      # Trap the WINCH signal (sent on terminal resize)
-      trap('WINCH') do
-        # signal handlers (set up with trap) run in a special "trap context" where Ruby prohibits many operations,
-        # including acquiring a Mutex, Queue#pop, ConditionVariable#wait, or basically anything that might block or
-        # allocate.
-        # But writing a single byte is always allowed.
-        # This notifies the poll thread that a WINCH occurred.
-        @winch_pipe_w.puts 'a'
-      rescue StandardError
-        nil
-      end
     end
   end
 end
@@ -305,6 +254,7 @@ end
 class FakeScreen < Screen
   def initialize
     super
+    @event_queue = FakeEventQueue.new
     @prints = []
   end
   # @return [Array<String>] whatever {#print} printed so far.
@@ -314,10 +264,6 @@ class FakeScreen < Screen
 
   def clear
     @prints.clear
-  end
-
-  def with_lock
-    yield # no lock necessary when testing
   end
 
   # Doesn't print anything: collects all strings in {#prints}
