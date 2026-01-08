@@ -47,14 +47,4 @@ describe EventQueue do
     queue.stop
     assert t.join(1)
   end
-
-  it 'runs called blocks' do
-    t = run_thread
-    called = false
-    queue.submit_and_wait { called = true }
-    assert called
-
-    queue.stop
-    assert t.join(1)
-  end
 end

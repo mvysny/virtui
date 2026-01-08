@@ -42,24 +42,6 @@ class EventQueue
     @queue << block
   end
 
-  # Submits block to be run in the event queue. Waits until the block was processed.
-  #
-  # The function may be called from any thread.
-  def submit_and_wait
-    if has_lock?
-      yield
-      return
-    end
-
-    latch = Concurrent::CountDownLatch.new(1)
-    submit do
-      yield
-    ensure
-      latch.count_down
-    end
-    latch.wait
-  end
-
   # Awaits until the event queue is empty (all events have been processed).
   def await_empty
     latch = Concurrent::CountDownLatch.new(1)
@@ -169,4 +151,23 @@ class EventQueue
       post ErrorEvent.new(e)
     end
   end
+end
+
+# A "synchronous" event queue - no loop is run, submitted blocks are run
+# right away and submitted events are thrown away. Intended for testing only.
+class FakeEventQueue
+  def has_lock? = true
+  def stop; end
+
+  def run_loop
+    raise 'No loop'
+  end
+
+  def await_empty; end
+
+  def submit
+    yield
+  end
+
+  def post(event); end
 end
