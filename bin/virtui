@@ -8,7 +8,6 @@ require 'bundler/setup'
 
 require 'virt/virt'
 require 'virt/virtcache'
-require 'rufus-scheduler'
 require 'virt/ballooning'
 require 'virt/vm_emulator'
 require 'tty-logger'
@@ -30,19 +29,17 @@ ballooning = Ballooning.new(virt_cache)
 screen = AppScreen.new(virt_cache, ballooning)
 screen.layout
 
-scheduler = Rufus::Scheduler.new
-begin
-  # https://github.com/jmettraux/rufus-scheduler
-  scheduler.every '2s' do
-    virt_cache.update
-    screen.event_queue.submit do
-      ballooning.update
-      screen.update_data
-    end
-  rescue StandardError => e
-    $log.fatal('Failed to update VM data', e)
+scheduler = Concurrent::TimerTask.new(execution_interval: 2, interval_type: :fixed_rate) do
+  virt_cache.update
+  screen.event_queue.submit do
+    ballooning.update
+    screen.update_data
   end
-
+rescue StandardError => e
+  $log.fatal('Failed to update VM data', e)
+end
+begin
+  scheduler.execute
   screen.run_event_loop
 ensure
   scheduler.shutdown

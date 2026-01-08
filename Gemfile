@@ -5,7 +5,6 @@ ruby '>= 3.4'
 
 gem 'concurrent-ruby'
 gem 'rainbow', '~> 3.1.0'
-gem 'rufus-scheduler'
 gem 'strings-truncation'
 gem 'tty-box', '~> 0.7.0'
 gem 'tty-cursor', '~> 0.7.1'
