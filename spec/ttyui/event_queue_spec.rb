@@ -48,4 +48,17 @@ describe EventQueue do
     queue.stop
     assert t.join(1)
   end
+
+  it 'has lock' do
+    t = run_thread
+    # No lock outside of the event loop
+    assert !queue.has_lock?
+    locked = nil
+    queue.submit { locked = queue.has_lock? }
+    queue.await_empty
+    assert locked
+
+    queue.stop
+    assert t.join(1)
+  end
 end
