@@ -94,6 +94,13 @@ class EventQueue
   # TTY has been resized. Contains `width` and `height`, both {Integer}s,
   # which hold the current width of the TTY terminal
   class TTYSizeEvent < Data.define(:width, :height)
+    def initialize(hash)
+      super
+      return unless !width.is_a?(Integer) || !height.is_a?(Integer) || width.negative? || height.negative?
+
+      raise "#{width} x #{height}: invalid value"
+    end
+
     # @return [TTYSizeEvent] event with current TTY size
     def self.create
       height, width = TTY::Screen.size
