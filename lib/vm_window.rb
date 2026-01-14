@@ -30,7 +30,6 @@ class VMWindow < Window
     # {Boolean} show disk stats for shutoff'd VMs
     @show_disk_stat = false
     self.cursor = Cursor.new
-    update
   end
 
   # {Boolean} show disk stats for shutoff'd VMs
@@ -42,9 +41,11 @@ class VMWindow < Window
   end
 
   def update
+    column_width = (rect.width - 16) / 2
+    return if column_width.negative? # paint nothing if window is not big enough
+
     domains = @virt_cache.domains.sort_by(&:upcase) # Array<String>
     cursor_positions = [] # allowed cursor positions
-    column_width = (rect.width - 16) / 2
     cpus = @virt_cache.cpu_info.cpus
     host_ram = @virt_cache.host_mem_stat.ram
     content do |lines|
