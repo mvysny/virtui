@@ -8,7 +8,7 @@ require 'tty-logger'
 require_relative 'keys'
 require_relative 'screen'
 
-# A rectangle, with {Integer} `left`, `top`, `width` and `height`.
+# A rectangle, with {Integer} `left`, `top`, `width` and `height`, all 0-based.
 class Rect < Data.define(:left, :top, :width, :height)
   def to_s = "#{left},#{top} #{width}x#{height}"
 
@@ -40,6 +40,11 @@ class Rect < Data.define(:left, :top, :width, :height)
     new_height = height.clamp(nil, max_height)
     new_width == width && new_height == height ? self : Rect.new(left, top, new_width, new_height)
   end
+
+  # @param x [Integer] 0-based
+  # @param y [Integer] 0-based
+  # @return [Boolean]
+  def contains?(x, y) = x >= left && x < left + width && y >= top && y < top + height
 end
 
 # A window with a frame, a {#caption} and text contents. Doesn't support overlapping with other windows:
@@ -77,6 +82,9 @@ class Window
 
   # @return [Rect] the rectangle the windows occupies on screen.
   attr_reader :rect
+
+  # @return [Rect] the rectangle of the window viewport on screen.
+  def viewport_rect = Rect.new(@rect.left + 1, @rect.top + 1, @rect.width - 2, @rect.height - 2)
 
   # @return [Boolean] if true and a line is added or a new content is set, auto-scrolls to the bottom
   attr_reader :auto_scroll
@@ -210,6 +218,24 @@ class Window
       true
     else
       false
+    end
+  end
+
+  # @param event [MouseEvent]
+  def handle_mouse(event)
+    if event.button == :scroll_down
+      move_top_line_by(4)
+    elsif event.button == :scroll_up
+      move_top_line_by(-4)
+    else
+      vp = viewport_rect
+      return unless vp.contains?(event.x - 1, event.y - 1)
+
+      line = event.y - 1 - vp.top + top_line
+      return unless @cursor.handle_mouse(line, event, @lines.size)
+
+      move_viewport_to_cursor
+      invalidate # the cursor has been moved, repaint
     end
   end
 
@@ -366,6 +392,10 @@ class Window
       def handle_key(_key, _line_count, _viewport_lines)
         false
       end
+
+      def handle_mouse(_line, _event, _line_count)
+        false
+      end
     end
 
     # @return [Integer] 0-based line index of the current cursor position
@@ -394,7 +424,21 @@ class Window
       end
     end
 
-    # Moves the cursor to the new position. Public only because of testing - don't call directly from outside of this class!
+    # Handles mouse event.
+    # @param line [Integer] cursor is hovering over this line
+    # @param event [MouseEvent] the event
+    # @param line_count [Integer] number of lines in owner {Window}
+    # @return [Boolean] true if the event was handled.
+    def handle_mouse(line, event, line_count)
+      if event.button == :left
+        go(line.clamp(nil, line_count - 1))
+      else
+        false
+      end
+    end
+
+    # Moves the cursor to the new position. Public only because of testing - don't call directly from outside of this
+    # class!
     # @param new_position [Integer] new 0-based cursor position.
     # @return [Boolean] true if the cursor position changed.
     def go(new_position)
@@ -431,6 +475,17 @@ class Window
         @positions = positions.sort
         position = @positions[@positions.rindex { it < position } || 0] unless @positions.include?(position)
         super(position: position)
+      end
+
+      def handle_mouse(line, event, _line_count)
+        if event.button == :left
+          prev_pos = @positions.reverse_each.find { it <= line }
+          return go_to_first if prev_pos.nil?
+
+          go(prev_pos)
+        else
+          false
+        end
       end
 
       protected

@@ -120,10 +120,12 @@ class Screen
     @pretend_ui_lock = false
     $stdin.echo = false
     print TTY::Cursor.hide
+    print MouseEvent.start_tracking
     $stdin.raw do
       event_loop
     end
   ensure
+    print MouseEvent.stop_tracking
     print TTY::Cursor.show
     $stdin.echo = true
   end
@@ -229,12 +231,25 @@ class Screen
     end
   end
 
+  # Finds target window and calls {Window.handle_mouse}
+  # @param event [MouseEvent]
+  def handle_mouse(event)
+    x = event.x - 1
+    y = event.y - 1
+    window = @popups.rfind { it.rect.contains?(x, y) }
+    window = @windows.keys.find { it.rect.contains?(x, y) } if window.nil? && @popups.empty?
+    self.active_window = window unless window.nil? || event.button != :left || window.active?
+    window&.handle_mouse(event)
+  end
+
   def event_loop
     @event_queue.run_loop do |event|
       if event.is_a? EventQueue::KeyEvent
         key = event.key
         handled = handle_key(key)
         @event_queue.stop if !handled && ['q', Keys::ESC].include?(key)
+      elsif event.is_a? MouseEvent
+        handle_mouse(event)
       elsif event.is_a? EventQueue::TTYSizeEvent
         @size = event
         layout
