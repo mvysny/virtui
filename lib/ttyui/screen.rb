@@ -120,10 +120,12 @@ class Screen
     @pretend_ui_lock = false
     $stdin.echo = false
     print TTY::Cursor.hide
+    print MouseEvent.start_tracking
     $stdin.raw do
       event_loop
     end
   ensure
+    print MouseEvent.stop_tracking
     print TTY::Cursor.show
     $stdin.echo = true
   end

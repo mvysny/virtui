@@ -9,7 +9,7 @@ class MouseEvent < Data.define(:button, :x, :y)
   # @param key [String] key read via {Keys.getkey}
   # @return [Boolean] true if it is a mouse event
   def self.mouse_event?(key)
-    key.start_with?('[M') && key.size >= 5
+    key.start_with?("\e[M") && key.size >= 6
   end
 
   # @param key [String] key read via {Keys.getkey}
@@ -17,9 +17,9 @@ class MouseEvent < Data.define(:button, :x, :y)
   def self.parse(key)
     return nil unless mouse_event?(key)
 
-    button = key[2].ord - 32
-    x = key[3].ord - 32
-    y = key[4].ord - 32
+    button = key[3].ord - 32
+    x = key[4].ord - 32
+    y = key[5].ord - 32
     button = case button
              when 0 then :left
              when 2 then :right
@@ -29,4 +29,7 @@ class MouseEvent < Data.define(:button, :x, :y)
              end
     MouseEvent.new(button, x, y)
   end
+
+  def self.start_tracking = "\e[?1000h"
+  def self.stop_tracking = "\e[?1000l"
 end
