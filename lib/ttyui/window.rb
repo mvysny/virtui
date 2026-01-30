@@ -471,6 +471,17 @@ class Window
         super(position: position)
       end
 
+      def handle_mouse(line, event, line_count)
+        if event.button == :left
+          prev_pos = @positions.reverse_each.find { it <= line }
+          return go_to_first if prev_pos.nil?
+
+          go(prev_pos)
+        else
+          super
+        end
+      end
+
       protected
 
       def go_down_by(lines, line_count)
