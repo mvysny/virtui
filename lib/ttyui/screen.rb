@@ -235,6 +235,8 @@ class Screen
         key = event.key
         handled = handle_key(key)
         @event_queue.stop if !handled && ['q', Keys::ESC].include?(key)
+      elsif event.is_a? MouseEvent
+        $log.error("Kaka #{event}")
       elsif event.is_a? EventQueue::TTYSizeEvent
         @size = event
         layout

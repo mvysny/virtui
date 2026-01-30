@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'keys'
+require_relative 'mouse'
 require 'tty-screen'
 require 'concurrent'
 require 'singleton'
@@ -142,7 +143,9 @@ class EventQueue
     @key_thread = Thread.new do
       loop do
         key = Keys.getkey
-        post KeyEvent.new(key)
+        event = MouseEvent.parse(key)
+        event = KeyEvent.new(key) if event.nil?
+        post event
       end
     rescue StandardError => e
       post ErrorEvent.new(e)

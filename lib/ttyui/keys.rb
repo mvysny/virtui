@@ -28,7 +28,8 @@ module Keys
 
     # Escape sequence. Try to read more data.
     begin
-      char += $stdin.read_nonblock(3)
+      # Read 5 chars: mouse events are 5 chars: `[Mxyz`
+      char += $stdin.read_nonblock(5)
     rescue IO::EAGAINWaitReadable
       # The 'ESC' key pressed => only the \e char is emitted.
     end
