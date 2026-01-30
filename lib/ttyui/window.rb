@@ -227,7 +227,10 @@ class Window
     return unless vp.contains?(event.x - 1, event.y - 1)
 
     line = event.y - 1 - vp.top + top_line
-    invalidate if @cursor.handle_mouse(line, event, @lines.size)
+    return unless @cursor.handle_mouse(line, event, @lines.size)
+
+    move_viewport_to_cursor
+    invalidate # the cursor has been moved, repaint
   end
 
   # @return [String] formatted keyboard hint for users. Empty by default.
@@ -419,15 +422,17 @@ class Window
     # @param line [Integer] cursor is hovering over this line
     # @param event [MouseEvent] the event
     # @param line_count [Integer] number of lines in owner {Window}
-    def handle_mouse(_line, event, line_count)
+    def handle_mouse(line, event, line_count)
       case event.button
       when :scroll_down then go_down_by(4, line_count)
       when :scroll_up then go_up_by(4)
+      when :left then go(line.clamp(nil, line_count - 1))
       else false
       end
     end
 
-    # Moves the cursor to the new position. Public only because of testing - don't call directly from outside of this class!
+    # Moves the cursor to the new position. Public only because of testing - don't call directly from outside of this
+    # class!
     # @param new_position [Integer] new 0-based cursor position.
     # @return [Boolean] true if the cursor position changed.
     def go(new_position)
