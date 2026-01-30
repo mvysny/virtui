@@ -428,8 +428,13 @@ class Window
     # @param line [Integer] cursor is hovering over this line
     # @param event [MouseEvent] the event
     # @param line_count [Integer] number of lines in owner {Window}
+    # @return [Boolean] true if the event was handled.
     def handle_mouse(line, event, line_count)
-      go(line.clamp(nil, line_count - 1)) if event.button == :left
+      if event.button == :left
+        go(line.clamp(nil, line_count - 1))
+      else
+        false
+      end
     end
 
     # Moves the cursor to the new position. Public only because of testing - don't call directly from outside of this
@@ -472,14 +477,14 @@ class Window
         super(position: position)
       end
 
-      def handle_mouse(line, event, line_count)
+      def handle_mouse(line, event, _line_count)
         if event.button == :left
           prev_pos = @positions.reverse_each.find { it <= line }
           return go_to_first if prev_pos.nil?
 
           go(prev_pos)
         else
-          super
+          false
         end
       end
 
