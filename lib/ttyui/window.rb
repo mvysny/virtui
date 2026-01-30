@@ -226,8 +226,8 @@ class Window
     vp = viewport_rect
     return unless vp.contains?(event.x - 1, event.y - 1)
 
-    y = event.y - 1 - vp.top + top_line
-    invalidate if @cursor.go(y)
+    line = event.y - 1 - vp.top + top_line
+    invalidate if @cursor.go(line)
   end
 
   # @return [String] formatted keyboard hint for users. Empty by default.
