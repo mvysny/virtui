@@ -11,6 +11,6 @@ describe MouseEvent do
   it 'parses 2' do
     assert_nil MouseEvent.parse('')
     assert_nil MouseEvent.parse('[M')
-    assert_nil MouseEvent.parse(KeysKeys::PAGE_DOWN)
+    assert_nil MouseEvent.parse(Keys::PAGE_DOWN)
   end
 end

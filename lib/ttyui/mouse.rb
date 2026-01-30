@@ -17,9 +17,9 @@ class MouseEvent < Data.define(:button, :x, :y)
   def self.parse(key)
     return nil unless mouse_event?(key)
 
-    button = $stdin.getc.ord - 32
-    x = $stdin.getc.ord - 32
-    y = $stdin.getc.ord - 32
+    button = key[2].ord - 32
+    x = key[3].ord - 32
+    y = key[4].ord - 32
     button = case button
              when 0 then :left
              when 2 then :right
