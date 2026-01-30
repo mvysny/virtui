@@ -8,7 +8,7 @@ require 'tty-logger'
 require_relative 'keys'
 require_relative 'screen'
 
-# A rectangle, with {Integer} `left`, `top`, `width` and `height`.
+# A rectangle, with {Integer} `left`, `top`, `width` and `height`, all 0-based.
 class Rect < Data.define(:left, :top, :width, :height)
   def to_s = "#{left},#{top} #{width}x#{height}"
 
@@ -40,6 +40,11 @@ class Rect < Data.define(:left, :top, :width, :height)
     new_height = height.clamp(nil, max_height)
     new_width == width && new_height == height ? self : Rect.new(left, top, new_width, new_height)
   end
+
+  # @param x [Integer] 0-based
+  # @param y [Integer] 0-based
+  # @return [Boolean]
+  def contains?(x, y) = x >= left && x < left + width && y >= top && y < top + height
 end
 
 # A window with a frame, a {#caption} and text contents. Doesn't support overlapping with other windows:
@@ -77,6 +82,9 @@ class Window
 
   # @return [Rect] the rectangle the windows occupies on screen.
   attr_reader :rect
+
+  # @return [Rect] the rectangle of the window viewport on screen.
+  def viewport_rect = Rect.new(@rect.left + 1, @rect.top + 1, @rect.width - 2, @rect.height - 2)
 
   # @return [Boolean] if true and a line is added or a new content is set, auto-scrolls to the bottom
   attr_reader :auto_scroll
@@ -211,6 +219,15 @@ class Window
     else
       false
     end
+  end
+
+  # @param event [MouseEvent]
+  def handle_mouse(event)
+    vp = viewport_rect
+    return unless vp.contains?(event.x - 1, event.y - 1)
+
+    y = event.y - 1 - vp.top + top_line
+    invalidate if @cursor.go(y)
   end
 
   # @return [String] formatted keyboard hint for users. Empty by default.
