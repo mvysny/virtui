@@ -223,14 +223,20 @@ class Window
 
   # @param event [MouseEvent]
   def handle_mouse(event)
-    vp = viewport_rect
-    return unless vp.contains?(event.x - 1, event.y - 1)
+    if event.button == :scroll_down
+      move_top_line_by(4)
+    elsif event.button == :scroll_up
+      move_top_line_by(-4)
+    else
+      vp = viewport_rect
+      return unless vp.contains?(event.x - 1, event.y - 1)
 
-    line = event.y - 1 - vp.top + top_line
-    return unless @cursor.handle_mouse(line, event, @lines.size)
+      line = event.y - 1 - vp.top + top_line
+      return unless @cursor.handle_mouse(line, event, @lines.size)
 
-    move_viewport_to_cursor
-    invalidate # the cursor has been moved, repaint
+      move_viewport_to_cursor
+      invalidate # the cursor has been moved, repaint
+    end
   end
 
   # @return [String] formatted keyboard hint for users. Empty by default.
@@ -423,12 +429,7 @@ class Window
     # @param event [MouseEvent] the event
     # @param line_count [Integer] number of lines in owner {Window}
     def handle_mouse(line, event, line_count)
-      case event.button
-      when :scroll_down then go_down_by(4, line_count)
-      when :scroll_up then go_up_by(4)
-      when :left then go(line.clamp(nil, line_count - 1))
-      else false
-      end
+      go(line.clamp(nil, line_count - 1)) if event.button == :left
     end
 
     # Moves the cursor to the new position. Public only because of testing - don't call directly from outside of this
