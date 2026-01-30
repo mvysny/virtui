@@ -227,7 +227,7 @@ class Window
     return unless vp.contains?(event.x - 1, event.y - 1)
 
     line = event.y - 1 - vp.top + top_line
-    invalidate if @cursor.go(line)
+    invalidate if @cursor.handle_mouse(line, event, @lines.size)
   end
 
   # @return [String] formatted keyboard hint for users. Empty by default.
@@ -383,6 +383,10 @@ class Window
       def handle_key(_key, _line_count, _viewport_lines)
         false
       end
+
+      def handle_mouse(_line, _event, _line_count)
+        false
+      end
     end
 
     # @return [Integer] 0-based line index of the current cursor position
@@ -408,6 +412,18 @@ class Window
         go_down_by(viewport_lines / 2, line_count)
       else
         false
+      end
+    end
+
+    # Handles mouse event.
+    # @param line [Integer] cursor is hovering over this line
+    # @param event [MouseEvent] the event
+    # @param line_count [Integer] number of lines in owner {Window}
+    def handle_mouse(_line, event, line_count)
+      case event.button
+      when :scroll_down then go_down_by(4, line_count)
+      when :scroll_up then go_up_by(4)
+      else false
       end
     end
 
