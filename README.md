@@ -41,7 +41,8 @@ Run:
 $ bundle exec rake install_desktop
 ```
 
-This create a `.desktop` file for VirTUI according to the XDG spec.
+This creates a `.desktop` file for VirTUI and places it to
+`~/.local/share/applications/`, as per the XDG spec.
 The file is then picked by your Linux Desktop automatically.
 
 # Ballooning
