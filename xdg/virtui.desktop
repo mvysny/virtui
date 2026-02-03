@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=VirTUI
+Exec=alacritty --class virtui,virtui -e ~/virtui
+Icon=virtui-icon.svg
+Type=Application
+StartupWMClass=virtui
+
