@@ -34,6 +34,18 @@ Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
   when VM needs more memory fast.
 - `d` - toggles disk stats for all VMs, not just running ones. Clutters the list a bit.
 
+### Integrating Into Your Linux Desktop
+
+Run:
+```
+$ bundle exec rake install_desktop
+```
+
+This create a `.desktop` file for VirTUI according to the XDG spec.
+The file is then picked by your Linux Desktop automatically.
+```
+```
+
 # Ballooning
 
 "Balloon" is closely related to precise control and statistics of guest memory. When ballooning is enabled, you can see
