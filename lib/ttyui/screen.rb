@@ -37,8 +37,6 @@ class Screen
     @size = EventQueue::TTYSizeEvent.create
     # {Set<Component>} invalidated components (need repaint)
     @invalidated = Set.new
-    # {Boolean} true after tty resize or when a popup is removed.
-    @needs_full_repaint = true
     # Until the event loop is run, we pretend we're in the UI thread.
     # This allows AppScreen to initialize.
     @pretend_ui_lock = true
@@ -74,7 +72,7 @@ class Screen
   # Call when the app starts. {:size} provides correct size of the terminal.
   def layout
     check_locked
-    @needs_full_repaint = true
+    needs_full_repaint
     relayout_tiled_windows
     @popups.each(&:center)
     @status_bar.rect = Rect.new(0, size.height - 1, size.width, 1)
@@ -155,7 +153,7 @@ class Screen
   def remove_window(window)
     check_locked
     if @popups.delete(window)
-      @needs_full_repaint = true
+      needs_full_repaint
       return
     end
     @windows.delete(window)
@@ -204,10 +202,17 @@ class Screen
     # and in this app they do.
     repaint.each(&:repaint)
     @invalidated.clear
-    @needs_full_repaint = false
   end
 
   private
+
+  # Called after a popup is closed. Since a popup can cover any window, top-level component
+  # or other popups, we need to redraw everything.
+  def needs_full_repaint
+    @windows.each_key { invalidate it }
+    @popups.each { invalidate it }
+    invalidate @status_bar
+  end
 
   # A key has been pressed on the keyboard. Handle it, or forward to active window.
   # @param [String] key
