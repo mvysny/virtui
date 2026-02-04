@@ -235,10 +235,12 @@ class Screen
   def handle_mouse(event)
     x = event.x - 1
     y = event.y - 1
-    window = @popups.rfind { it.rect.contains?(x, y) }
-    window = @windows.keys.find { it.rect.contains?(x, y) } if window.nil? && @popups.empty?
-    self.active_window = window unless window.nil? || event.button != :left || window.active?
-    window&.handle_mouse(event)
+    clicked = @popups.rfind { it.rect.contains?(x, y) }
+    clicked = (@windows.keys + [@status_bar]).find { it.rect.contains?(x, y) } if clicked.nil? && @popups.empty?
+    unless clicked.nil? || event.button != :left || clicked.active? || !(clicked.is_a? Window)
+      self.active_window = clicked
+    end
+    clicked&.handle_mouse(event)
   end
 
   def event_loop

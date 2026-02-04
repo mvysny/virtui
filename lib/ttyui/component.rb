@@ -47,6 +47,7 @@ end
 class Component
   def initialize
     @rect = Rect.new(0, 0, 0, 0)
+    @active = false
   end
 
   # @return [Rect] the rectangle the component occupies on screen.
@@ -72,6 +73,33 @@ class Component
   #
   # Tip: use {:clear_background} to clear component background before painting.
   def repaint; end
+
+  # Called when a character is pressed on the keyboard and this component is focused/active.
+  #
+  # Default implementation does nothing and returns `false`.
+  # @param key [String] a key.
+  # @return [Boolean] true if the key was handled, false if not.
+  def handle_key(_key)
+    false
+  end
+
+  # Handles mouse event. Default impl does nothing.
+  # @param event [MouseEvent]
+  def handle_mouse(event); end
+
+  # @return [Boolean] if the component is active. Active component receives keyboard input (unless there's a
+  # popup window).
+  def active? = @active
+
+  # @param active [Boolean] true if active. Active window has green border and
+  # usually receives keyboard input (unless there's another popup window).
+  def active=(active)
+    active = !!active
+    return unless @active != active
+
+    @active = active
+    invalidate
+  end
 
   protected
 

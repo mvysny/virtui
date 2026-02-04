@@ -34,8 +34,6 @@ class Window < Component
     @top_line = 0
     # {Cursor} cursor, none by default.
     @cursor = Cursor::None.new
-    # {Boolean} true if window is active
-    @active = false
   end
 
   # @return [String] the current caption, empty by default.
@@ -88,20 +86,6 @@ class Window < Component
     invalidate
   end
 
-  # @return [Boolean] if the window is active. Active window has green border and
-  # usually receives keyboard input (unless there's another popup window).
-  def active? = @active
-
-  # @param active [Boolean] true if active. Active window has green border and
-  # usually receives keyboard input (unless there's another popup window).
-  def active=(active)
-    active = !!active
-    return unless @active != active
-
-    @active = active
-    invalidate
-  end
-
   # Sets new content of the window, as an array of {String}s.
   # @param lines [Array<String>] new content
   def content=(lines)
@@ -148,7 +132,9 @@ class Window < Component
   # @param key [String] a key.
   # @return [Boolean] true if the key was handled, false if not.
   def handle_key(key)
-    if key == Keys::PAGE_UP
+    if super
+      true
+    elsif key == Keys::PAGE_UP
       move_top_line_by(-viewport_lines)
       true
     elsif key == Keys::PAGE_DOWN
@@ -165,6 +151,7 @@ class Window < Component
 
   # @param event [MouseEvent]
   def handle_mouse(event)
+    super
     if event.button == :scroll_down
       move_top_line_by(4)
     elsif event.button == :scroll_up
@@ -220,7 +207,7 @@ class Window < Component
       width: @rect.width, height: @rect.height, top: @rect.top, left: @rect.left,
       title: { top_left: @caption || '' }
     )
-    frame = Rainbow(frame).green if @active
+    frame = Rainbow(frame).green if active?
     screen.print frame
   end
 
