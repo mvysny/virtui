@@ -120,6 +120,8 @@ class Component
     private
 
     def update_clipped_text
+      return if @text.nil?
+
       clipped_text = Strings::Truncation.truncate(@text, length: rect.width.clamp(0, nil))
       return if @clipped_text == clipped_text
 

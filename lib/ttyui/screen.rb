@@ -2,6 +2,7 @@
 
 require_relative 'window'
 require_relative 'event_queue'
+require_relative 'component'
 require 'io/console'
 require 'tty-cursor'
 require 'tty-screen'
@@ -41,6 +42,8 @@ class Screen
     # Until the event loop is run, we pretend we're in the UI thread.
     # This allows AppScreen to initialize.
     @pretend_ui_lock = true
+    # Bottom status bar
+    @status_bar = Component::Label.new
   end
 
   # @return [Screen] the singleton instance
@@ -50,7 +53,7 @@ class Screen
     @@instance
   end
 
-  # Provides access to {Size.width} and {Size.height} of the screen.
+  # Provides access to {:width} and {:height} of the screen.
   attr_reader :size
   # @return [Array<Window>] currently active popup windows. The array must not be modified!
   attr_reader :popups
@@ -68,12 +71,13 @@ class Screen
   end
 
   # Recalculates positions of all windows, and repaints the scene. Automatically called whenever terminal size changes.
-  # Call when the app starts.
+  # Call when the app starts. {:size} provides correct size of the terminal.
   def layout
     check_locked
     @needs_full_repaint = true
     relayout_tiled_windows
     @popups.each(&:center)
+    @status_bar.rect = Rect.new(0, size.height - 1, size.width, 1)
     repaint
   end
 
@@ -135,6 +139,7 @@ class Screen
   def active_window=(window)
     check_locked
     @windows.each_key { it.active = it == window }
+    @status_bar.text = "q #{Rainbow('quit').cadetblue}  ", active_window&.keyboard_hint
   end
 
   # @return [Window | nil] current active tiled window.
@@ -204,16 +209,10 @@ class Screen
     end
     repaint.each(&:repaint)
     @invalidated.clear
-    update_status_bar
     @needs_full_repaint = false
   end
 
   private
-
-  def update_status_bar
-    print TTY::Cursor.move_to(0, size.height - 1), ' ' * size.width
-    print TTY::Cursor.move_to(0, size.height - 1), "q #{Rainbow('quit').cadetblue}  ", active_window&.keyboard_hint
-  end
 
   # A key has been pressed on the keyboard. Handle it, or forward to active window.
   # @param [String] key
