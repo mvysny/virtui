@@ -139,7 +139,7 @@ class Screen
   def active_window=(window)
     check_locked
     @windows.each_key { it.active = it == window }
-    @status_bar.text = "q #{Rainbow('quit').cadetblue}  ", active_window&.keyboard_hint
+    @status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
   end
 
   # @return [Window | nil] current active tiled window.
@@ -192,21 +192,16 @@ class Screen
   # invalidated windows.
   def repaint
     check_locked
-    repaint = []
-    if @needs_full_repaint
-      # clear - only needed when tiled windows don't cover the screen entirely... and usually they do.
-      # Don't clear - prevents blinking
-      repaint = @windows.keys + @popups
-    else
-      repaint = @windows.keys.filter { @invalidated.include? it }
-      # This simple TUI framework doesn't support window clipping since
-      # tiled windows are not expected to overlap. If there rarely is a popup,
-      # we just repaint all windows in correct order - sure they will paint over
-      # other windows, but if this is done in the right order, the final drawing will
-      # look okay. Not the most effective algorithm, but very simple and very fast
-      # in common cases.
-      repaint += repaint.empty? ? @popups.filter { @invalidated.include? it } : @popups
-    end
+    # This simple TUI framework doesn't support window clipping since
+    # tiled windows are not expected to overlap. If there rarely is a popup,
+    # we just repaint all windows in correct order - sure they will paint over
+    # other windows, but if this is done in the right order, the final drawing will
+    # look okay. Not the most effective algorithm, but very simple and very fast
+    # in common cases.
+    repaint = @invalidated.to_a.delete_if { it.is_a? PopupWindow }
+    repaint += repaint.empty? ? @popups.filter { @invalidated.include? it } : @popups
+    # Don't call {:clear} - only needed when tiled windows don't cover the screen entirely...
+    # and in this app they do.
     repaint.each(&:repaint)
     @invalidated.clear
     @needs_full_repaint = false
