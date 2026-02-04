@@ -34,8 +34,8 @@ class Screen
     # Last popup is the topmost one and receives all key events.
     @popups = []
     @size = EventQueue::TTYSizeEvent.create
-    # {Set<Window>} invalidated windows (need repaint)
-    @invalidated_windows = Set.new
+    # {Set<Component>} invalidated components (need repaint)
+    @invalidated = Set.new
     # {Boolean} true after tty resize or when a popup is removed.
     @needs_full_repaint = true
     # Until the event loop is run, we pretend we're in the UI thread.
@@ -77,13 +77,13 @@ class Screen
     repaint
   end
 
-  # Invalidates window: causes the window to be repainted on next call to {:repaint}
-  # @param window [Window]
-  def invalidate(window)
+  # Invalidates a component: causes the component to be repainted on next call to {:repaint}
+  # @param component [Component]
+  def invalidate(component)
     check_locked
-    raise unless window.is_a? Window
+    raise unless component.is_a? Component
 
-    @invalidated_windows << window
+    @invalidated << component
   end
 
   # Adds a new tiled window.
@@ -193,17 +193,17 @@ class Screen
       # Don't clear - prevents blinking
       repaint = @windows.keys + @popups
     else
-      repaint = @windows.keys.filter { @invalidated_windows.include? it }
+      repaint = @windows.keys.filter { @invalidated.include? it }
       # This simple TUI framework doesn't support window clipping since
       # tiled windows are not expected to overlap. If there rarely is a popup,
       # we just repaint all windows in correct order - sure they will paint over
       # other windows, but if this is done in the right order, the final drawing will
       # look okay. Not the most effective algorithm, but very simple and very fast
       # in common cases.
-      repaint += repaint.empty? ? @popups.filter { @invalidated_windows.include? it } : @popups
+      repaint += repaint.empty? ? @popups.filter { @invalidated.include? it } : @popups
     end
     repaint.each(&:repaint)
-    @invalidated_windows.clear
+    @invalidated.clear
     update_status_bar
     @needs_full_repaint = false
   end

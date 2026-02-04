@@ -69,6 +69,8 @@ class Component
   def screen = Screen.instance
 
   # Repaints the component. Default implementation does nothing.
+  #
+  # Tip: use {:clear_background} to clear component background before painting.
   def repaint; end
 
   protected
@@ -80,5 +82,49 @@ class Component
   # once all events are processed, will call {:repaint}.
   def invalidate
     screen.invalidate(self)
+  end
+
+  # Clears the background: prints spaces into all characters occupied by the component's rect.
+  def clear_background
+    return if rect.empty?
+
+    spaces = ' ' * rect.width
+    (rect.top..(rect.top + rect.height)).each do |row|
+      screen.print TTY::Cursor.move_to(rect.left, row), spaces
+    end
+  end
+end
+
+class Component
+  # A label which shows static text. At the moment doesn't word-wrap and clips. Multi-line strings are unsupported
+  # at the moment.
+  class Label < Component
+    # @param text [String] draws this text. May contain ANSI formatting. Clipped automatically.
+    def text=(text)
+      @text = text.to_s
+      update_clipped_text
+    end
+
+    def repaint
+      clear_background
+      screen.print TTY::Cursor.move_to(rect.left, rect.top), @clipped_text
+    end
+
+    protected
+
+    def on_width_changed
+      super
+      update_clipped_text
+    end
+
+    private
+
+    def update_clipped_text
+      clipped_text = Strings::Truncation.truncate(@text, length: rect.width.clamp(0, nil))
+      return if @clipped_text == clipped_text
+
+      @clipped_text = clipped_text
+      invalidate
+    end
   end
 end

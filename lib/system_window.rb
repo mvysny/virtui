@@ -67,6 +67,7 @@ class SystemWindow < Window
   protected
 
   def on_width_changed
+    super
     update
   end
 
