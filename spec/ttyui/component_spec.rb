@@ -35,4 +35,22 @@ describe Component::Label do
     label = Component::Label.new
     label.text = 'Test 1 2 3 4'
   end
+  it 'can repaint on unset text' do
+    label = Component::Label.new
+    label.repaint
+    assert_equal [], Screen.instance.prints
+  end
+  it 'can repaint on unset text' do
+    label = Component::Label.new
+    label.rect = Rect.new(0, 0, 5, 1)
+    label.repaint
+    assert_equal ["\e[1;1H", '     '], Screen.instance.prints
+  end
+  it 'prints only first line' do
+    label = Component::Label.new
+    label.rect = Rect.new(0, 0, 5, 1)
+    label.text = "1\n2\n3"
+    label.repaint
+    assert_equal ["\e[1;1H", '     ', "\e[1;1H", '1'], Screen.instance.prints
+  end
 end

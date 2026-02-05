@@ -123,7 +123,7 @@ class Component
     return if rect.empty?
 
     spaces = ' ' * rect.width
-    (rect.top..(rect.top + rect.height)).each do |row|
+    (rect.top..(rect.top + rect.height - 1)).each do |row|
       screen.print TTY::Cursor.move_to(rect.left, row), spaces
     end
   end
@@ -146,7 +146,9 @@ class Component
 
     def repaint
       clear_background
-      (0..(@clipped_lines.length - 1)).each do |index|
+      height = rect.height.clamp(0, nil)
+      lines_to_print = @clipped_lines.length.clamp(nil, height)
+      (0..lines_to_print - 1).each do |index|
         screen.print TTY::Cursor.move_to(rect.left, rect.top + index), @clipped_lines[index]
       end
     end
