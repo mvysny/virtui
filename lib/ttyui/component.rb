@@ -130,18 +130,25 @@ class Component
 end
 
 class Component
-  # A label which shows static text. At the moment doesn't word-wrap and clips. Multi-line strings are unsupported
-  # at the moment.
+  # A label which shows static text. No word-wrapping; clips long lines.
   class Label < Component
-    # @param text [String] draws this text. May contain ANSI formatting. Clipped automatically.
+    def initialize
+      super
+      @lines = []
+      @clipped_lines = []
+    end
+
+    # @param text [String | nil] draws this text. May contain ANSI formatting. Clipped automatically.
     def text=(text)
-      @text = text.to_s
+      @lines = text.to_s.split("\n")
       update_clipped_text
     end
 
     def repaint
       clear_background
-      screen.print TTY::Cursor.move_to(rect.left, rect.top), @clipped_text
+      (0..(@clipped_lines.length - 1)).each do |index|
+        screen.print TTY::Cursor.move_to(rect.left, rect.top + index), @clipped_lines[index]
+      end
     end
 
     protected
@@ -154,12 +161,13 @@ class Component
     private
 
     def update_clipped_text
-      return if @text.nil?
+      len = rect.width.clamp(0, nil)
+      clipped = @lines.map do |line|
+        Strings::Truncation.truncate(line, length: len)
+      end
+      return if @clipped_lines == clipped
 
-      clipped_text = Strings::Truncation.truncate(@text, length: rect.width.clamp(0, nil))
-      return if @clipped_text == clipped_text
-
-      @clipped_text = clipped_text
+      @clipped_lines = clipped
       invalidate
     end
   end
