@@ -197,6 +197,8 @@ class Window < Component
     repaint_content
   end
 
+  def can_activate? = true
+
   protected
 
   # Paints the window border.

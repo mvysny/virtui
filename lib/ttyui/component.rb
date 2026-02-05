@@ -91,15 +91,21 @@ class Component
   # popup window).
   def active? = @active
 
-  # @param active [Boolean] true if active. Active window has green border and
-  # usually receives keyboard input (unless there's another popup window).
+  # @param active [Boolean] true if active. Active component
+  # receives keyboard input (unless there's another popup window).
   def active=(active)
     active = !!active
+    raise 'Can not activate this component' if active && !can_activate?
     return unless @active != active
 
     @active = active
     invalidate
   end
+
+  # Checks whether the component can receive keyboard input. `false`
+  # by default. Passive components like {Label} can't receive input.
+  # @return [Boolean] true if the component can be made active.
+  def can_activate? = false
 
   protected
 

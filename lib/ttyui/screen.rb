@@ -140,7 +140,7 @@ class Screen
     @status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
   end
 
-  # @return [Window | nil] current active tiled window.
+  # @return [Component | nil] current active tiled component.
   def active_window
     check_locked
     @windows.keys.find(&:active?)
@@ -237,7 +237,7 @@ class Screen
     y = event.y - 1
     clicked = @popups.rfind { it.rect.contains?(x, y) }
     clicked = (@windows.keys + [@status_bar]).find { it.rect.contains?(x, y) } if clicked.nil? && @popups.empty?
-    unless clicked.nil? || event.button != :left || clicked.active? || !(clicked.is_a? Window)
+    unless clicked.nil? || event.button != :left || clicked.active? || !clicked.can_activate?
       self.active_window = clicked
     end
     clicked&.handle_mouse(event)
