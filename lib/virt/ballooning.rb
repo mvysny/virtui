@@ -81,14 +81,15 @@ class BallooningVM
     # It takes ~15 seconds for a VM to start.
     @boot_back_off_seconds = 20
 
-    # When the guest mem usage (ommitting cache) is above this value, increase guest memory
-    @trigger_increase_at = 60
+    # When the guest mem usage (ommitting cache) is above this value, increase guest memory.
+    # To prevent client swapping, set this higher than guest vm.swappiness
+    @trigger_increase_at = 70
 
     # When increasing memory, increase by how much
     @increase_memory_by = 30
 
     # When the guest mem usage (ommitting cache) is below this, start decreasing guest memory
-    @trigger_decrease_at = 50
+    @trigger_decrease_at = 60
 
     # When decreasing memory, decrease by how much
     @decrease_memory_by = 10
