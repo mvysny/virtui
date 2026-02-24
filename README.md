@@ -91,13 +91,24 @@ More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/
 
 ## Automatic Balloon inflate/deflate
 
-A running VM with ballooning support is observed, and a decision is made every 2 seconds. If the memory usage goes above 65%, the VM memory is
+A running VM with ballooning support is observed, and a decision is made every 2 seconds. If the memory usage goes above 70%, the VM memory is
 increased immediately by 30%. This helps if there's a sudden VM memory demand.
-If the memory usage goes below 55%, a memory is decreased by 10%, but this only happens every 10 seconds.
+If the memory usage goes below 60%, a memory is decreased by 10%, but this only happens every 10 seconds.
 
 In other words, if VM needs memory, the memory is given immediately. Afterwards, the memory is slowly decreased as the usage goes down.
 
 At the moment you need to edit virtui sources to configure this: edit `ballooning.rb`: the configuration starts at line 49.
+
+## Guest Configuration
+
+The most important setting is the guest Linux swappiness parameter. It's a value 0..100
+which says: if the memory usage is over swappiness, start swapping. On desktops
+this is set to 60, to have a bit bigger disk caches which improve system performance.
+On guest OS however you don't need caches (the host OS caches qcow2 writes),
+and you should prevent swapping. The best way is to:
+
+1. Set swappiness to 1 on guest: `echo 'vm.swappiness=1' | sudo tee /etc/sysctl.d/99-swappiness.conf`
+2. Still have a swap file, to deal with sudden memory usage spikes.
 
 # Developing
 
