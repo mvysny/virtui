@@ -84,7 +84,7 @@ class BallooningVM
     @boot_back_off_seconds = 20
 
     # When the guest mem usage (ommitting cache) is above this value, increase guest memory.
-    # To prevent client swapping, set this higher than guest vm.swappiness
+    # To prevent client swapping, set this lower than `100 - guest vm.swappiness`
     @trigger_increase_at = 70
 
     # When increasing memory, increase by how much
