@@ -101,9 +101,10 @@ At the moment you need to edit virtui sources to configure this: edit `balloonin
 
 ## Guest Configuration
 
-The most important setting is the guest Linux swappiness parameter. It's a value 0..100
-which says: if the memory usage % is over, say 60%, start swapping. On desktops
-this is set to 60, to have a bit bigger disk caches which improve system performance.
+The most important setting is the guest Linux swappiness parameter. It's a value 0..100;
+A higher value increases swapping, while a lower value reduces it.
+Default value: 60 on most systems, meaning swap is used when RAM usage is around 40%.
+This allows for bigger disk caches which improve system performance.
 On guest OS however you don't need disk caches (the host OS caches qcow2 writes),
 and you should prevent swapping unless absolutely necessary. The best way is to:
 
