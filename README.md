@@ -102,10 +102,10 @@ At the moment you need to edit virtui sources to configure this: edit `balloonin
 ## Guest Configuration
 
 The most important setting is the guest Linux swappiness parameter. It's a value 0..100
-which says: if the memory usage is over swappiness, start swapping. On desktops
+which says: if the memory usage % is over, say 60%, start swapping. On desktops
 this is set to 60, to have a bit bigger disk caches which improve system performance.
-On guest OS however you don't need caches (the host OS caches qcow2 writes),
-and you should prevent swapping. The best way is to:
+On guest OS however you don't need disk caches (the host OS caches qcow2 writes),
+and you should prevent swapping unless absolutely necessary. The best way is to:
 
 1. Set swappiness to 1 on guest: `echo 'vm.swappiness=1' | sudo tee /etc/sysctl.d/99-swappiness.conf`
 2. Still have a swap file, to deal with sudden memory usage spikes.
