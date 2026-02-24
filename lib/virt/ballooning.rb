@@ -68,7 +68,9 @@ class BallooningVM
     @vmid = vmid
     # {Integer} Don't let the VM fall below this value. Note that QEMU needs some memory for itself, so the amount
     # of memory available to the guest OS will be smaller.
-    @min_actual = 4.GiB
+    #
+    # 8 GiB is a healthy minimum for guests.
+    @min_actual = 8.GiB
     # After Ballooning decreases active memory, it will back off for 20 seconds
     # before trying to decrease the memory again. Observation shows that
     # the effects of the memory decrease command in Linux guest isn't instant: instead it is gradual, and takes
