@@ -6,6 +6,7 @@ require 'ttyui/keys'
 
 describe PopupWindow do
   before { Screen.fake }
+  after { Screen.close }
 
   it 'smokes' do
     w = PopupWindow.new('foo')

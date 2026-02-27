@@ -123,6 +123,7 @@ end
 
 describe Component do
   before { Screen.fake }
+  after { Screen.close }
   it 'smokes' do
     Component.new
   end
@@ -130,6 +131,7 @@ end
 
 describe Component::Label do
   before { Screen.fake }
+  after { Screen.close }
   it 'smokes' do
     label = Component::Label.new
     label.text = 'Test 1 2 3 4'

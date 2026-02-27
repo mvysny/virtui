@@ -6,6 +6,7 @@ require 'tty-logger'
 
 describe Window do
   before { Screen.fake }
+  after { Screen.close }
   context 'caption' do
     it 'sets caption via constructor' do
       assert_equal '', Window.new.caption
@@ -125,6 +126,8 @@ end
 
 describe LogWindow do
   before { Screen.fake }
+  after { Screen.close }
+
   it 'logs to content' do
     w = LogWindow.new
     log = TTY::Logger.new do |config|

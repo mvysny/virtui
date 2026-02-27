@@ -5,7 +5,10 @@ require 'ttyui/picker_window'
 require 'ttyui/keys'
 
 describe PickerWindow do
-  let(:screen) { Screen.fake }
+  before { Screen.fake }
+  after { Screen.close }
+  let(:screen) { Screen.instance }
+
   it 'smokes' do
     w = PickerWindow.new('foo', [%w[a all]]) {}
     screen.add_window '1', w
