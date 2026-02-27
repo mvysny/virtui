@@ -173,6 +173,15 @@ class Screen
     Screen.instance
   end
 
+  def close
+    clear
+    @@instance = nil
+  end
+
+  def self.close
+    @@instance&.close
+  end
+
   # Prints given strings
   # @param args [Array<String>] stuff to print.
   def print(*args)

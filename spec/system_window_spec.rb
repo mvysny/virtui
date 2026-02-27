@@ -8,6 +8,7 @@ require 'virt/virtcache'
 describe SystemWindow do
   let(:cache) { VirtCache.new(VMEmulator.demo, PcEmulator.new) }
   before { Screen.fake }
+  after { Screen.close }
   it 'smokes' do
     SystemWindow.new(cache)
   end
