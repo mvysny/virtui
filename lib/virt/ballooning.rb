@@ -85,14 +85,14 @@ class BallooningVM
 
     # When the guest mem usage (ommitting cache) is above this value, increase guest memory.
     # To prevent client swapping, set this lower than `100 - guest vm.swappiness`
-    @trigger_increase_at = 70
+    @trigger_increase_at = 65
 
     # When increasing memory, increase by how much.
     # A percentage value; 30 means that the actual will be increased to 130%.
     @increase_memory_by = 30
 
     # When the guest mem usage (ommitting cache) is below this, start decreasing guest memory
-    @trigger_decrease_at = 60
+    @trigger_decrease_at = 55
 
     # When decreasing memory, decrease by how much.
     # A percentage value; 10 means that the actual will be decreased to 90%.
