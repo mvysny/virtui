@@ -43,7 +43,7 @@ class PickerWindow < PopupWindow
   end
 
   # @param caption [String] the window caption
-  # @param options [Array<Option>] maps keyboard key to the option caption. No Rainbow formatting must be used.
+  # @param options [Array<Array<String, String>>] maps keyboard key to the option caption. No Rainbow formatting must be used.
   # @param block called with the option key once one is selected by the user. Not called if the window is closed via ESC or q
   # @return [PickerWindow]
   def self.open(caption, options, &block)
