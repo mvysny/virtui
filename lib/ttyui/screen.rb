@@ -99,8 +99,10 @@ class Screen
     invalidate(window)
   end
 
-  # @param [window] the popup to add. Will be centered and painted automatically.
+  # @param window [PopupWindow] the popup to add. Will be centered and painted automatically.
   def add_popup(window)
+    raise unless window.is_a? PopupWindow
+
     @popups << window
     window.center
     invalidate(window)
