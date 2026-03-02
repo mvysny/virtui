@@ -168,6 +168,7 @@ class Screen
 
   # Testing only - creates new screen, locks the UI, and prevents any redraws,
   # so that test TTY is not painted over.
+  # @return [FakeScreen]
   def self.fake
     FakeScreen.new
     Screen.instance
@@ -294,5 +295,13 @@ class FakeScreen < Screen
   # Doesn't print anything: collects all strings in {#prints}
   def print(*args)
     @prints += args
+  end
+
+  # @param component [Component] the component to check
+  # @return [Boolean]
+  def invalidated?(component) = @invalidated.include?(component)
+
+  def invalidated_clear
+    @invalidated.clear
   end
 end
