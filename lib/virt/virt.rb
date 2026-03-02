@@ -271,6 +271,12 @@ class VirtCmd
   def reset(domain_name)
     Run.sync("virsh reset '#{domain_name}'")
   end
+
+  # Forces the VM off.
+  # @param domain_name [String] VM name
+  def force_off(domain_name)
+    Run.sync("virsh destroy '#{domain_name}'")
+  end
 end
 
 def library_available?(name)

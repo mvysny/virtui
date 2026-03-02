@@ -162,7 +162,8 @@ class VMWindow < Window
   def show_power_popup
     current_vm = @line_data[cursor.position] || return
     state = @virt_cache.state(current_vm)
-    opts = [['s', 'Start'], ['o', 'shut dOwn gracefully'], ['r', 'reboot (soft)'], ['R', 'Reset (hard)']]
+    opts = [['s', 'Start'], ['o', 'shut dOwn gracefully'], ['O', 'force Off'], ['r', 'reboot (soft)'],
+            ['R', 'Reset (hard)']]
     PickerWindow.open('Power', opts) do |key|
       if key == 's' # start
         if state == :shut_off
@@ -175,6 +176,13 @@ class VMWindow < Window
         if state == :running
           $log.info "Shutting down '#{current_vm}' gracefully"
           @virt_cache.virt.shutdown(current_vm)
+        else
+          $log.error "'#{current_vm}' is not running"
+        end
+      elsif key == 'O' # Force Off
+        if state == :running
+          $log.info "Force off '#{current_vm}'"
+          @virt_cache.virt.force_off(current_vm)
         else
           $log.error "'#{current_vm}' is not running"
         end
