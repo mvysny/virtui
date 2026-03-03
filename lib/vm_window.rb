@@ -207,7 +207,7 @@ class VMWindow < Window
   # @param cache [VirtCache::VMCache]
   # @return [String]
   def format_vm_overview_line(cache)
-    line = "#{@f.format_domain_state(cache.data.state)} #{Rainbow(cache.info.name).white}"
+    line = "#{format_domain_state(cache.data.state)} #{Rainbow(cache.info.name).white}"
     cache.data.mem_stat
     if cache.data.running?
       if cache.data.balloon?
@@ -261,6 +261,15 @@ class VMWindow < Window
 
     progress_bar("#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
                  format_byte_size(mem_usage.total), width, mem_usage.used, mem_usage.total, color)
+  end
+
+  def format_domain_state(state)
+    case state
+    when :running  then Rainbow("\u{25B6}").green
+    when :shut_off then Rainbow("\u{23F9}").darkred
+    when :paused   then Rainbow("\u{23F8}").yellow
+    else; Rainbow('?').red
+    end
   end
 
   # @param width [Integer] the width of the bar in chars.
