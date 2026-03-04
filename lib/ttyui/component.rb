@@ -53,7 +53,8 @@ class Component
   # @return [Rect] the rectangle the component occupies on screen.
   attr_reader :rect
 
-  # Sets new position of the component.
+  # Sets new position of the component. This is the absolute component positioning on screen,
+  # not a relative positioning relative to component's parent.
   # @param new_rect [Rect] new position. Does nothing if the new rectangle is same as
   # the old one.
   def rect=(new_rect)
