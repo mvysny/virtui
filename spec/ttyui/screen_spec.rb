@@ -22,13 +22,6 @@ describe Screen do
     end
   end
 
-  it 'removes window' do
-    w = Window.new
-    screen.add_window '1', w
-    screen.remove_window(w)
-    assert !screen.has_window?(w)
-  end
-
   context 'popups' do
     it 'adds popup' do
       w = PopupWindow.new

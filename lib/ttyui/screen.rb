@@ -93,6 +93,7 @@ class Screen
   def add_window(shortcut, window)
     check_locked
     raise unless window.is_a? Window
+    raise if window.is_a? PopupWindow
 
     window.active = true if @windows.empty?
     @windows[window] = shortcut
@@ -148,18 +149,15 @@ class Screen
     @windows.keys.find(&:active?)
   end
 
-  # Removes a window and calls {:layout}. This should visually "remove" the window. The window will also no longer
+  # Removes a popup. Repaints the whole scene, which should visually "remove" the window. The window will also no longer
   # receive keys.
   #
   # Does nothing if the window is not open on this screen.
   def remove_window(window)
     check_locked
-    if @popups.delete(window)
-      needs_full_repaint
-      return
-    end
-    @windows.delete(window)
-    layout
+    raise 'window is not a popup' unless @popups.delete(window)
+
+    needs_full_repaint
   end
 
   # @return [Boolean] if screen contains this window.
