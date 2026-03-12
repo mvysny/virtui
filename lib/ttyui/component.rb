@@ -56,8 +56,10 @@ class Component
   # Sets new position of the component. This is the absolute component positioning on screen,
   # not a relative positioning relative to component's {:parent}.
   #
-  # The component must always be fully positioned within {:parent}'s rect.
+  # The component must not stick outside of {:parent}'s rect.
   #
+  # The component is invalidated and will paint over the new rectangle.
+  # It is parent's job to paint over the old component position.
   # @param new_rect [Rect] new position. Does nothing if the new rectangle is same as
   # the old one.
   def rect=(new_rect)
@@ -75,7 +77,7 @@ class Component
 
   # Repaints the component. Default implementation does nothing.
   #
-  # The component must not draw outside of {:rect}.
+  # The component must fully draw over {:rect}, and must not draw outside of {:rect}.
   #
   # Tip: use {:clear_background} to clear component background before painting.
   def repaint; end
