@@ -40,6 +40,7 @@ class Component
       clear_background if @children.empty?
     end
 
+    # Dispatches the event to the child under the mouse cursor.
     # @param event [MouseEvent]
     def handle_mouse(event)
       @children.each do |child|
