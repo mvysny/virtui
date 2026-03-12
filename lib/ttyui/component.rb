@@ -82,7 +82,12 @@ class Component
   # Tip: use {:clear_background} to clear component background before painting.
   def repaint; end
 
-  # Called when a character is pressed on the keyboard and this component is focused/active.
+  # Called when a character is pressed on the keyboard.
+  #
+  # The event travels to children and descendants until someone handles it.
+  # This is probably a stupid idea, but let's go with that for now.
+  #
+  # Also called for inactive components. Inactive component should just return false.
   #
   # Default implementation does nothing and returns `false`.
   # @param key [String] a key.
@@ -122,7 +127,13 @@ class Component
   # is nil.
   def depth = parent.nil? ? 0 : parent.depth + 1
 
+  # List of child components, defaults to an empty array.
+  # @return [Array<Component>] child components. Must not be mutated! May be empty.
+  def children = []
+
   protected
+
+  attr_writer :parent
 
   # Called whenever the component width changes. Does nothing by default.
   def on_width_changed; end
