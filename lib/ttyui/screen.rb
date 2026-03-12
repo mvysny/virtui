@@ -153,7 +153,7 @@ class Screen
   # receive keys.
   #
   # Does nothing if the window is not open on this screen.
-  def remove_window(window)
+  def remove_popup(window)
     check_locked
     raise 'window is not a popup' unless @popups.delete(window)
 

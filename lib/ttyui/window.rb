@@ -184,7 +184,7 @@ class Window < Component
 
   # Removes the window from the screen.
   def close
-    screen.remove_window(self)
+    screen.remove_popup(self)
   end
 
   # @return [Boolean] true if this window is part of a screen. May not be visible.
