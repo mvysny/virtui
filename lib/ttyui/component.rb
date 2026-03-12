@@ -40,9 +40,9 @@ class Rect < Data.define(:left, :top, :width, :height)
 end
 
 # A ui component which is positioned on the screen and
-# draws characters into its bounding rectangle.
+# draws characters into its bounding rectangle (in {:repaint}).
 #
-# Component is considered invisible if {#rect} is empty or one of left/top is negative.
+# Component is considered invisible if {:rect} is empty or one of left/top is negative.
 # The component won't draw when invisible.
 class Component
   def initialize
@@ -54,7 +54,10 @@ class Component
   attr_reader :rect
 
   # Sets new position of the component. This is the absolute component positioning on screen,
-  # not a relative positioning relative to component's parent.
+  # not a relative positioning relative to component's {:parent}.
+  #
+  # The component must always be fully positioned within {:parent}'s rect.
+  #
   # @param new_rect [Rect] new position. Does nothing if the new rectangle is same as
   # the old one.
   def rect=(new_rect)
@@ -71,6 +74,8 @@ class Component
   def screen = Screen.instance
 
   # Repaints the component. Default implementation does nothing.
+  #
+  # The component must not draw outside of {:rect}.
   #
   # Tip: use {:clear_background} to clear component background before painting.
   def repaint; end
@@ -107,6 +112,13 @@ class Component
   # by default. Passive components like {Label} can't receive input.
   # @return [Boolean] true if the component can be made active.
   def can_activate? = false
+
+  # @return [Component | nil] the parent component or nil if the component has no parent.
+  attr_reader :parent
+
+  # @return [Integer] the distance from the root component; 0 if the {#parent}
+  # is nil.
+  def depth = parent.nil? ? 0 : parent.depth + 1
 
   protected
 
