@@ -281,6 +281,7 @@ class FakeScreen < Screen
   def initialize
     super
     @event_queue = FakeEventQueue.new
+    @size = EventQueue::TTYSizeEvent.new(160, 50)
     @prints = []
   end
   # @return [Array<String>] whatever {#print} printed so far.
