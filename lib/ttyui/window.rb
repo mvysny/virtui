@@ -179,7 +179,7 @@ class Window < Component
 
   # @return [Boolean] true if {#rect} is off screen and the window won't paint.
   def visible?
-    !@rect.empty? && !@rect.top.negative? && !@rect.left.negative? && open?
+    !@rect.empty? && !@rect.top.negative? && !@rect.left.negative?
   end
 
   # Removes the window from the screen.
@@ -189,7 +189,7 @@ class Window < Component
 
   # @return [Boolean] true if this window is part of a screen. May not be visible.
   def open?
-    screen.has_window?(self)
+    screen.has_popup?(self)
   end
 
   # Fully repaints the window: both frame and contents.

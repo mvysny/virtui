@@ -161,9 +161,9 @@ class Screen
   end
 
   # @return [Boolean] if screen contains this window.
-  def has_window?(window)
+  def has_popup?(window)
     check_locked
-    @popups.include?(window) || @windows.keys.include?(window)
+    @popups.include?(window)
   end
 
   # Testing only - creates new screen, locks the UI, and prevents any redraws,
