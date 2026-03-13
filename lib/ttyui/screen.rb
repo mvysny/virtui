@@ -194,6 +194,7 @@ class Screen
 
   def close
     clear
+    @content = nil
     @@instance = nil
   end
 
