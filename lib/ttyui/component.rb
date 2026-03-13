@@ -134,7 +134,7 @@ class Component
   # Calls block for this component and for every descendant component.
   def on_tree(&block)
     block.call(self)
-    children.each { it.on_tree(block) }
+    children.each { it.on_tree(&block) }
   end
 
   protected

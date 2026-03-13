@@ -304,6 +304,13 @@ describe Component::Label do
                  Screen.instance.prints
   end
 
+  it 'on_tree calls block on itself' do
+    label = Component::Label.new
+    visited = []
+    label.on_tree { visited << it }
+    assert_equal [label], visited
+  end
+
   it 'does not invalidate when text is set to the same value again' do
     label = Component::Label.new
     label.rect = Rect.new(0, 0, 5, 1)
