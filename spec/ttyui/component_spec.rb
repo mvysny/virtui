@@ -215,6 +215,24 @@ describe Component do
     assert_equal false, Component.new.handle_key('a')
   end
 
+  context '#find_shortcut_component' do
+    it 'returns nil when key_shortcut is not set' do
+      assert_nil Component.new.find_shortcut_component('a')
+    end
+
+    it 'returns self when key_shortcut matches' do
+      c = Component.new
+      c.key_shortcut = 'a'
+      assert_equal c, c.find_shortcut_component('a')
+    end
+
+    it 'returns nil when key_shortcut does not match' do
+      c = Component.new
+      c.key_shortcut = 'b'
+      assert_nil c.find_shortcut_component('a')
+    end
+  end
+
   it 'handle_mouse returns nil' do
     assert_nil Component.new.handle_mouse(nil)
   end
