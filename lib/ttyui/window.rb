@@ -6,7 +6,6 @@ require 'unicode/display_width'
 require 'strings-truncation'
 require 'tty-logger'
 require_relative 'keys'
-require_relative 'screen'
 require_relative 'component'
 
 # A window with a frame, a {#caption} and text contents. Doesn't support overlapping with other windows:
