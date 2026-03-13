@@ -184,6 +184,29 @@ describe Component do
     end
   end
 
+  context 'root' do
+    it 'returns self when component has no parent' do
+      c = Component.new
+      assert_equal c, c.root
+    end
+
+    it 'returns parent when parent has no parent' do
+      parent = Component.new
+      child = Component.new
+      child.send(:parent=, parent)
+      assert_equal parent, child.root
+    end
+
+    it 'returns the top-most ancestor in a deeper hierarchy' do
+      root = Component.new
+      middle = Component.new
+      leaf = Component.new
+      middle.send(:parent=, root)
+      leaf.send(:parent=, middle)
+      assert_equal root, leaf.root
+    end
+  end
+
   it 'can_activate? is false by default' do
     assert !Component.new.can_activate?
   end
