@@ -59,7 +59,6 @@ class Screen
 
     self.focused = nil
     @content = content
-    @content&.on_tree { invalidate(it) }
     layout
   end
 
