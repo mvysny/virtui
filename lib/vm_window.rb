@@ -19,7 +19,7 @@ class VMWindow < Window
   # @param virt_cache [VirtCache]
   # @param ballooning [Ballooning]
   def initialize(virt_cache, ballooning)
-    super('[1]-VMs')
+    super('VMs')
     @f = Formatter.new
     # {VirtCache}
     @virt_cache = virt_cache

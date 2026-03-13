@@ -201,15 +201,22 @@ class Window < Component
 
   def can_activate? = true
 
+  def key_shortcut=(key)
+    super
+    invalidate
+  end
+
   protected
 
   # Paints the window border.
   def repaint_border
     return unless visible?
 
+    caption = @caption || ''
+    caption = "[#{key_shortcut}]-#{caption}" unless key_shortcut.nil?
     frame = TTY::Box.frame(
       width: @rect.width, height: @rect.height, top: @rect.top, left: @rect.left,
-      title: { top_left: @caption || '' }
+      title: { top_left: caption }
     )
     frame = Rainbow(frame).green if active?
     screen.print frame

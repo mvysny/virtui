@@ -23,7 +23,7 @@ class AppLayout < Component::Layout::Absolute
     @virt_cache = virt_cache
     @system = SystemWindow.new(virt_cache)
     @vms = VMWindow.new(virt_cache, ballooning)
-    @log = LogWindow.new('[3]-Log')
+    @log = LogWindow.new
     @log.configure_logger $log
     add([@system, @vms, @log])
     @vms.key_shortcut = '1'

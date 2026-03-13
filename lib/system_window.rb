@@ -8,7 +8,7 @@ require_relative 'ttyui/popup_window'
 class SystemWindow < Window
   # @param virt_cache [VirtCache]
   def initialize(virt_cache)
-    super('[2]-System')
+    super('System')
     @f = Formatter.new
     @virt_cache = virt_cache
     @cpu_info = format_cpu_info
