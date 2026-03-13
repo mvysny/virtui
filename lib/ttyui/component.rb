@@ -120,7 +120,9 @@ class Component
 
   # Handles mouse event. Default impl does nothing.
   # @param event [MouseEvent]
-  def handle_mouse(event); end
+  def handle_mouse(event)
+    screen.focused = self unless event.button != :left || active? || !can_activate?
+  end
 
   # @return [Boolean] if the component is active. Active component receives keyboard input (unless there's a
   # popup window).

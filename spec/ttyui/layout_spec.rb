@@ -138,6 +138,7 @@ describe Component::Layout do
 
     it 'dispatches to a child whose rect contains the event position' do
       layout = Component::Layout::Absolute.new
+      Screen.instance.content = layout
       child = child_class.new
       child.rect = Rect.new(5, 5, 10, 10)
       layout.add(child)
@@ -150,6 +151,7 @@ describe Component::Layout do
 
     it 'does not dispatch to a child outside the event position' do
       layout = Component::Layout::Absolute.new
+      Screen.instance.content = layout
       child = child_class.new
       child.rect = Rect.new(5, 5, 10, 10)
       layout.add(child)
@@ -160,6 +162,7 @@ describe Component::Layout do
 
     it 'dispatches to all children whose rects contain the event' do
       layout = Component::Layout::Absolute.new
+      Screen.instance.content = layout
       c1 = child_class.new
       c2 = child_class.new
       c1.rect = Rect.new(0, 0, 10, 10)

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'window'
+require_relative 'popup_window'
 require_relative 'event_queue'
 require_relative 'component'
 require_relative 'layout'
@@ -240,8 +241,7 @@ class Screen
     x = event.x - 1
     y = event.y - 1
     clicked = @popups.rfind { it.rect.contains?(x, y) }
-    clicked = [@content, @status_bar].find { !it.nil? && it.rect.contains?(x, y) } if clicked.nil? && @popups.empty?
-    self.focused = clicked unless clicked.nil? || event.button != :left || clicked.active? || !clicked.can_activate?
+    clicked = @content if clicked.nil? && @popups.empty?
     clicked&.handle_mouse(event)
   end
 

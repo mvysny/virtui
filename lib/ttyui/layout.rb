@@ -43,6 +43,7 @@ class Component
     # Dispatches the event to the child under the mouse cursor.
     # @param event [MouseEvent]
     def handle_mouse(event)
+      super
       @children.each do |child|
         child.handle_mouse(event) if child.rect.contains?(event.x - 1, event.y - 1)
       end

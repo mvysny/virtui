@@ -233,10 +233,6 @@ describe Component do
     end
   end
 
-  it 'handle_mouse returns nil' do
-    assert_nil Component.new.handle_mouse(nil)
-  end
-
   context 'clear_background' do
     it 'skips when rect is empty' do
       c = Component.new
