@@ -9,10 +9,10 @@ module Interpolator
   class Const < Data.define(:value)
   end
 
-  # Returns `value_from` if current time is less than `time_from`; `value_from` if current time is
+  # Returns `value_from` if current time is less than `time_from`; `value_to` if current time is
   # greater than `time_to`; a linear interpolation between `value_from` and `value_to` otherwise.
   #
-  # Both `value_from` and `value_to` must be {Numeric} (ideally {Float}); both `time_from` and `time_from`
+  # Both `value_from` and `value_to` must be {Numeric} (ideally {Float}); both `time_from` and `time_to`
   # must be {Time}.
   #
   # Immutable, thread-safe.
@@ -29,7 +29,7 @@ module Interpolator
     # @param value_from [Numeric] start value
     # @param value_to [Numeric] end value
     # @param duration_seconds [Numeric] how long does it take to go from `value_from` to `value_to`
-    # @return [:value] interpolation
+    # @return [Linear, Const] interpolation
     def self.from_now(value_from, value_to, duration_seconds)
       return Const.new(value_from) if value_from == value_to
 
