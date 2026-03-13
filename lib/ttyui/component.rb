@@ -131,6 +131,12 @@ class Component
   # @return [Array<Component>] child components. Must not be mutated! May be empty.
   def children = []
 
+  # Calls block for this component and for every descendant component.
+  def on_tree(&block)
+    block.call(self)
+    children.each { it.on_tree(block) }
+  end
+
   protected
 
   attr_writer :parent

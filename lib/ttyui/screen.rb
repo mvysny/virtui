@@ -220,7 +220,7 @@ class Screen
   # Called after a popup is closed. Since a popup can cover any window, top-level component
   # or other popups, we need to redraw everything.
   def needs_full_repaint
-    @windows.each_key { invalidate it }
+    @content&.on_tree { invalidate it }
     @popups.each { invalidate it }
     invalidate @status_bar
   end
