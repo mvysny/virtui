@@ -76,17 +76,6 @@ class Screen
     print TTY::Cursor.move_to(0, 0), TTY::Cursor.clear_screen
   end
 
-  # Recalculates positions of all windows, and repaints the scene. Automatically called whenever terminal size changes.
-  # Call when the app starts. {:size} provides correct size of the terminal.
-  def layout
-    check_locked
-    needs_full_repaint
-    @content.rect = Rect.new(0, 0, size.width, size.height - 1)
-    @popups.each(&:center)
-    @status_bar.rect = Rect.new(0, size.height - 1, size.width, 1)
-    repaint
-  end
-
   # Invalidates a component: causes the component to be repainted on next call to {:repaint}
   # @param component [Component]
   def invalidate(component)
@@ -216,6 +205,17 @@ class Screen
   end
 
   private
+
+  # Recalculates positions of all windows, and repaints the scene. Automatically called whenever terminal size changes.
+  # Call when the app starts. {:size} provides correct size of the terminal.
+  def layout
+    check_locked
+    needs_full_repaint
+    @content.rect = Rect.new(0, 0, size.width, size.height - 1)
+    @popups.each(&:center)
+    @status_bar.rect = Rect.new(0, size.height - 1, size.width, 1)
+    repaint
+  end
 
   # Called after a popup is closed. Since a popup can cover any window, top-level component
   # or other popups, we need to redraw everything.
