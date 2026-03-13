@@ -311,6 +311,17 @@ describe Component::Label do
     assert_equal [label], visited
   end
 
+  it 'on_tree recurses through nested layouts' do
+    outer = Component::Layout::Absolute.new
+    inner = Component::Layout::Absolute.new
+    label = Component::Label.new
+    inner.add(label)
+    outer.add(inner)
+    visited = []
+    outer.on_tree { visited << it }
+    assert_equal [outer, inner, label], visited
+  end
+
   it 'does not invalidate when text is set to the same value again' do
     label = Component::Label.new
     label.rect = Rect.new(0, 0, 5, 1)
