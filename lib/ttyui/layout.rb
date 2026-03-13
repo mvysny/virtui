@@ -10,6 +10,9 @@ class Component
       super
       # [Array<Component>]
       @children = []
+      # {Hash{String => Component}} global keyboard shortcuts.
+      # When pressed, will focus given component
+      @shortcuts = {}
     end
 
     def children = @children.to_a
@@ -52,7 +55,27 @@ class Component
     # @param key [String] a key.
     # @return [Boolean] true if the key was handled, false if not.
     def handle_key(key)
-      @children.any? { it.handle_key(key) }
+      sc = @shortcuts[key]
+      if !sc.nil?
+        screen.focused = sc
+      else
+        sc = @children.find(&:active)
+        return false if sc.nil?
+
+        sc.handle_key(key)
+      end
+    end
+
+    def can_activate = true
+
+    # Registers a global keyboard shortcut which focuses/activates
+    # given component.
+    # @param shortcut [String] the key shortcut.
+    # @param component [Component] the component to focus.
+    def add_shortcut(shortcut, component)
+      raise unless component.is_a? Component
+
+      @shortcuts[shortcut] = component
     end
 
     # Absolute layout. Extend this class, register any children,

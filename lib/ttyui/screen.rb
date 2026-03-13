@@ -55,6 +55,7 @@ class Screen
   def content=(content)
     raise unless content.is_a? Component
 
+    self.focused = nil
     @content = content
     layout
   end
@@ -83,6 +84,27 @@ class Screen
     raise unless component.is_a? Component
 
     @invalidated << component
+  end
+
+  # @return [Component | nil] currently focused component
+  attr_reader :focused
+
+  # Sets the focused {Component}. Focused component receives keyboard events.
+  # @param focused [Component | nil] the new component to be focused.
+  def focused=(focused)
+    check_locked
+    if focused.nil?
+      @content&.on_tree { it.active = false }
+    else
+      raise unless focused.is_a? Component
+      raise if component.root != @content
+
+      @focused = focused
+      active = [focused]
+      active << active.last.parent until active.last.parent.nil?
+      active = active.to_set
+      @content.on_tree { it.active = active.include?(it) }
+    end
   end
 
   # Adds a new tiled window.
