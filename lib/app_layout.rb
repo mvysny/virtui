@@ -26,9 +26,9 @@ class AppLayout < Component::Layout::Absolute
     @log = LogWindow.new('[3]-Log')
     @log.configure_logger $log
     add([@system, @vms, @log])
-    add_shortcut('1', @vms)
-    add_shortcut('2', @system)
-    add_shortcut('3', @log)
+    @vms.key_shortcut = '1'
+    @system.key_shortcut = '2'
+    @log.key_shortcut = '3'
     screen.windows = { '2' => @system, '1' => @vms, '3' => @log }
     screen.active_window = @vms
   end

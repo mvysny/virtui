@@ -92,8 +92,30 @@ class Component
   # Default implementation does nothing and returns `false`.
   # @param key [String] a key.
   # @return [Boolean] true if the key was handled, false if not.
-  def handle_key(_key)
-    false
+  def handle_key(key)
+    c = find_shortcut_component(key)
+    if !c.nil?
+      screen.focused = c
+      true
+    else
+      false
+    end
+  end
+
+  # A global keyboard shortcut.
+  # When pressed, will focus this component.
+  # @return [String | nil] shortcut, `nil` by default
+  attr_accessor :key_shortcut
+
+  # @return [Component | nil]
+  def find_shortcut_component(key)
+    return self if key_shortcut == key
+
+    children.each do |child|
+      sc = child.find_shortcut_component(key)
+      return sc unless sc.nil?
+    end
+    nil
   end
 
   # Handles mouse event. Default impl does nothing.
