@@ -5,17 +5,16 @@ require 'ttyui/screen'
 require 'ttyui/popup_window'
 
 describe Screen do
-  let(:screen) { Screen.fake }
+  before { Screen.fake }
+  after { Screen.close }
+  let(:screen) { Screen.instance }
 
   it 'provides singleton instance' do
     assert_equal screen, Screen.instance
   end
 
   context 'focused=' do
-    before do
-      screen.content = Component::Layout::Absolute.new
-    end
-    after { Screen.close }
+    before { screen.content = Component::Layout::Absolute.new }
 
     def add_window
       w = Window.new
