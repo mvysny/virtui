@@ -95,6 +95,8 @@ class Screen
   # @param focused [Component | nil] the new component to be focused.
   def focused=(focused)
     check_locked
+    return if focused.is_a? PopupWindow
+
     if focused.nil?
       @content&.on_tree { it.active = false }
     else
@@ -116,7 +118,9 @@ class Screen
 
     @popups << window
     window.center
+    window.active = true
     invalidate(window)
+    # no need to fully repaint the scene: PopupWindow simply paints over current screen contents.
   end
 
   # Runs event loop - waits for keys and sends them to active window.
