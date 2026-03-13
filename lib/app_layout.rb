@@ -15,7 +15,7 @@ require_relative 'system_window'
 require_relative 'vm_window'
 
 # A screen, holding all windows.
-class AppScreen < Screen
+class AppLayout < Component::Layout::Absolute
   # @param virt_cache [VirtCache]
   # @param ballooning [Ballooning]
   def initialize(virt_cache, ballooning)
@@ -25,26 +25,24 @@ class AppScreen < Screen
     @vms = VMWindow.new(virt_cache, ballooning)
     @log = LogWindow.new('[3]-Log')
     @log.configure_logger $log
-    self.windows = { '2' => @system, '1' => @vms, '3' => @log }
-    self.active_window = @vms
+    add([@system, @vms, @log])
+    screen.windows = { '2' => @system, '1' => @vms, '3' => @log }
+    screen.active_window = @vms
   end
 
   # Call when windows need to update their contents. Must be run with screen lock held.
   def update_data
-    check_locked
+    screen.check_locked
     @system.update
     @vms.update
-    repaint
+    screen.repaint
   end
 
-  protected
-
-  def relayout_tiled_windows
+  def rect=(rect)
     super
-    sw = size.width
-    sh = size.height
+    sw = rect.width
+    sh = rect.height
     system_window_width = (sw / 2).clamp(0, 60)
-    sh -= 1 # make way for the status bar
     system_height = 13
     vms_height = sh - system_height
     @system.rect = Rect.new(0, vms_height, system_window_width, system_height)

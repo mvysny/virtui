@@ -3,17 +3,18 @@
 require_relative 'spec_helper'
 require 'virt/virtcache'
 require 'virt/vm_emulator'
-require 'app_screen'
+require 'app_layout'
 require 'virt/ballooning'
 
-describe AppScreen do
-  let(:screen) do
+describe AppLayout do
+  let(:layout) do
     Helpers.setup_dummy_logger
     cache = VirtCache.new(VMEmulator.demo, PcEmulator.new)
-    AppScreen.new(cache, Ballooning.new(cache))
+    Screen.new
+    AppLayout.new(cache, Ballooning.new(cache))
   end
 
   it 'smokes' do
-    screen
+    layout
   end
 end

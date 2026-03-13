@@ -3,6 +3,7 @@
 require_relative 'window'
 require_relative 'event_queue'
 require_relative 'component'
+require_relative 'layout'
 require 'io/console'
 require 'tty-cursor'
 require 'tty-screen'
@@ -51,6 +52,13 @@ class Screen
     @@instance
   end
 
+  def content=(content)
+    raise unless content.is_a? Component
+
+    @content = content
+    layout
+  end
+
   # Provides access to {:width} and {:height} of the screen.
   attr_reader :size
   # @return [Array<Window>] currently active popup windows. The array must not be modified!
@@ -73,7 +81,7 @@ class Screen
   def layout
     check_locked
     needs_full_repaint
-    relayout_tiled_windows
+    @content.rect = Rect.new(0, 0, size.width, size.height - 1)
     @popups.each(&:center)
     @status_bar.rect = Rect.new(0, size.height - 1, size.width, 1)
     repaint
@@ -188,13 +196,6 @@ class Screen
   def print(*args)
     Kernel.print(*args)
   end
-
-  protected
-
-  # Repositions all tiled window.
-  # Default implementation does nothing; it's up to AppWindow to override
-  # and reposition its tiled windows.
-  def relayout_tiled_windows; end
 
   # Repaints the screen; tries to be as effective as possible, by only considering
   # invalidated windows.

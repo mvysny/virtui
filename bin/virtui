@@ -24,19 +24,20 @@ print "\e]0;VirTUI\a"
 
 # Don't use LibVirtClient for now: it doesn't provide all necessary data
 # virt = LibVirtClient.new
-virt = VirtCmd.new if VirtCmd.available?
+# virt = VirtCmd.new if VirtCmd.available?
 virt ||= VMEmulator.demo
 virt_cache = VirtCache.new(virt, SysInfo.new)
 
 ballooning = Ballooning.new(virt_cache)
-screen = AppScreen.new(virt_cache, ballooning)
-screen.layout
+screen = Screen.new
+layout = AppLayout.new(virt_cache, ballooning)
+screen.content = layout
 
 scheduler = Concurrent::TimerTask.new(execution_interval: 2, interval_type: :fixed_rate) do
   virt_cache.update
   screen.event_queue.submit do
     ballooning.update
-    screen.update_data
+    layout.update_data
   end
 rescue StandardError => e
   $log.fatal('Failed to update VM data', e)
