@@ -31,6 +31,8 @@ class AppLayout < Component::Layout::Absolute
     @log.key_shortcut = '3'
   end
 
+  attr_reader :vms, :system, :log
+
   # Call when windows need to update their contents. Must be run with screen lock held.
   def update_data
     screen.check_locked

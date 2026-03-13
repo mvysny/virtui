@@ -32,6 +32,7 @@ ballooning = Ballooning.new(virt_cache)
 screen = Screen.new
 layout = AppLayout.new(virt_cache, ballooning)
 screen.content = layout
+screen.focused = layout.vms
 
 scheduler = Concurrent::TimerTask.new(execution_interval: 2, interval_type: :fixed_rate) do
   virt_cache.update
