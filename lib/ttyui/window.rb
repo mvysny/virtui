@@ -75,7 +75,7 @@ class Window < Component
   end
 
   # Scrolls the window contents by setting the new top line
-  # @new_top_line [Integer] 0 or greater
+  # @param new_top_line [Integer] 0 or greater
   def top_line=(new_top_line)
     raise 'Not an Integer' unless new_top_line.is_a? Integer
     raise "#{new_top_line} must not be negative" if new_top_line.negative?
@@ -110,7 +110,7 @@ class Window < Component
   end
 
   # Adds a line to the list of lines.
-  # @oaram line [String]
+  # @param line [String]
   def add_line(line)
     add_lines [line]
   end
