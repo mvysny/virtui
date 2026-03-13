@@ -51,16 +51,27 @@ class Component
       end
     end
 
+    def get_shortcut_component(key)
+      sc = @shortcuts[key]
+      return sc unless sc.nil?
+
+      @children.each do |child|
+        sc = child.get_shortcut_component(key) if child.respond_to?(:get_shortcut_component)
+        return sc unless sc.nil?
+      end
+      nil
+    end
+
     # Called when a character is pressed on the keyboard.
     # @param key [String] a key.
     # @return [Boolean] true if the key was handled, false if not.
     def handle_key(key)
-      sc = @shortcuts[key]
+      sc = get_shortcut_component(key)
       if !sc.nil?
         screen.focused = sc
         true
       else
-        sc = @children.find(&:active)
+        sc = @children.find(&:active?)
         return false if sc.nil?
 
         sc.handle_key(key)

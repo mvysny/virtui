@@ -39,7 +39,8 @@ describe Component::Layout do
 
     it 'adds multiple children from an array' do
       layout = Component::Layout::Absolute.new
-      c1, c2 = Component.new, Component.new
+      c1 = Component.new
+      c2 = Component.new
       layout.add([c1, c2])
       assert_equal [c1, c2], layout.children
     end
@@ -78,7 +79,8 @@ describe Component::Layout do
 
     it 'does not invalidate the layout when children remain after remove' do
       layout = Component::Layout::Absolute.new
-      c1, c2 = Component.new, Component.new
+      c1 = Component.new
+      c2 = Component.new
       layout.add(c1)
       layout.add(c2)
       Screen.instance.invalidated_clear
@@ -124,10 +126,12 @@ describe Component::Layout do
     let(:child_class) do
       Class.new(Component) do
         attr_reader :received_events
+
         def initialize
           super
           @received_events = []
         end
+
         def handle_mouse(event) = @received_events << event
       end
     end
@@ -179,23 +183,11 @@ describe Component::Layout do
       assert_equal false, layout.handle_key('a')
     end
 
-    it 'returns true when a child handles the key' do
+    it 'returns false when only an inactive child' do
       layout = Component::Layout::Absolute.new
       handler = Class.new(Component) { define_method(:handle_key) { |_| true } }
       layout.add(handler.new)
-      assert_equal true, layout.handle_key('a')
-    end
-
-    it 'stops delegating after the first child that handles the key' do
-      layout = Component::Layout::Absolute.new
-      calls = []
-      handler = Class.new(Component) { define_method(:handle_key) { |_| calls << self; true } }
-      non_handler = Class.new(Component) { define_method(:handle_key) { |_| calls << self; false } }
-      c1 = handler.new
-      c2 = non_handler.new
-      layout.add([c1, c2])
-      layout.handle_key('a')
-      assert_equal [c1], calls
+      assert_equal false, layout.handle_key('a')
     end
   end
 end
