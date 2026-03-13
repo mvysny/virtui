@@ -24,6 +24,7 @@ class Component
 
         @children << child
         child.parent = self
+        child.invalidate
       end
     end
 

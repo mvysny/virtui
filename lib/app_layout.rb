@@ -29,8 +29,6 @@ class AppLayout < Component::Layout::Absolute
     @vms.key_shortcut = '1'
     @system.key_shortcut = '2'
     @log.key_shortcut = '3'
-    screen.windows = { '2' => @system, '1' => @vms, '3' => @log }
-    @vms.active = true
   end
 
   # Call when windows need to update their contents. Must be run with screen lock held.

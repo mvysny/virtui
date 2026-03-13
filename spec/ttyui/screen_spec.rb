@@ -17,9 +17,8 @@ describe Screen do
     end
     after { Screen.close }
 
-    def add_window(shortcut)
+    def add_window
       w = Window.new
-      screen.add_window shortcut, w
       screen.content.add(w)
       w
     end
@@ -35,20 +34,20 @@ describe Screen do
     end
 
     it 'sets focused to the given component' do
-      w = add_window('1')
+      w = add_window
       screen.focused = w
       assert_equal w, screen.focused
     end
 
     it 'marks focused component as active' do
-      w = add_window('1')
+      w = add_window
       screen.focused = w
       assert w.active?
     end
 
     it 'deactivates windows not in the focused path' do
-      w1 = add_window('1')
-      w2 = add_window('2')
+      w1 = add_window
+      w2 = add_window
       screen.focused = w1
       screen.focused = w2
       assert !w1.active?
@@ -56,7 +55,7 @@ describe Screen do
     end
 
     it 'with nil clears active on all components' do
-      w = add_window('1')
+      w = add_window
       screen.focused = w
       screen.focused = nil
       assert !w.active?
@@ -76,8 +75,8 @@ describe Screen do
     it 'returns the active window' do
       w = Window.new
       screen.content = Component::Layout::Absolute.new
-      screen.add_window '0', w
       screen.content.add(w)
+      w.active = true
       assert_equal w, screen.active_window
     end
   end

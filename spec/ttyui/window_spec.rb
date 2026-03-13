@@ -115,7 +115,6 @@ describe Window do
     it 'smokes' do
       w = Window.new
       w.rect = Rect.new(0, 0, 20, 20)
-      Screen.instance.add_window('1', w)
       assert w.visible?
       assert Screen.instance.prints.empty?
       w.repaint

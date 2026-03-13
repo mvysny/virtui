@@ -30,8 +30,6 @@ class Screen
     @@instance = self
     # {EventQueue} Event queue
     @event_queue = EventQueue.new
-    # {Hash{Window => String}} tiled windows; maps key to a window activated by that key shortcut
-    @windows = {}
     # {Array<Window>} modal popup windows, listed in order as they were opened.
     # Last popup is the topmost one and receives all key events.
     @popups = []
@@ -111,19 +109,6 @@ class Screen
     @status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
   end
 
-  # Adds a new tiled window.
-  # @param window [Window] the window to add.
-  def add_window(shortcut, window)
-    check_locked
-    raise unless window.is_a? Window
-    raise if window.is_a? PopupWindow
-
-    window.active = true if @windows.empty?
-    window.key_shortcut = shortcut
-    @windows[window] = shortcut
-    invalidate(window)
-  end
-
   # @param window [PopupWindow] the popup to add. Will be centered and painted automatically.
   def add_popup(window)
     raise unless window.is_a? PopupWindow
@@ -131,16 +116,6 @@ class Screen
     @popups << window
     window.center
     invalidate(window)
-  end
-
-  # @return [Set<Window>] list of tiled {Window}s.
-  def windows = Set.new(*@windows.keys)
-
-  # @param value [Hash{String => Window}] maps keybaard shortcut to a window activated by that shortcut.
-  def windows=(value)
-    check_locked
-    @windows = {}
-    value.each { |key, window| add_window(key, window) }
   end
 
   # Runs event loop - waits for keys and sends them to active window.
@@ -253,14 +228,9 @@ class Screen
   def handle_key(key)
     topmost_popup = @popups.last
     return topmost_popup.handle_key(key) unless topmost_popup.nil?
+    return @content.handle_key(key) unless @content.nil?
 
-    window_to_activate = @windows.find { |_, v| v == key }
-    if !window_to_activate.nil?
-      self.active_window = window_to_activate[0]
-      true
-    else
-      active_window.handle_key(key)
-    end
+    false
   end
 
   # Finds target window and calls {Window.handle_mouse}
