@@ -240,10 +240,8 @@ class Screen
     x = event.x - 1
     y = event.y - 1
     clicked = @popups.rfind { it.rect.contains?(x, y) }
-    clicked = (@windows.keys + [@status_bar]).find { it.rect.contains?(x, y) } if clicked.nil? && @popups.empty?
-    unless clicked.nil? || event.button != :left || clicked.active? || !clicked.can_activate?
-      self.active_window = clicked
-    end
+    clicked = [@content, @status_bar].find { !it.nil? && it.rect.contains?(x, y) } if clicked.nil? && @popups.empty?
+    self.focused = clicked unless clicked.nil? || event.button != :left || clicked.active? || !clicked.can_activate?
     clicked&.handle_mouse(event)
   end
 
