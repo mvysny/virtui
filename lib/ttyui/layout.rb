@@ -24,7 +24,6 @@ class Component
 
         @children << child
         child.parent = self
-        child.invalidate
       end
     end
 
@@ -61,7 +60,7 @@ class Component
       sc.handle_key(key)
     end
 
-    def can_activate = true
+    def can_activate? = true
 
     # Absolute layout. Extend this class, register any children,
     # and override {:rect=} to reposition the children.
