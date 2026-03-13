@@ -127,6 +127,9 @@ class Component
   # is nil.
   def depth = parent.nil? ? 0 : parent.depth + 1
 
+  # @return [Component | nil] the root component of this component hierarchy.
+  def root = parent.nil? ? self : parent.root
+
   # List of child components, defaults to an empty array.
   # @return [Array<Component>] child components. Must not be mutated! May be empty.
   def children = []
