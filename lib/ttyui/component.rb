@@ -84,12 +84,9 @@ class Component
 
   # Called when a character is pressed on the keyboard.
   #
-  # The event travels to children and descendants until someone handles it.
-  # This is probably a stupid idea, but let's go with that for now.
-  #
   # Also called for inactive components. Inactive component should just return false.
   #
-  # Default implementation does nothing and returns `false`.
+  # Default implementation searches for a component with {:key_shortcut} and focuses it.
   # @param key [String] a key.
   # @return [Boolean] true if the key was handled, false if not.
   def handle_key(key)
