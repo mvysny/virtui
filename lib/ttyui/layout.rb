@@ -58,6 +58,7 @@ class Component
       sc = @shortcuts[key]
       if !sc.nil?
         screen.focused = sc
+        true
       else
         sc = @children.find(&:active)
         return false if sc.nil?
