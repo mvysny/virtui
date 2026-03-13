@@ -131,5 +131,57 @@ describe Screen do
       screen.remove_popup w
       assert !screen.has_popup?(w)
     end
+
+    context 'event routing' do
+      let(:popup) do
+        w = PopupWindow.new('test')
+        w.content = ['hello']
+        screen.add_popup(w)
+        w
+      end
+
+      before do
+        screen.content = Component::Layout::Absolute.new
+        screen.content.add(Window.new)
+      end
+
+      def content_window = screen.content.children.first
+
+      it 'routes keyboard events to popup, not content' do
+        popup_received = false
+        popup.define_singleton_method(:handle_key) { |_key| popup_received = true; true }
+        content_received = false
+        content_window.define_singleton_method(:handle_key) { |_key| content_received = true; false }
+
+        screen.send(:handle_key, 'x')
+
+        assert popup_received
+        assert !content_received
+      end
+
+      it 'routes mouse clicks inside popup to popup' do
+        popup_received = false
+        popup.define_singleton_method(:handle_mouse) { |_event| popup_received = true }
+        content_received = false
+        content_window.define_singleton_method(:handle_mouse) { |_event| content_received = true }
+
+        # popup rect: left=75, top=23, width=9, height=3 (centered on 160x50)
+        # MouseEvent coords are 1-based; (76,24) maps to (75,23) which is inside
+        screen.send(:handle_mouse, MouseEvent.new(:left, 76, 24))
+
+        assert popup_received
+        assert !content_received
+      end
+
+      it 'does not route mouse clicks outside popup to content' do
+        content_received = false
+        content_window.define_singleton_method(:handle_mouse) { |_event| content_received = true }
+
+        # click at (1,1) maps to (0,0), outside the popup
+        screen.send(:handle_mouse, MouseEvent.new(:left, 1, 1))
+
+        assert !content_received
+      end
+    end
   end
 end
