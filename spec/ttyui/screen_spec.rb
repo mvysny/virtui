@@ -17,7 +17,9 @@ describe Screen do
     end
     it 'returns the active window' do
       w = Window.new
+      screen.content = Component::Layout::Absolute.new
       screen.add_window '0', w
+      screen.content.add(w)
       assert_equal w, screen.active_window
     end
   end

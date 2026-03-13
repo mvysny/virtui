@@ -52,6 +52,9 @@ class Screen
     @@instance
   end
 
+  # @return [Component | nil]
+  attr_reader :content
+
   def content=(content)
     raise unless content.is_a? Component
 
@@ -97,14 +100,15 @@ class Screen
       @content&.on_tree { it.active = false }
     else
       raise unless focused.is_a? Component
-      raise if component.root != @content
+      raise if focused.root != @content
 
       @focused = focused
       active = [focused]
       active << active.last.parent until active.last.parent.nil?
       active = active.to_set
-      @content.on_tree { it.active = active.include?(it) }
+      @content.on_tree { it.active = active.include?(it) if it.can_activate? }
     end
+    @status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
   end
 
   # Adds a new tiled window.
@@ -115,6 +119,7 @@ class Screen
     raise if window.is_a? PopupWindow
 
     window.active = true if @windows.empty?
+    window.key_shortcut = shortcut
     @windows[window] = shortcut
     invalidate(window)
   end
@@ -154,18 +159,12 @@ class Screen
     $stdin.echo = true
   end
 
-  # Called when the active window changes.
-  # @param window [Window] the new active window
-  def active_window=(window)
-    check_locked
-    @windows.each_key { it.active = it == window }
-    @status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
-  end
-
   # @return [Component | nil] current active tiled component.
   def active_window
     check_locked
-    @windows.keys.find(&:active?)
+    result = nil
+    @content&.on_tree { result = it if it.is_a?(Window) && it.active? }
+    result
   end
 
   # Removes a popup. Repaints the whole scene, which should visually "remove" the window. The window will also no longer
