@@ -101,7 +101,9 @@ class Screen
       @content&.on_tree { it.active = false }
     else
       raise unless focused.is_a? Component
-      raise if focused.root != @content
+
+      root = focused.root
+      raise if root != @content || @popups.include?(root)
 
       @focused = focused
       active = [focused]
