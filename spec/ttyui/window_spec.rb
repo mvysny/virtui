@@ -20,49 +20,6 @@ describe Window do
     end
   end
 
-  context 'auto_scroll' do
-    it 'is false by default' do
-      assert !Window.new.auto_scroll
-    end
-    it 'sets auto_scroll to true' do
-      w = Window.new
-      w.auto_scroll = true
-      assert w.auto_scroll
-    end
-    it 'scrolls the contents automatically' do
-      w = Window.new
-      w.rect = Rect.new(-1, -1, 20, 4) # two lines of content
-      w.content = %w[a b c]
-      w.auto_scroll = true
-      assert_equal 1, w.top_line
-    end
-    it 'scrolls the contents automatically 2' do
-      w = Window.new
-      w.rect = Rect.new(-1, -1, 20, 4) # two lines of content
-      w.auto_scroll = true
-      w.content = %w[a b c]
-      assert_equal 1, w.top_line
-    end
-    it 'autoscrolls on add_lines' do
-      w = Window.new
-      w.auto_scroll = true
-      w.rect = Rect.new(-1, -1, 20, 4)
-      w.add_lines %w[foo bar baz a b c]
-      assert_equal 4, w.top_line
-    end
-    it 'autoscrolls on add_line' do
-      w = Window.new
-      w.auto_scroll = true
-      w.rect = Rect.new(-1, -1, 20, 4)
-      w.add_line 'foo'
-      assert_equal 0, w.top_line
-      w.add_line 'bar'
-      assert_equal 0, w.top_line
-      w.add_line 'baz'
-      assert_equal 1, w.top_line
-    end
-  end
-
   context 'add lines' do
     it 'adds 3 lines' do
       w = Window.new

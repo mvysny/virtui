@@ -49,8 +49,6 @@ class Window < Component
   # @return [String] the current caption, empty by default.
   attr_reader :caption
 
-  def auto_scroll = content.auto_scroll
-  def top_line = content.top_line
   def cursor = content.cursor
 
   def auto_scroll=(new_auto_scroll)
