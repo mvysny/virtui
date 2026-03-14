@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class Component
   # A layout doesn't paint anything by itself:
   # its job is to position child components.
