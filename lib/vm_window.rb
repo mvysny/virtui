@@ -29,7 +29,7 @@ class VMWindow < Window
     @line_data = []
     # {Boolean} show disk stats for shutoff'd VMs
     @show_disk_stat = false
-    self.cursor = Cursor.new
+    self.cursor = Component::List::Cursor.new
   end
 
   # {Boolean} show disk stats for shutoff'd VMs
@@ -48,7 +48,7 @@ class VMWindow < Window
     cursor_positions = [] # allowed cursor positions
     cpus = @virt_cache.cpu_info.cpus
     host_ram = @virt_cache.host_mem_stat.ram
-    content do |lines|
+    content.content do |lines|
       @line_data.clear
       domains.each do |domain_name|
         cursor_positions << lines.size
@@ -87,7 +87,7 @@ class VMWindow < Window
         end
       end
     end
-    self.cursor = Cursor::Limited.new(cursor_positions, position: cursor.position)
+    self.cursor = Component::List::Cursor::Limited.new(cursor_positions, position: cursor.position)
   end
 
   def handle_key(key)

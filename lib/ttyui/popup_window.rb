@@ -22,12 +22,6 @@ class PopupWindow < Window
   # The window automatically enables cursor + scrolling when there are more items.
   def max_height = 12
 
-  def content=(lines)
-    super
-    # Re-center the popup window after its contents have been updated.
-    update_rect
-  end
-
   def handle_key(key)
     return true if super
 
@@ -39,18 +33,16 @@ class PopupWindow < Window
     end
   end
 
-  private
-
   # Recalculates window width/height and recenters the window if it's open. Called after
   # the window content is changed.
   def update_rect
-    width = content.map { Unicode::DisplayWidth.of(Rainbow.uncolor(it)) }.max + 4
-    height = (content.length + 2).clamp(..max_height)
+    width = content.content.map { Unicode::DisplayWidth.of(Rainbow.uncolor(it)) }.max + 4
+    height = (content.content.length + 2).clamp(..max_height)
     # clamp it to 80% of screen width/height
     self.rect = Rect.new(-1, -1, width, height).clamp(screen.size.width * 4 / 5, screen.size.height * 4 / 5)
     center if open?
     # If we need to scroll since there's just too much stuff to show, enable cursor.
-    self.cursor = Cursor.new if content.length > max_height
+    self.cursor = Cursor.new if content.content.length > max_height
   end
 end
 
@@ -62,7 +54,8 @@ class InfoPopupWindow < PopupWindow
   # @param lines [Array<String>] the content, may contain formatting.
   def self.open(caption, lines)
     w = InfoPopupWindow.new(caption)
-    w.content = lines
+    w.content.content = lines
+    w.update_rect
     w.open
   end
 end
