@@ -74,13 +74,14 @@ class Component
 
   # A mixin interface for a component with one child tops. The component
   # must provide a reader for `content` and override {:content=}.
+  # The component must also provide protected `layout(content)` which repositions content component.
   module HasContent
     def can_activate? = true
 
     # @param key [String] a key.
     # @return [Boolean] true if the key was handled, false if not.
     def handle_key(key)
-      content.nil? || !content.active? ? false : content.handle_key(key)
+      content.nil? ? false : content.handle_key(key)
     end
 
     # @param event [MouseEvent]
@@ -104,6 +105,12 @@ class Component
 
       content.parent = self
       content.invalidate
+      layout(content)
+    end
+
+    def rect=(rect)
+      super
+      layout(content) unless content.nil?
     end
   end
 end

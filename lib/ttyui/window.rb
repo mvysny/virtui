@@ -115,12 +115,11 @@ class Window < Component
     content&.invalidate
   end
 
-  def rect=(rect)
-    super
-    content&.rect = Rect.new(rect.left + 1, rect.top + 1, rect.width - 2, rect.height - 2)
-  end
-
   protected
+
+  def layout(content)
+    content.rect = Rect.new(rect.left + 1, rect.top + 1, rect.width - 2, rect.height - 2)
+  end
 
   # Paints the window border.
   def repaint_border

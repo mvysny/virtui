@@ -110,9 +110,7 @@ class Component
     # @param key [String] a key.
     # @return [Boolean] true if the key was handled.
     def handle_key(key)
-      if !active?
-        false
-      elsif super
+      if super
         true
       elsif key == Keys::PAGE_UP
         move_top_line_by(-viewport_lines)
