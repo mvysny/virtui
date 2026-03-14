@@ -64,14 +64,6 @@ class Window < Component
     content.cursor = cursor
   end
 
-  def add_line(line)
-    content.add_line(line)
-  end
-
-  def add_lines(lines)
-    content.add_lines(lines)
-  end
-
   # @return [String] formatted keyboard hint for users. Empty by default.
   # Example: `p #{Rainbow('Power').cadetblue}`. If the window responds to keys,
   # override {#handle_key}
@@ -153,7 +145,7 @@ class LogWindow < Window
 
     def puts(string)
       @window.screen.event_queue.submit do
-        @window.add_line(string)
+        @window.content.add_line(string)
       end
     end
   end

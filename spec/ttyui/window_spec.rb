@@ -20,22 +20,6 @@ describe Window do
     end
   end
 
-  context 'add lines' do
-    it 'adds 3 lines' do
-      w = Window.new
-      w.add_line 'foo'
-      w.add_line 'bar'
-      w.add_line 'baz'
-      assert_equal %w[foo bar baz], w.content.content
-    end
-    it 'adds 3 lines at once' do
-      w = Window.new
-      w.add_lines %w[foo bar baz]
-      w.add_lines %w[a b c]
-      assert_equal %w[foo bar baz a b c], w.content.content
-    end
-  end
-
   context 'active' do
     it 'is not active by default' do
       assert !Window.new.active?
