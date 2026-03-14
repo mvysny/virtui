@@ -96,6 +96,7 @@ class Window < Component
 
   def key_shortcut=(key)
     super
+    # the shortcut key is shown in the caption - repaint.
     invalidate
   end
 
