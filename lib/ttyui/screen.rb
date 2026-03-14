@@ -200,11 +200,22 @@ class Screen
     # other windows, but if this is done in the right order, the final drawing will
     # look okay. Not the most effective algorithm, but very simple and very fast
     # in common cases.
-    repaint = @invalidated.to_a.delete_if { it.is_a? PopupWindow }
+
+    # Figure out repaint order of @content first.
+    repaint = @invalidated.to_a.delete_if { @popups.include? it }
+    # Repaint parents before children, so that
+    # children won't paint over parents.
+    repaint.sort_by!(&:depth)
+
+    # If some @content needs repaint, it may draw over popups.
+    # In such case repaint all popups.
     repaint += repaint.empty? ? @popups.filter { @invalidated.include? it } : @popups
-    # Don't call {:clear} - only needed when tiled windows don't cover the screen entirely...
-    # and in this app they do.
+
+    # Don't call {:clear} before repaint - causes flickering, and only needed when @content
+    # doesn't cover the entire screen.
     repaint.each(&:repaint)
+
+    # Repaint done, mark all components as up-to-date
     @invalidated.clear
   end
 
