@@ -3,6 +3,7 @@
 require_relative '../spec_helper'
 require 'ttyui/window'
 require 'tty-logger'
+require 'ttyui/screen'
 
 describe Window do
   before { Screen.fake }
@@ -16,33 +17,6 @@ describe Window do
       w = Window.new
       w.caption = 'bar'
       assert_equal 'bar', w.caption
-    end
-  end
-
-  context 'content' do
-    it 'sets empty contents via setter' do
-      w = Window.new
-      w.content = []
-      assert_equal [], w.content
-    end
-    it 'sets simple contents via setter' do
-      w = Window.new
-      w.content = %w[a b c]
-      assert_equal %w[a b c], w.content
-    end
-    it 'sets empty contents via block' do
-      w = Window.new
-      w.content {}
-      assert_equal [], w.content
-    end
-    it 'sets simple contents via block' do
-      w = Window.new
-      w.content do |lines|
-        lines << 'foo'
-        lines << 'bar'
-        lines << 'baz'
-      end
-      assert_equal %w[foo bar baz], w.content
     end
   end
 
@@ -95,13 +69,13 @@ describe Window do
       w.add_line 'foo'
       w.add_line 'bar'
       w.add_line 'baz'
-      assert_equal %w[foo bar baz], w.content
+      assert_equal %w[foo bar baz], w.content.content
     end
     it 'adds 3 lines at once' do
       w = Window.new
       w.add_lines %w[foo bar baz]
       w.add_lines %w[a b c]
-      assert_equal %w[foo bar baz a b c], w.content
+      assert_equal %w[foo bar baz a b c], w.content.content
     end
   end
 
@@ -135,6 +109,6 @@ describe LogWindow do
     w.configure_logger(log)
     log.error 'foo'
     log.warn 'bar'
-    assert_equal ["\e[31m⨯\e[0m \e[31merror\e[0m   foo", "\e[33m⚠\e[0m \e[33mwarning\e[0m bar"], w.content
+    assert_equal ["\e[31m⨯\e[0m \e[31merror\e[0m   foo", "\e[33m⚠\e[0m \e[33mwarning\e[0m bar"], w.content.content
   end
 end
