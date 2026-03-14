@@ -10,15 +10,10 @@ require_relative 'component'
 require_relative 'layout'
 require_relative 'list'
 
-# A window with a frame, a {#caption} and text contents. Doesn't support overlapping with other windows:
+# A window with a frame, a {#caption} and a content Component. Doesn't support overlapping with other windows:
 # it paints its entire contents and doesn't clip if there are other overlapping windows.
 #
-# The content is a list of lines painted into the window. The lines are automatically
-# clipped horizontally. Vertical scrolling is supported, via {#top_line}; the window
-# can also automatically scroll to the bottom if {#auto_scroll} is enabled.
-#
-# Cursor is supported too, call {#cursor=} to change the behavior of the cursor.
-# The cursor responds to arrows and `jk` and scrolls the window contents automatically.
+# By default {Component::List} is set as the `content` {Component}.
 #
 # Window is considered invisible if {#rect} is empty or one of left/top is negative.
 # The window won't draw when invisible.
