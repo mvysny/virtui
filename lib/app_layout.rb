@@ -43,13 +43,12 @@ class AppLayout < Component::Layout::Absolute
 
   def rect=(rect)
     super
-    sw = rect.width
-    sh = rect.height
-    system_window_width = (sw / 2).clamp(0, 60)
+    system_window_width = (rect.width / 2).clamp(0, 60)
     system_height = 13
-    vms_height = sh - system_height
-    @system.rect = Rect.new(0, vms_height, system_window_width, system_height)
-    @vms.rect = Rect.new(0, 0, sw, vms_height)
-    @log.rect = Rect.new(system_window_width, vms_height, sw - system_window_width, system_height)
+    vms_height = rect.height - system_height
+    @system.rect = Rect.new(rect.left, rect.top + vms_height, system_window_width, system_height)
+    @vms.rect = Rect.new(rect.left, rect.top, rect.width, vms_height)
+    @log.rect = Rect.new(rect.left + system_window_width, rect.top + vms_height, rect.width - system_window_width,
+                         system_height)
   end
 end
