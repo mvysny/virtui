@@ -22,7 +22,7 @@ describe VMWindow do
   end
 
   it 'has the right content' do
-    content = window.content.map { Rainbow.uncolor(it) }
+    content = window.content.content.map { Rainbow.uncolor(it) }
     assert_equal '⏹ BASE──────────', content[0]
     assert_equal '    vda: 50%   64G   128G | ', content[1]
     assert_equal '⏹ Fedora────────', content[2]
