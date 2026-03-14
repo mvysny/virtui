@@ -81,6 +81,8 @@ class Component
     # @param key [String] a key.
     # @return [Boolean] true if the key was handled, false if not.
     def handle_key(key)
+      # TODO: handle_key should only pass-through to content if it's active...
+      # But the entire handle_key concept is flawed. Maybe only the focused component should receive handle_key
       content.nil? ? false : content.handle_key(key)
     end
 

@@ -22,8 +22,7 @@ class PickerWindow < PopupWindow
     options = options.map { Option.new(it[0], it[1]) }
     @options = options
     @block = block
-    content.content = options.map { "#{it.key} #{Rainbow(it.caption).cadetblue}" }
-    update_rect
+    self.content = options.map { "#{it.key} #{Rainbow(it.caption).cadetblue}" }
     # Always enable cursor
     self.cursor = Component::List::Cursor.new
   end

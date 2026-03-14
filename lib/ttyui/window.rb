@@ -29,9 +29,13 @@ class Window < Component
   attr_reader :content
 
   def content=(content)
+    if content.is_a?(Array)
+      # TODO: for compatibility reasons, refactor/remove
+      @content.content = content
+      return
+    end
     super
     @content = content
-    content&.rect = Rect.new(rect.left + 1, rect.top + 1, rect.width - 2, rect.height - 2)
   end
 
   def initialize(caption = '')
