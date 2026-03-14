@@ -115,7 +115,8 @@ class Component
     nil
   end
 
-  # Handles mouse event. Default impl does nothing.
+  # Handles mouse event. Default implementation focuses this component
+  # when clicked (if {#can_activate?})
   # @param event [MouseEvent]
   def handle_mouse(event)
     screen.focused = self unless event.button != :left || active? || !can_activate?
