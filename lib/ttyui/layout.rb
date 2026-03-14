@@ -23,6 +23,7 @@ class Component
         child.each { add(it) }
       else
         raise 'Not a component' unless child.is_a? Component
+        raise if !child.nil? && !child.parent.nil?
 
         @children << child
         child.parent = self
@@ -68,6 +69,41 @@ class Component
     # Absolute layout. Extend this class, register any children,
     # and override {:rect=} to reposition the children.
     class Absolute < Layout
+    end
+  end
+
+  # A mixin interface for a component with one child tops. The component
+  # must provide a reader for `content` and override {:content=}.
+  module HasContent
+    def can_activate? = true
+
+    # @param key [String] a key.
+    # @return [Boolean] true if the key was handled, false if not.
+    def handle_key(key)
+      content.nil? || !content.active? ? false : content.handle_key(key)
+    end
+
+    # @param event [MouseEvent]
+    def handle_mouse(event)
+      content.handle_mouse(event) if !content.nil? && content.rect.contains?(event.x - 1, event.y - 1)
+    end
+
+    def children = content.nil? ? [] : [content]
+
+    # Sets the new content of this component.
+    #
+    # Note for implementors: override this, call super and then store the new content to `@content`.
+    # @param content [Component | nil] the component to set or clear.
+    def content=(content)
+      raise unless content.nil? || content.is_a?(Component)
+      raise if !content.nil? && !content.parent.nil?
+      return if self.content == content
+
+      self.content&.parent = nil
+      return if content.nil?
+
+      content.parent = self
+      content.invalidate
     end
   end
 end
