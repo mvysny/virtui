@@ -49,11 +49,8 @@ class Window < Component
   # @return [String] the current caption, empty by default.
   attr_reader :caption
 
+  # TODO: remove
   def cursor = content.cursor
-
-  def auto_scroll=(new_auto_scroll)
-    content.auto_scroll = new_auto_scroll
-  end
 
   # Sets new caption and repaints the window
   # @param new_caption [String]
@@ -62,12 +59,9 @@ class Window < Component
     invalidate
   end
 
+  # TODO: remove
   def cursor=(cursor)
     content.cursor = cursor
-  end
-
-  def top_line=(new_top_line)
-    content.top_line = new_top_line
   end
 
   def add_line(line)
@@ -139,8 +133,8 @@ end
 class LogWindow < Window
   def initialize(caption = 'Log')
     super
-    self.auto_scroll = true
-    self.cursor = Component::List::Cursor.new # allow scrolling when a long stacktrace is logged
+    content.auto_scroll = true
+    content.cursor = Component::List::Cursor.new # allow scrolling when a long stacktrace is logged
   end
 
   # Reconfigures given logger to log to this window instead.
