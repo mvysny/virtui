@@ -105,6 +105,13 @@ class Component
       invalidate
     end
 
+    def content_size
+      height = @lines.size
+      content_width = @lines.map { |line| Unicode::DisplayWidth.of(Rainbow.uncolor(line)) }.max || 0
+      width = @lines.empty? ? 0 : content_width + 2
+      Size.new(width, height)
+    end
+
     def can_activate? = true
 
     # @param key [String] a key.

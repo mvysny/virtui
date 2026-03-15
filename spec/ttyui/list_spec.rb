@@ -567,6 +567,47 @@ describe Component::List::Cursor::None do
   end
 end
 
+describe Component::List, '#content_size' do
+  before { Screen.fake }
+  after { Screen.close }
+
+  it 'returns zero width and height when content is empty' do
+    l = Component::List.new
+    assert_equal Size.new(0, 0), l.content_size
+  end
+
+  it 'returns height equal to number of lines' do
+    l = Component::List.new
+    l.content = %w[one two three]
+    assert_equal 3, l.content_size.height
+  end
+
+  it 'returns width equal to longest line plus 2 for padding' do
+    l = Component::List.new
+    l.content = %w[hi hello bye]
+    assert_equal 7, l.content_size.width  # "hello" = 5 + 2 padding
+  end
+
+  it 'returns width in columns for wide (fullwidth) characters plus padding' do
+    l = Component::List.new
+    l.content = ['日本語']  # 3 wide chars = 6 columns; + 2 = 8
+    assert_equal 8, l.content_size.width
+  end
+
+  it 'excludes ANSI formatting from width but still adds padding' do
+    l = Component::List.new
+    l.content = ["\e[31mhello\e[0m"]  # "hello" = 5; + 2 = 7
+    assert_equal 7, l.content_size.width
+  end
+
+  it 'height is not clamped to rect height' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 20, 2)
+    l.content = %w[one two three four five]
+    assert_equal 5, l.content_size.height
+  end
+end
+
 describe Component::List::Cursor::Limited do
   let(:cursor) { Component::List::Cursor::Limited.new([0, 2, 4, 8]) }
 

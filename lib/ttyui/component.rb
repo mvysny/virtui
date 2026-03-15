@@ -1,5 +1,18 @@
 # frozen_string_literal: true
 
+require 'rainbow'
+require 'unicode/display_width'
+
+# A size with {Integer} `width` and `height`.
+class Size < Data.define(:width, :height)
+  def to_s = "#{width}x#{height}"
+
+  # @return [Boolean] true if either {:width} or {:height} is zero or negative.
+  def empty?
+    width <= 0 || height <= 0
+  end
+end
+
 # A rectangle, with {Integer} `left`, `top`, `width` and `height`, all 0-based.
 class Rect < Data.define(:left, :top, :width, :height)
   def to_s = "#{left},#{top} #{width}x#{height}"
@@ -165,9 +178,9 @@ class Component
   # Called when the component receives a focus.
   def on_focus; end
 
-  # When a component wraps contents, this function returns {Rect} big enough
+  # When a component wraps contents, this function returns a {Size} big enough
   # to show the entire component contents, without scrolling.
-  def content_rect = nil
+  def content_size = nil
 
   protected
 
@@ -206,6 +219,12 @@ class Component
     def text=(text)
       @lines = text.to_s.split("\n")
       update_clipped_text
+    end
+
+    def content_size
+      height = @lines.size
+      width = @lines.map { |line| Unicode::DisplayWidth.of(Rainbow.uncolor(line)) }.max || 0
+      Size.new(width, height)
     end
 
     def repaint
