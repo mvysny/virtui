@@ -18,7 +18,8 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt. It has three laye
 **TUI Framework (`lib/ttyui/`)** — a custom terminal UI toolkit:
 - `Screen`: main event loop, window management, rendering
 - `Component`: base class for all UI elements; forms a tree hierarchy with parent/child relationships and an invalidation model (mark dirty → batched repaint)
-- `Window`: scrollable bordered widget with captions and cursor support
+- `Window`: bordered widget with a caption; uses `Component::List` as its default content
+- `Component::List`: scrollable list of text lines with optional cursor support (arrows, jk, Home/End, Ctrl+U/D, Page Up/Down, mouse); cursor is `Cursor::None` by default, `Cursor::Limited` restricts movement to specific positions
 - `EventQueue`: async event handling (keyboard, mouse, TTY resize); background threads submit tasks to the UI thread via `screen.event_queue.submit {}`
 
 **Application layer (`lib/`):**
