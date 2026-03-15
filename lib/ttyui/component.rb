@@ -213,19 +213,18 @@ class Component
       super
       @lines = []
       @clipped_lines = []
+      @content_size = Size.new(0, 0)
     end
 
     # @param text [String | nil] draws this text. May contain ANSI formatting. Clipped automatically.
     def text=(text)
       @lines = text.to_s.split("\n")
+      width = @lines.map { |line| Unicode::DisplayWidth.of(Rainbow.uncolor(line)) }.max || 0
+      @content_size = Size.new(width, @lines.size)
       update_clipped_text
     end
 
-    def content_size
-      height = @lines.size
-      width = @lines.map { |line| Unicode::DisplayWidth.of(Rainbow.uncolor(line)) }.max || 0
-      Size.new(width, height)
-    end
+    attr_reader :content_size
 
     def repaint
       clear_background
