@@ -46,7 +46,7 @@ class PopupWindow < Window
   # Recalculates window width/height and recenters the window if it's open. Called after
   # the window content is changed.
   def update_rect
-    size = content.content_size.plus(2, 2).clamp(1_000_000, max_height)
+    size = content.content_size.plus(2, 2).clamp_height(max_height)
     # clamp it to 80% of screen width/height
     size = size.clamp(screen.size.width * 4 / 5, screen.size.height * 4 / 5)
     self.rect = Rect.new(-1, -1, size.width, size.height)
