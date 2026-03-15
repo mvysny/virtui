@@ -160,7 +160,7 @@ class VMWindow < Window
   end
 
   def show_power_popup
-    current_vm = @line_data[cursor.position] || return
+    current_vm = @line_data[content.cursor.position] || return
     state = @virt_cache.state(current_vm)
     opts = [['s', 'Start'], ['o', 'shut dOwn gracefully'], ['O', 'force Off'], ['r', 'reboot (soft)'],
             ['R', 'Reset (hard)']]
