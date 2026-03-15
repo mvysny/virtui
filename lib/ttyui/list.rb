@@ -26,7 +26,6 @@ class Component
       @top_line = 0
       # {Cursor} cursor, none by default.
       @cursor = Cursor::None.new
-      @content_size = Size.new(0, 0)
     end
 
     # @return [Boolean] if true and a line is added or new content is set, auto-scrolls to the bottom.
@@ -72,7 +71,7 @@ class Component
       raise 'lines must be Array' unless lines.is_a? Array
 
       @lines = lines
-      update_content_size
+      @content_size = nil
       update_top_line_if_auto_scroll
       invalidate
     end
@@ -103,12 +102,18 @@ class Component
       screen.check_locked
       lines = lines.flat_map { it.to_s.split("\n") }
       @lines += lines.map(&:rstrip)
-      update_content_size
+      @content_size = nil
       update_top_line_if_auto_scroll
       invalidate
     end
 
-    attr_reader :content_size
+    def content_size
+      @content_size ||= begin
+        content_width = @lines.map { |line| Unicode::DisplayWidth.of(Rainbow.uncolor(line)) }.max || 0
+        width = @lines.empty? ? 0 : content_width + 2
+        Size.new(width, @lines.size)
+      end
+    end
 
     def can_activate? = true
 
@@ -301,12 +306,6 @@ class Component
     end
 
     private
-
-    def update_content_size
-      content_width = @lines.map { |line| Unicode::DisplayWidth.of(Rainbow.uncolor(line)) }.max || 0
-      width = @lines.empty? ? 0 : content_width + 2
-      @content_size = Size.new(width, @lines.size)
-    end
 
     # Scrolls the viewport so the cursor is visible.
     def move_viewport_to_cursor
