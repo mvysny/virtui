@@ -43,6 +43,8 @@ class PopupWindow < Window
     end
   end
 
+  private
+
   # Recalculates window width/height and recenters the window if it's open. Called after
   # the window content is changed.
   def update_rect
