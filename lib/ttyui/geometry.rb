@@ -9,6 +9,11 @@ class Size < Data.define(:width, :height)
     width <= 0 || height <= 0
   end
 
+  # @param width [Integer]
+  # @param height [Integer]
+  # @return [Size]
+  def plus(width, height) = Size.new(self.width + width, self.height + height)
+
   # Clamp both width and height and returns a size.
   # @param max_width [Integer] the max width
   # @param max_height [Integer]

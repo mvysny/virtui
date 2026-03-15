@@ -4,6 +4,20 @@ require_relative '../spec_helper'
 require 'ttyui/geometry'
 
 describe Size do
+  describe '#plus' do
+    it 'adds width and height' do
+      assert_equal Size.new(50, 30), Size.new(40, 20).plus(10, 10)
+    end
+
+    it 'accepts negative values' do
+      assert_equal Size.new(30, 10), Size.new(40, 20).plus(-10, -10)
+    end
+
+    it 'accepts zero values' do
+      assert_equal Size.new(40, 20), Size.new(40, 20).plus(0, 0)
+    end
+  end
+
   it 'clamps' do
     size = Size.new(40, 20)
     assert_equal Size.new(20, 20), size.clamp(20, 40)
