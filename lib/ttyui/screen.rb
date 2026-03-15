@@ -97,14 +97,21 @@ class Screen
   # Sets the focused {Component}. Focused component receives keyboard events.
   # @param focused [Component | nil] the new component to be focused.
   def focused=(focused)
+    raise unless focused.nil? || focused.is_a?(Component)
+
     check_locked
-    return if focused.is_a? PopupWindow
+    if @popups.include?(focused)
+      focused.on_tree { it.active = true if it.can_activate? }
+      focused.on_focus
+      return
+    elsif @popups.include?(focused&.root)
+      focused.active = true
+      return
+    end
 
     if focused.nil?
       @content&.on_tree { it.active = false }
     else
-      raise unless focused.is_a? Component
-
       root = focused.root
       raise if root != @content || @popups.include?(root)
 
@@ -124,7 +131,7 @@ class Screen
 
     @popups << window
     window.center
-    window.active = true
+    self.focused = window
     invalidate(window)
     # no need to fully repaint the scene: PopupWindow simply paints over current screen contents.
   end
