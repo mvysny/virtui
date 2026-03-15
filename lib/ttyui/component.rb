@@ -50,6 +50,9 @@ class Rect < Data.define(:left, :top, :width, :height)
   # @param y [Integer] 0-based
   # @return [Boolean]
   def contains?(x, y) = x >= left && x < left + width && y >= top && y < top + height
+
+  # @return [Size]
+  def size = Size.new(width, height)
 end
 
 # A ui component which is positioned on the screen and
