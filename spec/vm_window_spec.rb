@@ -38,6 +38,17 @@ describe VMWindow do
     assert_equal '    vda: 50%   64G   128G | ', content[11]
   end
 
+  it 'show_power_popup opens picker' do
+    window.handle_key('p')
+    assert(Screen.instance.popups.any? { it.is_a?(PickerWindow) })
+  end
+
+  it 'show_memory_popup opens picker for running VM' do
+    window.content.cursor.go(4) # Ubuntu is running
+    window.handle_key('m')
+    assert(Screen.instance.popups.any? { it.is_a?(PickerWindow) })
+  end
+
   context('cursor movement') do
     it 'moves cursor down correctly' do
       assert_equal 0, window.content.cursor.position

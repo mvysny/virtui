@@ -139,7 +139,7 @@ class VMWindow < Window
   private
 
   def show_memory_popup
-    current_vm = @line_data[cursor.position] || return
+    current_vm = @line_data[content.cursor.position] || return
     state = @virt_cache.state(current_vm)
     if state != :running
       $log.error "'#{current_vm}' is not running"
