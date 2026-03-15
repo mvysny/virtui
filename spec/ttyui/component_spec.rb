@@ -4,6 +4,22 @@ require_relative '../spec_helper'
 require 'ttyui/screen'
 require 'strings-truncation'
 
+describe Size do
+  it 'clamps' do
+    size = Size.new(40, 20)
+    assert_equal Size.new(20, 20), size.clamp(20, 40)
+    assert_equal Size.new(40, 20), size.clamp(50, 40)
+    assert_equal Size.new(40, 20), size.clamp(40, 40)
+    assert_equal Size.new(40, 10), size.clamp(40, 10)
+  end
+
+  it 'returns self when unchanged' do
+    size = Size.new(40, 20)
+    assert_same size, size.clamp(40, 20)
+    assert_same size, size.clamp(50, 30)
+  end
+end
+
 describe Rect do
   describe '#at' do
     it 'changes left and top' do

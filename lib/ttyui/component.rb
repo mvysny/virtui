@@ -11,6 +11,16 @@ class Size < Data.define(:width, :height)
   def empty?
     width <= 0 || height <= 0
   end
+
+  # Clamp both width and height and returns a size.
+  # @param max_width [Integer] the max width
+  # @param max_height [Integer]
+  # @return [Size]
+  def clamp(max_width, max_height)
+    new_width = width.clamp(nil, max_width)
+    new_height = height.clamp(nil, max_height)
+    new_width == width && new_height == height ? self : Size.new(new_width, new_height)
+  end
 end
 
 # A rectangle, with {Integer} `left`, `top`, `width` and `height`, all 0-based.
