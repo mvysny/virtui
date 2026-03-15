@@ -162,6 +162,9 @@ class Component
     children.each { it.on_tree(&block) }
   end
 
+  # Called when the component receives a focus.
+  def on_focus; end
+
   protected
 
   attr_writer :parent

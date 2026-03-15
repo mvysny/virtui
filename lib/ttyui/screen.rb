@@ -113,6 +113,7 @@ class Screen
       active << active.last.parent until active.last.parent.nil?
       active = active.to_set
       @content.on_tree { it.active = active.include?(it) if it.can_activate? }
+      @focused.on_focus
     end
     @status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
   end

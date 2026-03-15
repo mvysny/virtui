@@ -66,6 +66,14 @@ class Component
 
     def can_activate? = true
 
+    def on_focus
+      super
+      # Let the content component receive focus, so that it can immediately
+      # start responding to key presses.
+      first_activatable = @children.find(&:can_activate?)
+      screen.focused = first_activatable unless first_activatable.nil?
+    end
+
     # Absolute layout. Extend this class, register any children,
     # and override {:rect=} to reposition the children.
     class Absolute < Layout
@@ -81,9 +89,7 @@ class Component
     # @param key [String] a key.
     # @return [Boolean] true if the key was handled, false if not.
     def handle_key(key)
-      # TODO: handle_key should only pass-through to content if it's active...
-      # But the entire handle_key concept is flawed. Maybe only the focused component should receive handle_key
-      content.nil? ? false : content.handle_key(key)
+      content.nil? || !content.active? ? false : content.handle_key(key)
     end
 
     # @param event [MouseEvent]
@@ -113,6 +119,13 @@ class Component
     def rect=(rect)
       super
       layout(content) unless content.nil?
+    end
+
+    def on_focus
+      super
+      # Let the content component receive focus, so that it can immediately
+      # start responding to key presses.
+      screen.focused = content if !content.nil? && content.can_activate?
     end
   end
 end
