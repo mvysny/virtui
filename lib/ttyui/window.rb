@@ -44,9 +44,6 @@ class Window < Component
   # @return [String] the current caption, empty by default.
   attr_reader :caption
 
-  # TODO: remove
-  def cursor = content.cursor
-
   # Sets new caption and repaints the window
   # @param new_caption [String]
   def caption=(new_caption)

@@ -34,7 +34,7 @@ class PickerWindow < PopupWindow
       select_option(key)
       true
     elsif key == Keys::ENTER
-      selected = @options[cursor.position]
+      selected = @options[content.cursor.position]
       select_option(selected.key)
       true
     else

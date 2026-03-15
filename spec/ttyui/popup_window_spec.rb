@@ -62,13 +62,13 @@ describe PopupWindow, 'content=' do
   it 'does not enable cursor when content fits within max_height' do
     w = PopupWindow.new('foo')
     w.content = Array.new(12, 'x')  # 12 == max_height, not >
-    assert w.cursor.is_a?(Component::List::Cursor::None)
+    assert w.content.cursor.is_a?(Component::List::Cursor::None)
   end
 
   it 'enables cursor when content exceeds max_height' do
     w = PopupWindow.new('foo')
     w.content = Array.new(13, 'x')  # 13 > max_height (12)
-    assert !w.cursor.is_a?(Component::List::Cursor::None)
+    assert !w.content.cursor.is_a?(Component::List::Cursor::None)
   end
 
   it 're-centers window when open' do

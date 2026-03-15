@@ -87,13 +87,13 @@ class VMWindow < Window
         end
       end
     end
-    self.cursor = Component::List::Cursor::Limited.new(cursor_positions, position: cursor.position)
+    self.cursor = Component::List::Cursor::Limited.new(cursor_positions, position: content.cursor.position)
   end
 
   def handle_key(key)
     return true if super
 
-    current_vm = @line_data[cursor.position] unless cursor.position.nil?
+    current_vm = @line_data[content.cursor.position] unless content.cursor.position.nil?
     return false if current_vm.nil?
 
     if key == 'p' # Power menu
