@@ -165,6 +165,10 @@ class Component
   # Called when the component receives a focus.
   def on_focus; end
 
+  # When a component wraps contents, this function returns {Rect} big enough
+  # to show the entire component contents, without scrolling.
+  def content_rect = nil
+
   protected
 
   attr_writer :parent
