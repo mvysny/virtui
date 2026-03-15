@@ -24,7 +24,7 @@ class PickerWindow < PopupWindow
     @block = block
     self.content = options.map { "#{it.key} #{Rainbow(it.caption).cadetblue}" }
     # Always enable cursor
-    self.cursor = Component::List::Cursor.new
+    content.cursor = Component::List::Cursor.new
   end
 
   def handle_key(key)

@@ -51,11 +51,6 @@ class Window < Component
     invalidate
   end
 
-  # TODO: remove
-  def cursor=(cursor)
-    content.cursor = cursor
-  end
-
   # @return [String] formatted keyboard hint for users. Empty by default.
   # Example: `p #{Rainbow('Power').cadetblue}`. If the window responds to keys,
   # override {#handle_key}

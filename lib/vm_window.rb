@@ -29,7 +29,7 @@ class VMWindow < Window
     @line_data = []
     # {Boolean} show disk stats for shutoff'd VMs
     @show_disk_stat = false
-    self.cursor = Component::List::Cursor.new
+    content.cursor = Component::List::Cursor.new
   end
 
   # {Boolean} show disk stats for shutoff'd VMs
@@ -87,7 +87,7 @@ class VMWindow < Window
         end
       end
     end
-    self.cursor = Component::List::Cursor::Limited.new(cursor_positions, position: content.cursor.position)
+    content.cursor = Component::List::Cursor::Limited.new(cursor_positions, position: content.cursor.position)
   end
 
   def handle_key(key)

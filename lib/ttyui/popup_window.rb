@@ -52,7 +52,7 @@ class PopupWindow < Window
     self.rect = Rect.new(-1, -1, size.width, size.height)
     center if open?
     # If we need to scroll since there's just too much stuff to show, enable cursor.
-    self.cursor = Component::List::Cursor.new if content.content.length > max_height
+    content.cursor = Component::List::Cursor.new if content.content.length > max_height
   end
 end
 
