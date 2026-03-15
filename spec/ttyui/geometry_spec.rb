@@ -31,6 +31,25 @@ describe Size do
     assert_same size, size.clamp(40, 20)
     assert_same size, size.clamp(50, 30)
   end
+
+  describe '#clamp_height' do
+    it 'clamps height only' do
+      size = Size.new(40, 20)
+      assert_equal Size.new(40, 10), size.clamp_height(10)
+      assert_equal Size.new(40, 20), size.clamp_height(30)
+    end
+
+    it 'does not change width' do
+      size = Size.new(40, 20)
+      assert_equal 40, size.clamp_height(10).width
+    end
+
+    it 'returns self when height is unchanged' do
+      size = Size.new(40, 20)
+      assert_same size, size.clamp_height(20)
+      assert_same size, size.clamp_height(30)
+    end
+  end
 end
 
 describe Rect do
