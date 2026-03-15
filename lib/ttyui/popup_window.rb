@@ -46,10 +46,10 @@ class PopupWindow < Window
   # Recalculates window width/height and recenters the window if it's open. Called after
   # the window content is changed.
   def update_rect
-    width = content.content.map { Unicode::DisplayWidth.of(Rainbow.uncolor(it)) }.max + 4
-    height = (content.content.length + 2).clamp(..max_height)
+    size = content.content_size.plus(2, 2)
     # clamp it to 80% of screen width/height
-    self.rect = Rect.new(-1, -1, width, height).clamp(screen.size.width * 4 / 5, screen.size.height * 4 / 5)
+    size = size.clamp(screen.size.width * 4 / 5, screen.size.height * 4 / 5)
+    self.rect = Rect.new(-1, -1, size.width, size.height)
     center if open?
     # If we need to scroll since there's just too much stuff to show, enable cursor.
     self.cursor = Component::List::Cursor.new if content.content.length > max_height
