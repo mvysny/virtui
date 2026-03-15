@@ -17,6 +17,7 @@ describe VMWindow do
     end
     w.rect = Rect.new(0, 0, 20, 20)
     w.active = true
+    w.content.active = true
     w.show_disk_stat = true
     w
   end

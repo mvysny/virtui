@@ -35,7 +35,7 @@ describe Screen do
     it 'sets focused to the given component' do
       w = add_window
       screen.focused = w
-      assert_equal w, screen.focused
+      assert_equal w.content, screen.focused
     end
 
     it 'marks focused component as active' do
@@ -149,9 +149,15 @@ describe Screen do
 
       it 'routes keyboard events to popup, not content' do
         popup_received = false
-        popup.define_singleton_method(:handle_key) { |_key| popup_received = true; true }
+        popup.define_singleton_method(:handle_key) do |_key|
+          popup_received = true
+          true
+        end
         content_received = false
-        content_window.define_singleton_method(:handle_key) { |_key| content_received = true; false }
+        content_window.define_singleton_method(:handle_key) do |_key|
+          content_received = true
+          false
+        end
 
         screen.send(:handle_key, 'x')
 
