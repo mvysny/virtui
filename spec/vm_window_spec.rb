@@ -17,12 +17,13 @@ describe VMWindow do
     end
     w.rect = Rect.new(0, 0, 20, 20)
     w.active = true
+    w.content.active = true
     w.show_disk_stat = true
     w
   end
 
   it 'has the right content' do
-    content = window.content.map { Rainbow.uncolor(it) }
+    content = window.content.content.map { Rainbow.uncolor(it) }
     assert_equal '⏹ BASE──────────', content[0]
     assert_equal '    vda: 50%   64G   128G | ', content[1]
     assert_equal '⏹ Fedora────────', content[2]
@@ -39,31 +40,31 @@ describe VMWindow do
 
   context('cursor movement') do
     it 'moves cursor down correctly' do
-      assert_equal 0, window.cursor.position
+      assert_equal 0, window.content.cursor.position
       # first VM is stopped and takes 2 lines
       window.handle_key(Keys::DOWN_ARROW)
-      assert_equal 2, window.cursor.position
+      assert_equal 2, window.content.cursor.position
       # second VM is running and takes 3 lines
       window.handle_key(Keys::DOWN_ARROW)
-      assert_equal 4, window.cursor.position
+      assert_equal 4, window.content.cursor.position
       # third VM is running and takes 3 lines
       window.handle_key(Keys::DOWN_ARROW)
-      assert_equal 8, window.cursor.position
+      assert_equal 8, window.content.cursor.position
       # no more VMs
       window.handle_key(Keys::DOWN_ARROW)
-      assert_equal 8, window.cursor.position
+      assert_equal 8, window.content.cursor.position
     end
     it 'moves cursor up correctly' do
-      window.cursor.go(8)
-      assert_equal 8, window.cursor.position
+      window.content.cursor.go(8)
+      assert_equal 8, window.content.cursor.position
       window.handle_key(Keys::UP_ARROW)
-      assert_equal 4, window.cursor.position
+      assert_equal 4, window.content.cursor.position
       window.handle_key(Keys::UP_ARROW)
-      assert_equal 2, window.cursor.position
+      assert_equal 2, window.content.cursor.position
       window.handle_key(Keys::UP_ARROW)
-      assert_equal 0, window.cursor.position
+      assert_equal 0, window.content.cursor.position
       window.handle_key(Keys::UP_ARROW)
-      assert_equal 0, window.cursor.position
+      assert_equal 0, window.content.cursor.position
     end
   end
 end

@@ -24,7 +24,7 @@ class PickerWindow < PopupWindow
     @block = block
     self.content = options.map { "#{it.key} #{Rainbow(it.caption).cadetblue}" }
     # Always enable cursor
-    self.cursor = Cursor.new
+    content.cursor = Component::List::Cursor.new
   end
 
   def handle_key(key)
@@ -34,7 +34,7 @@ class PickerWindow < PopupWindow
       select_option(key)
       true
     elsif key == Keys::ENTER
-      selected = @options[cursor.position]
+      selected = @options[content.cursor.position]
       select_option(selected.key)
       true
     else

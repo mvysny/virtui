@@ -66,6 +66,14 @@ class Component
 
     def can_activate? = true
 
+    def on_focus
+      super
+      # Let the content component receive focus, so that it can immediately
+      # start responding to key presses.
+      first_activatable = @children.find(&:can_activate?)
+      screen.focused = first_activatable unless first_activatable.nil?
+    end
+
     # Absolute layout. Extend this class, register any children,
     # and override {:rect=} to reposition the children.
     class Absolute < Layout
@@ -74,6 +82,7 @@ class Component
 
   # A mixin interface for a component with one child tops. The component
   # must provide a reader for `content` and override {:content=}.
+  # The component must also provide protected `layout(content)` which repositions content component.
   module HasContent
     def can_activate? = true
 
@@ -104,6 +113,19 @@ class Component
 
       content.parent = self
       content.invalidate
+      layout(content)
+    end
+
+    def rect=(rect)
+      super
+      layout(content) unless content.nil?
+    end
+
+    def on_focus
+      super
+      # Let the content component receive focus, so that it can immediately
+      # start responding to key presses.
+      screen.focused = content if !content.nil? && content.can_activate?
     end
   end
 end

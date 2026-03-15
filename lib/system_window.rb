@@ -16,7 +16,7 @@ class SystemWindow < Window
   end
 
   def update
-    content do |lines|
+    content.content do |lines|
       # CPU
       lines << header('CPU', @cpu_info, :dodgerblue)
       host_cpu_usage = @virt_cache.host_cpu_usage.to_i

@@ -37,6 +37,9 @@ class Screen
     @size = EventQueue::TTYSizeEvent.create
     # {Set<Component>} invalidated components (need repaint)
     @invalidated = Set.new
+    # {Set<Component>} components being repainted right now. A component
+    # may invalidate its children during its repaint phase; this prevents double-draw
+    @repainting = Set.new
     # Until the event loop is run, we pretend we're in the UI thread.
     # This allows AppScreen to initialize.
     @pretend_ui_lock = true
@@ -85,7 +88,7 @@ class Screen
     check_locked
     raise unless component.is_a? Component
 
-    @invalidated << component
+    @invalidated << component unless @repainting.include? component
   end
 
   # @return [Component | nil] currently focused component
@@ -94,14 +97,21 @@ class Screen
   # Sets the focused {Component}. Focused component receives keyboard events.
   # @param focused [Component | nil] the new component to be focused.
   def focused=(focused)
+    raise unless focused.nil? || focused.is_a?(Component)
+
     check_locked
-    return if focused.is_a? PopupWindow
+    if @popups.include?(focused)
+      focused.on_tree { it.active = true if it.can_activate? }
+      focused.on_focus
+      return
+    elsif @popups.include?(focused&.root)
+      focused.active = true
+      return
+    end
 
     if focused.nil?
       @content&.on_tree { it.active = false }
     else
-      raise unless focused.is_a? Component
-
       root = focused.root
       raise if root != @content || @popups.include?(root)
 
@@ -110,6 +120,7 @@ class Screen
       active << active.last.parent until active.last.parent.nil?
       active = active.to_set
       @content.on_tree { it.active = active.include?(it) if it.can_activate? }
+      @focused.on_focus
     end
     @status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
   end
@@ -120,7 +131,7 @@ class Screen
 
     @popups << window
     window.center
-    window.active = true
+    self.focused = window
     invalidate(window)
     # no need to fully repaint the scene: PopupWindow simply paints over current screen contents.
   end
@@ -201,22 +212,26 @@ class Screen
     # look okay. Not the most effective algorithm, but very simple and very fast
     # in common cases.
 
-    # Figure out repaint order of @content first.
-    repaint = @invalidated.to_a.delete_if { @popups.include? it }
-    # Repaint parents before children, so that
-    # children won't paint over parents.
-    repaint.sort_by!(&:depth)
+    until @invalidated.empty?
+      # Figure out repaint order of @content first.
+      repaint = @invalidated.to_a.delete_if { @popups.include? it }
+      # Repaint parents before children, so that
+      # children won't paint over parents.
+      repaint.sort_by!(&:depth)
 
-    # If some @content needs repaint, it may draw over popups.
-    # In such case repaint all popups.
-    repaint += repaint.empty? ? @popups.filter { @invalidated.include? it } : @popups
+      # If some @content needs repaint, it may draw over popups.
+      # In such case repaint all popups.
+      repaint += repaint.empty? ? @popups.filter { @invalidated.include? it } : @popups
+      @repainting = repaint.to_set
+      @invalidated.clear
 
-    # Don't call {:clear} before repaint - causes flickering, and only needed when @content
-    # doesn't cover the entire screen.
-    repaint.each(&:repaint)
+      # Don't call {:clear} before repaint - causes flickering, and only needed when @content
+      # doesn't cover the entire screen.
+      repaint.each(&:repaint)
 
-    # Repaint done, mark all components as up-to-date
-    @invalidated.clear
+      # Repaint done, mark all components as up-to-date
+      @repainting.clear
+    end
   end
 
   private

@@ -71,6 +71,7 @@ class Component
       raise 'lines must be Array' unless lines.is_a? Array
 
       @lines = lines
+      @content_size = nil
       update_top_line_if_auto_scroll
       invalidate
     end
@@ -101,8 +102,17 @@ class Component
       screen.check_locked
       lines = lines.flat_map { it.to_s.split("\n") }
       @lines += lines.map(&:rstrip)
+      @content_size = nil
       update_top_line_if_auto_scroll
       invalidate
+    end
+
+    def content_size
+      @content_size ||= begin
+        content_width = @lines.map { |line| Unicode::DisplayWidth.of(Rainbow.uncolor(line)) }.max || 0
+        width = @lines.empty? ? 0 : content_width + 2
+        Size.new(width, @lines.size)
+      end
     end
 
     def can_activate? = true
@@ -356,7 +366,7 @@ class Component
       line = (@lines[index] || '').to_s
       line = trim_to(line, width - 2)
       line = " #{line} "
-      is_cursor = index < @lines.size && @cursor.position == index
+      is_cursor = active? && index < @lines.size && @cursor.position == index
       if is_cursor
         Rainbow(Rainbow.uncolor(line)).bg(:darkslategray)
       else
