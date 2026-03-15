@@ -85,8 +85,8 @@ class Window < Component
   def repaint
     super
     repaint_border
-    # TODO: may result in double repaints... revisit
-    content&.repaint
+    # border paints over content: invalidate the content to have it repainted.
+    content&.invalidate
   end
 
   def key_shortcut=(key)
