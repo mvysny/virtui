@@ -354,7 +354,7 @@ class Component
       line = (@lines[index] || '').to_s
       line = trim_to(line, width - 2)
       line = " #{line} "
-      is_cursor = index < @lines.size && @cursor.position == index
+      is_cursor = active? && index < @lines.size && @cursor.position == index
       if is_cursor
         Rainbow(Rainbow.uncolor(line)).bg(:darkslategray)
       else

@@ -394,11 +394,13 @@ describe Component::List do
         l.rect = Rect.new(0, 0, 20, 3)
         l.content = %w[a b c]
         l.cursor = Component::List::Cursor.new(position: 1)
+        l.active = true
         Screen.instance.prints.clear
         l.repaint
         # Second painted line (index 3 = move_to for line 1's content) should contain ANSI bg color
         line1_content = Screen.instance.prints[3]
-        assert line1_content.include?("\e["), "Expected cursor line to have ANSI color codes, got: #{line1_content.inspect}"
+        assert line1_content.include?("\e["),
+               "Expected cursor line to have ANSI color codes, got: #{line1_content.inspect}"
       ensure
         Rainbow.enabled = old_rainbow
       end
