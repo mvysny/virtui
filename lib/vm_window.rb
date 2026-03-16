@@ -30,6 +30,7 @@ class VMWindow < Window
     # {Boolean} show disk stats for shutoff'd VMs
     @show_disk_stat = false
     content.cursor = Component::List::Cursor.new
+    self.scrollbar = true
   end
 
   # {Boolean} show disk stats for shutoff'd VMs

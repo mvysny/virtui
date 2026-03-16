@@ -378,22 +378,22 @@ class Component
     def scrollbar_char(row_in_viewport)
       h = rect.height
       return '|' if h == 1
-      return row_in_viewport == 0 ? '^' : 'v' if h == 2
+      return row_in_viewport == 0 ? '▲' : '▼' if h == 2
 
-      return '^' if row_in_viewport == 0
-      return 'v' if row_in_viewport == h - 1
+      return '▲' if row_in_viewport == 0
+      return '▼' if row_in_viewport == h - 1
 
       n = @lines.size
       track_size = h - 2
       if n <= rect.height
-        '#'
+        '█'
       else
         handle_height = [(track_size * rect.height / n.to_f).ceil, track_size].min
         handle_height = [handle_height, 1].max
         handle_start = (track_size * @top_line / n.to_f).floor
         handle_end = handle_start + handle_height - 1
         track_row = row_in_viewport - 1
-        (track_row >= handle_start && track_row <= handle_end) ? '#' : '|'
+        track_row >= handle_start && track_row <= handle_end ? '█' : '░'
       end
     end
 
