@@ -26,6 +26,8 @@ class Component
       @top_line = 0
       # {Cursor} cursor, none by default.
       @cursor = Cursor::None.new
+      # {Symbol} scrollbar visibility: :gone, :visible, or :optional.
+      @scrollbar_visibility = :gone
     end
 
     # @return [Boolean] if true and a line is added or new content is set, auto-scrolls to the bottom.
@@ -36,6 +38,19 @@ class Component
 
     # @return [Cursor] the list's cursor.
     attr_reader :cursor
+
+    # @return [Symbol] scrollbar visibility: :gone, :visible, or :optional.
+    attr_reader :scrollbar_visibility
+
+    # Sets the scrollbar visibility.
+    # @param value [Symbol] :gone, :visible, or :optional.
+    def scrollbar_visibility=(value)
+      raise "Invalid scrollbar_visibility: #{value.inspect}" unless %i[gone visible optional].include?(value)
+      return if @scrollbar_visibility == value
+
+      @scrollbar_visibility = value
+      invalidate
+    end
 
     # Sets the new auto_scroll. If true, immediately scrolls to the bottom.
     # @param new_auto_scroll [Boolean]
@@ -347,6 +362,41 @@ class Component
       self.top_line = new_top_line
     end
 
+    # @return [Boolean] whether the scrollbar should be drawn right now.
+    def scrollbar_visible?
+      return false if rect.empty?
+
+      case @scrollbar_visibility
+      when :gone then false
+      when :visible then true
+      when :optional then @lines.size > rect.height
+      end
+    end
+
+    # @param row_in_viewport [Integer] 0-based row index within the viewport.
+    # @return [String] single scrollbar character for that row.
+    def scrollbar_char(row_in_viewport)
+      h = rect.height
+      return '|' if h == 1
+      return row_in_viewport == 0 ? '▲' : '▼' if h == 2
+
+      return '▲' if row_in_viewport == 0
+      return '▼' if row_in_viewport == h - 1
+
+      n = @lines.size
+      track_size = h - 2
+      if n <= rect.height
+        '█'
+      else
+        handle_height = [(track_size * rect.height / n.to_f).ceil, track_size].min
+        handle_height = [handle_height, 1].max
+        handle_start = (track_size * @top_line / n.to_f).floor
+        handle_end = handle_start + handle_height - 1
+        track_row = row_in_viewport - 1
+        track_row >= handle_start && track_row <= handle_end ? '█' : '░'
+      end
+    end
+
     # Trims string exactly to [width] columns.
     def trim_to(str, width)
       return ' ' * width if str.empty?
@@ -363,15 +413,21 @@ class Component
     # @param width [Integer] number of columns the line should occupy.
     # @return [String] paintable line exactly {width} columns wide; highlighted if cursor is here.
     def paintable_line(index, width)
+      show_sb = scrollbar_visible?
+      content_width = show_sb ? width - 1 : width
       line = (@lines[index] || '').to_s
-      line = trim_to(line, width - 2)
+      line = trim_to(line, content_width - 2)
       line = " #{line} "
       is_cursor = active? && index < @lines.size && @cursor.position == index
-      if is_cursor
-        Rainbow(Rainbow.uncolor(line)).bg(:darkslategray)
-      else
-        line
-      end
+      line = if is_cursor
+               Rainbow(Rainbow.uncolor(line)).bg(:darkslategray)
+             else
+               line
+             end
+      return line unless show_sb
+
+      row_in_viewport = index - @top_line
+      line + scrollbar_char(row_in_viewport)
     end
   end
 end

@@ -35,10 +35,19 @@ class Window < Component
 
   def initialize(caption = '')
     super()
+    @border_right = 1
     # {String} Window caption, shown in the upper-left part
     @caption = caption
     # Set the default content.
     self.content = Component::List.new
+  end
+
+  # @param value [Boolean]
+  def scrollbar=(value)
+    content.scrollbar_visibility = value ? :visible : :gone
+    @border_right = value ? 0 : 1
+    invalidate
+    layout(content)
   end
 
   # @return [String] the current caption, empty by default.
@@ -90,7 +99,7 @@ class Window < Component
   protected
 
   def layout(content)
-    content.rect = Rect.new(rect.left + 1, rect.top + 1, rect.width - 2, rect.height - 2)
+    content.rect = Rect.new(rect.left + 1, rect.top + 1, rect.width - 1 - @border_right, rect.height - 2)
   end
 
   # Paints the window border.
@@ -115,6 +124,7 @@ class LogWindow < Window
     super
     content.auto_scroll = true
     content.cursor = Component::List::Cursor.new # allow scrolling when a long stacktrace is logged
+    self.scrollbar = true
   end
 
   # Reconfigures given logger to log to this window instead.

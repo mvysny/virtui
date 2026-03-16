@@ -101,6 +101,17 @@ class VMEmulator
       @mem_apps = Interpolator::Linear.from_now(@mem_apps.value, 0, @shutdown_seconds)
     end
 
+    def force_off
+      @shut_down_at = nil
+      @started_at = nil
+      @mem_apps = nil
+    end
+
+    def force_reboot
+      force_off
+      start
+    end
+
     def memory_app=(apps)
       raise "mem for apps must be at least #{MIN_APP_MEMORY}" if apps < MIN_APP_MEMORY
 
@@ -198,5 +209,33 @@ class VMEmulator
     e.vm('Ubuntu').start
     e.vm('win11').start
     e
+  end
+
+  def start(vm)
+    @vms[vm].start
+  end
+
+  # Shuts down a VM gracefully - basically asks the VM to shut off.
+  # @param domain_name [String] VM name
+  def shutdown(vm)
+    @vms[vm].shut_down
+  end
+
+  # Asks the VM to reboot itself gracefully.
+  # @param domain_name [String] VM name
+  def reboot(domain_name)
+    @vms[domain_name].force_reboot
+  end
+
+  # Resets the VM forcefully.
+  # @param domain_name [String] VM name
+  def reset(domain_name)
+    @vms[domain_name].force_reboot
+  end
+
+  # Forces the VM off.
+  # @param domain_name [String] VM name
+  def force_off(domain_name)
+    @vms[domain_name].force_off
   end
 end
