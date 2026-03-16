@@ -420,6 +420,138 @@ describe Component::List do
   end
 end
 
+describe Component::List, 'scrollbar' do
+  before { Screen.fake }
+  after { Screen.close }
+
+  def painted_lines(list)
+    Screen.instance.prints.clear
+    list.repaint
+    prints = Screen.instance.prints
+    prints.each_slice(2).map { |_mv, line| Rainbow.uncolor(line) }
+  end
+
+  it 'scrollbar_visibility is :gone by default' do
+    assert_equal :gone, Component::List.new.scrollbar_visibility
+  end
+
+  it 'can set scrollbar_visibility to :visible' do
+    l = Component::List.new
+    l.scrollbar_visibility = :visible
+    assert_equal :visible, l.scrollbar_visibility
+  end
+
+  it 'can set scrollbar_visibility to :optional' do
+    l = Component::List.new
+    l.scrollbar_visibility = :optional
+    assert_equal :optional, l.scrollbar_visibility
+  end
+
+  it 'raises on invalid scrollbar_visibility' do
+    assert_raises(RuntimeError) { Component::List.new.scrollbar_visibility = :bogus }
+  end
+
+  it ':gone does not affect line width' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 10, 1)
+    l.content = ['hi']
+    lines = painted_lines(l)
+    assert_equal 10, lines[0].length
+  end
+
+  it ':visible always shows scrollbar' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 10, 3)
+    l.content = %w[a b c]
+    l.scrollbar_visibility = :visible
+    lines = painted_lines(l)
+    assert_equal 10, lines[0].length
+    assert_equal '^', lines[0][-1]
+    assert_equal 'v', lines[2][-1]
+  end
+
+  it ':optional hides scrollbar when items fit' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 10, 5)
+    l.content = %w[a b c]
+    l.scrollbar_visibility = :optional
+    lines = painted_lines(l)
+    # No scrollbar: content fills full width
+    assert_equal 10, lines[0].length
+    refute_equal '^', lines[0][-1]
+  end
+
+  it ':optional shows scrollbar when items exceed height' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 10, 3)
+    l.content = %w[a b c d e]
+    l.scrollbar_visibility = :optional
+    lines = painted_lines(l)
+    assert_equal '^', lines[0][-1]
+    assert_equal 'v', lines[2][-1]
+  end
+
+  it 'scrollbar reduces content width by 1' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 10, 3)
+    l.content = %w[a b c d e]
+    l.scrollbar_visibility = :visible
+    lines = painted_lines(l)
+    lines.each { |line| assert_equal 10, line.length }
+  end
+
+  it 'draws correct scrollbar for example in spec: 10 lines, 20 items, top_line=10' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 20, 10)
+    l.content = (1..20).map { |i| "Item #{i}" }
+    l.top_line = 10
+    l.scrollbar_visibility = :visible
+    lines = painted_lines(l)
+    assert_equal '^', lines[0][-1]
+    assert_equal '|', lines[1][-1]
+    assert_equal '|', lines[2][-1]
+    assert_equal '|', lines[3][-1]
+    assert_equal '|', lines[4][-1]
+    assert_equal '#', lines[5][-1]
+    assert_equal '#', lines[6][-1]
+    assert_equal '#', lines[7][-1]
+    assert_equal '#', lines[8][-1]
+    assert_equal 'v', lines[9][-1]
+  end
+
+  it 'draws only arrows when height is 2' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 10, 2)
+    l.content = (1..10).map(&:to_s)
+    l.scrollbar_visibility = :visible
+    lines = painted_lines(l)
+    assert_equal '^', lines[0][-1]
+    assert_equal 'v', lines[1][-1]
+  end
+
+  it 'draws only empty track when height is 1' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 10, 1)
+    l.content = (1..10).map(&:to_s)
+    l.scrollbar_visibility = :visible
+    lines = painted_lines(l)
+    assert_equal '|', lines[0][-1]
+  end
+
+  it 'fills track with handle when all content fits (visible mode)' do
+    l = Component::List.new
+    l.rect = Rect.new(0, 0, 10, 5)
+    l.content = %w[a b]
+    l.scrollbar_visibility = :visible
+    lines = painted_lines(l)
+    assert_equal '^', lines[0][-1]
+    assert_equal '#', lines[1][-1]
+    assert_equal '#', lines[2][-1]
+    assert_equal '#', lines[3][-1]
+    assert_equal 'v', lines[4][-1]
+  end
+end
+
 describe Component::List::Cursor do
   it 'has default position of 0' do
     assert_equal 0, Component::List::Cursor.new.position
