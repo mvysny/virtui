@@ -466,8 +466,8 @@ describe Component::List, 'scrollbar' do
     l.scrollbar_visibility = :visible
     lines = painted_lines(l)
     assert_equal 10, lines[0].length
-    assert_equal '^', lines[0][-1]
-    assert_equal 'v', lines[2][-1]
+    assert_equal '▲', lines[0][-1]
+    assert_equal '▼', lines[2][-1]
   end
 
   it ':optional hides scrollbar when items fit' do
@@ -478,7 +478,7 @@ describe Component::List, 'scrollbar' do
     lines = painted_lines(l)
     # No scrollbar: content fills full width
     assert_equal 10, lines[0].length
-    refute_equal '^', lines[0][-1]
+    refute_equal '▲', lines[0][-1]
   end
 
   it ':optional shows scrollbar when items exceed height' do
@@ -487,8 +487,8 @@ describe Component::List, 'scrollbar' do
     l.content = %w[a b c d e]
     l.scrollbar_visibility = :optional
     lines = painted_lines(l)
-    assert_equal '^', lines[0][-1]
-    assert_equal 'v', lines[2][-1]
+    assert_equal '▲', lines[0][-1]
+    assert_equal '▼', lines[2][-1]
   end
 
   it 'scrollbar reduces content width by 1' do
@@ -507,16 +507,16 @@ describe Component::List, 'scrollbar' do
     l.top_line = 10
     l.scrollbar_visibility = :visible
     lines = painted_lines(l)
-    assert_equal '^', lines[0][-1]
-    assert_equal '|', lines[1][-1]
-    assert_equal '|', lines[2][-1]
-    assert_equal '|', lines[3][-1]
-    assert_equal '|', lines[4][-1]
-    assert_equal '#', lines[5][-1]
-    assert_equal '#', lines[6][-1]
-    assert_equal '#', lines[7][-1]
-    assert_equal '#', lines[8][-1]
-    assert_equal 'v', lines[9][-1]
+    assert_equal '▲', lines[0][-1]
+    assert_equal '░', lines[1][-1]
+    assert_equal '░', lines[2][-1]
+    assert_equal '░', lines[3][-1]
+    assert_equal '░', lines[4][-1]
+    assert_equal '█', lines[5][-1]
+    assert_equal '█', lines[6][-1]
+    assert_equal '█', lines[7][-1]
+    assert_equal '█', lines[8][-1]
+    assert_equal '▼', lines[9][-1]
   end
 
   it 'draws only arrows when height is 2' do
@@ -525,8 +525,8 @@ describe Component::List, 'scrollbar' do
     l.content = (1..10).map(&:to_s)
     l.scrollbar_visibility = :visible
     lines = painted_lines(l)
-    assert_equal '^', lines[0][-1]
-    assert_equal 'v', lines[1][-1]
+    assert_equal '▲', lines[0][-1]
+    assert_equal '▼', lines[1][-1]
   end
 
   it 'draws only empty track when height is 1' do
@@ -544,11 +544,11 @@ describe Component::List, 'scrollbar' do
     l.content = %w[a b]
     l.scrollbar_visibility = :visible
     lines = painted_lines(l)
-    assert_equal '^', lines[0][-1]
-    assert_equal '#', lines[1][-1]
-    assert_equal '#', lines[2][-1]
-    assert_equal '#', lines[3][-1]
-    assert_equal 'v', lines[4][-1]
+    assert_equal '▲', lines[0][-1]
+    assert_equal '█', lines[1][-1]
+    assert_equal '█', lines[2][-1]
+    assert_equal '█', lines[3][-1]
+    assert_equal '▼', lines[4][-1]
   end
 end
 
