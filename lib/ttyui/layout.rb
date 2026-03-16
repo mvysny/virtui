@@ -39,6 +39,14 @@ class Component
       invalidate if @children.empty?
     end
 
+    def content_size
+      return Size.new(0, 0) if @children.empty?
+
+      right  = @children.map { |c| c.rect.left + c.rect.width  }.max
+      bottom = @children.map { |c| c.rect.top  + c.rect.height }.max
+      Size.new(right - rect.left, bottom - rect.top)
+    end
+
     def repaint
       clear_background if @children.empty?
     end
