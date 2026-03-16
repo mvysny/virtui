@@ -39,6 +39,7 @@ class Window < Component
     @caption = caption
     # Set the default content.
     self.content = Component::List.new
+    content.scrollbar_visibility = :visible
   end
 
   # @return [String] the current caption, empty by default.
@@ -90,7 +91,7 @@ class Window < Component
   protected
 
   def layout(content)
-    content.rect = Rect.new(rect.left + 1, rect.top + 1, rect.width - 2, rect.height - 2)
+    content.rect = Rect.new(rect.left + 1, rect.top + 1, rect.width - 1, rect.height - 2)
   end
 
   # Paints the window border.
