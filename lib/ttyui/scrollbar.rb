@@ -42,7 +42,7 @@ class VerticalScrollBar
   # @return [String] single scrollbar character.
   def scrollbar_char(row_in_viewport)
     h = @height
-    return '|' if h == 1
+    return '|' if h <= 1
     return row_in_viewport == 0 ? '▲' : '▼' if h == 2
 
     return '▲' if row_in_viewport == 0
