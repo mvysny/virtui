@@ -4,6 +4,19 @@ require_relative '../spec_helper'
 require 'ttyui/scrollbar'
 
 describe VerticalScrollBar do
+  context 'height == 0' do
+    it 'constructor succeeds' do
+      assert VerticalScrollBar.new(0, line_count: 0, top_line: 0)
+    end
+
+    it 'does not set handle instance variables' do
+      sb = VerticalScrollBar.new(0, line_count: 0, top_line: 0)
+      assert_nil sb.handle_height
+      assert_nil sb.handle_start
+      assert_nil sb.handle_end
+    end
+  end
+
   context 'height == 1' do
     let(:sb) { VerticalScrollBar.new(1, line_count: 10, top_line: 0) }
 
