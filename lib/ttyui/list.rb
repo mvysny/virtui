@@ -180,7 +180,7 @@ class Component
       width = rect.width
       (0..(rect.height - 1)).each do |line_no|
         line_index = line_no + @top_line
-        line = paintable_line(line_index, width)
+        line = paintable_line(line_index, line_no, width)
         screen.print TTY::Cursor.move_to(rect.left, line_no + rect.top), line
       end
     end
@@ -412,7 +412,7 @@ class Component
     # @param index [Integer] 0-based index into {#content}.
     # @param width [Integer] number of columns the line should occupy.
     # @return [String] paintable line exactly {width} columns wide; highlighted if cursor is here.
-    def paintable_line(index, width)
+    def paintable_line(index, row_in_viewport, width)
       show_sb = scrollbar_visible?
       content_width = show_sb ? width - 1 : width
       line = (@lines[index] || '').to_s
@@ -426,7 +426,6 @@ class Component
              end
       return line unless show_sb
 
-      row_in_viewport = index - @top_line
       line + scrollbar_char(row_in_viewport)
     end
   end
