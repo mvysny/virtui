@@ -5,6 +5,7 @@ require 'unicode/display_width'
 require 'strings-truncation'
 require_relative 'keys'
 require_relative 'component'
+require_relative 'scrollbar'
 
 class Component
   # A scrollable list of text items with cursor support.
@@ -178,9 +179,10 @@ class Component
       return if rect.empty?
 
       width = rect.width
+      scrollbar = scrollbar_visible? ? VerticalScrollBar.new(rect.height, line_count: @lines.size, top_line: @top_line) : nil
       (0..(rect.height - 1)).each do |line_no|
         line_index = line_no + @top_line
-        line = paintable_line(line_index, line_no, width)
+        line = paintable_line(line_index, line_no, width, scrollbar)
         screen.print TTY::Cursor.move_to(rect.left, line_no + rect.top), line
       end
     end
@@ -373,30 +375,6 @@ class Component
       end
     end
 
-    # @param row_in_viewport [Integer] 0-based row index within the viewport.
-    # @return [String] single scrollbar character for that row.
-    def scrollbar_char(row_in_viewport)
-      h = rect.height
-      return '|' if h == 1
-      return row_in_viewport == 0 ? '▲' : '▼' if h == 2
-
-      return '▲' if row_in_viewport == 0
-      return '▼' if row_in_viewport == h - 1
-
-      n = @lines.size
-      track_size = h - 2
-      if n <= rect.height
-        '█'
-      else
-        handle_height = [(track_size * rect.height / n.to_f).ceil, track_size].min
-        handle_height = [handle_height, 1].max
-        handle_start = (track_size * @top_line / n.to_f).floor
-        handle_end = handle_start + handle_height - 1
-        track_row = row_in_viewport - 1
-        track_row >= handle_start && track_row <= handle_end ? '█' : '░'
-      end
-    end
-
     # Trims string exactly to [width] columns.
     def trim_to(str, width)
       return ' ' * width if str.empty?
@@ -411,10 +389,10 @@ class Component
 
     # @param index [Integer] 0-based index into {#content}.
     # @param width [Integer] number of columns the line should occupy.
+    # @param scrollbar [VerticalScrollBar, nil] scrollbar instance, or nil if not shown.
     # @return [String] paintable line exactly {width} columns wide; highlighted if cursor is here.
-    def paintable_line(index, row_in_viewport, width)
-      show_sb = scrollbar_visible?
-      content_width = show_sb ? width - 1 : width
+    def paintable_line(index, row_in_viewport, width, scrollbar)
+      content_width = scrollbar ? width - 1 : width
       line = (@lines[index] || '').to_s
       line = trim_to(line, content_width - 2)
       line = " #{line} "
@@ -424,9 +402,9 @@ class Component
              else
                line
              end
-      return line unless show_sb
+      return line unless scrollbar
 
-      line + scrollbar_char(row_in_viewport)
+      line + scrollbar.scrollbar_char(row_in_viewport)
     end
   end
 end
