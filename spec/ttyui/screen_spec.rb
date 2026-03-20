@@ -119,6 +119,156 @@ describe Screen do
     end
   end
 
+  context 'size' do
+    it 'returns screen dimensions' do
+      assert_equal 160, screen.size.width
+      assert_equal 50, screen.size.height
+    end
+  end
+
+  context 'content=' do
+    it 'sets the content' do
+      layout = Component::Layout::Absolute.new
+      screen.content = layout
+      assert_equal layout, screen.content
+    end
+
+    it 'positions content to fill the screen minus the status bar row' do
+      layout = Component::Layout::Absolute.new
+      screen.content = layout
+      assert_equal Rect.new(0, 0, 160, 49), layout.rect
+    end
+
+    it 'deactivates all components in the old content tree when content changes' do
+      layout = Component::Layout::Absolute.new
+      w = Window.new
+      screen.content = layout
+      layout.add(w)
+      screen.focused = w
+      assert w.active?
+      screen.content = Component::Layout::Absolute.new
+      assert !w.active?
+    end
+  end
+
+  context 'invalidate' do
+    it 'marks a component as invalidated' do
+      w = Window.new
+      screen.content = Component::Layout::Absolute.new
+      screen.content.add(w)
+      screen.invalidated_clear
+      screen.invalidate(w)
+      assert screen.invalidated?(w)
+    end
+  end
+
+  context 'repaint' do
+    before do
+      screen.content = Component::Layout::Absolute.new
+      screen.invalidated_clear
+    end
+
+    def add_window
+      w = Window.new
+      screen.content.add(w)
+      screen.invalidated_clear
+      w
+    end
+
+    it 'calls repaint on each invalidated component' do
+      w = add_window
+      repainted = false
+      w.define_singleton_method(:repaint) { repainted = true }
+      screen.invalidate(w)
+      screen.repaint
+      assert repainted
+    end
+
+    it 'clears the invalidated set after repaint' do
+      w = add_window
+      screen.invalidate(w)
+      screen.repaint
+      assert !screen.invalidated?(w)
+    end
+
+    it 'does nothing when nothing is invalidated' do
+      repainted = false
+      screen.content.define_singleton_method(:repaint) { repainted = true }
+      screen.repaint
+      assert !repainted
+    end
+
+    it 'repaints parent before child (sorted by depth)' do
+      w = add_window
+      order = []
+      screen.content.define_singleton_method(:repaint) { order << :parent }
+      w.define_singleton_method(:repaint) { order << :child }
+      screen.invalidate(screen.content)
+      screen.invalidate(w)
+      screen.repaint
+      assert_equal %i[parent child], order
+    end
+
+    it 'also repaints open popups when tiled content is invalidated' do
+      w = add_window
+      popup = PopupWindow.new
+      screen.add_popup(popup)
+      screen.invalidated_clear
+
+      popup_repainted = false
+      popup.define_singleton_method(:repaint) { popup_repainted = true }
+      screen.invalidate(w)
+      screen.repaint
+      assert popup_repainted
+    end
+
+    it 'does not repaint tiled content when only a popup is invalidated' do
+      w = add_window
+      popup = PopupWindow.new
+      screen.add_popup(popup)
+      screen.invalidated_clear
+
+      tiled_repainted = false
+      w.define_singleton_method(:repaint) { tiled_repainted = true }
+      screen.invalidate(popup)
+      screen.repaint
+      assert !tiled_repainted
+    end
+  end
+
+  context 'handle_key (private)' do
+    it 'returns false when there is no content' do
+      assert !screen.send(:handle_key, 'x')
+    end
+
+    it 'delegates to content when no popup is open' do
+      screen.content = Component::Layout::Absolute.new
+      handled = false
+      screen.content.define_singleton_method(:handle_key) { |_| handled = true; true }
+      screen.send(:handle_key, 'x')
+      assert handled
+    end
+  end
+
+  context 'handle_mouse (private)' do
+    it 'delegates to content when no popups are open' do
+      screen.content = Component::Layout::Absolute.new
+      received = false
+      screen.content.define_singleton_method(:handle_mouse) { |_| received = true }
+      screen.send(:handle_mouse, MouseEvent.new(:left, 1, 1))
+      assert received
+    end
+
+    it 'does not delegate to content when popups are open and click is outside them' do
+      screen.content = Component::Layout::Absolute.new
+      received = false
+      screen.content.define_singleton_method(:handle_mouse) { |_| received = true }
+      screen.add_popup(PopupWindow.new)
+      screen.send(:handle_mouse, MouseEvent.new(:left, 1, 1))
+      assert !received
+    end
+  end
+
   context 'popups' do
     it 'adds popup' do
       w = PopupWindow.new
