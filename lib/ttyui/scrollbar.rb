@@ -2,17 +2,16 @@
 
 # A vertical scrollbar that computes which character to draw at each row.
 #
-# For height == 1, every row shows '|'.
-# For height == 2, row 0 shows '▲' and row 1 shows '▼'.
-# For height > 2, row 0 is '▲', the last row is '▼', and the middle track
-# uses a handle (█) against a background (░); handle geometry is precomputed
-# in the constructor as {#handle_height}, {#handle_start}, and {#handle_end}.
+# Uses `█` for the handle (filled track) and `░` for the empty track.
+# There are no up/down arrows; the full height is used as the track.
+# Handle geometry is precomputed in the constructor as {#handle_height},
+# {#handle_start}, and {#handle_end}.
 class VerticalScrollBar
-  # @return [Integer] number of track rows the handle occupies (height > 2 only).
+  # @return [Integer] number of track rows the handle occupies (height >= 1 only).
   attr_reader :handle_height
-  # @return [Integer] 0-based track-row where the handle starts (height > 2 only).
+  # @return [Integer] 0-based row where the handle starts (height >= 1 only).
   attr_reader :handle_start
-  # @return [Integer] 0-based track-row where the handle ends (height > 2 only).
+  # @return [Integer] 0-based row where the handle ends (height >= 1 only).
   attr_reader :handle_end
 
   # @param height [Integer] number of rows in the scrollbar (== viewport height).
@@ -20,19 +19,16 @@ class VerticalScrollBar
   # @param top_line [Integer] index of the first visible content line.
   def initialize(height, line_count:, top_line:)
     @height = height
-    @line_count = line_count
 
-    return unless height > 2
+    return unless height >= 1
 
-    track_size = height - 2
     if line_count <= height
-      @handle_height = track_size
+      @handle_height = height
       @handle_start  = 0
-      @handle_end    = track_size - 1
+      @handle_end    = height - 1
     else
-      @handle_height = [(track_size * height / line_count.to_f).ceil, track_size].min
-      @handle_height = [@handle_height, 1].max
-      @handle_start  = (track_size * top_line / line_count.to_f).floor
+      @handle_height = [(height * height / line_count.to_f).ceil, 1].max
+      @handle_start  = (height * top_line / line_count.to_f).floor
       @handle_end    = @handle_start + @handle_height - 1
     end
   end
@@ -41,14 +37,6 @@ class VerticalScrollBar
   # @param row_in_viewport [Integer] 0-based row index within the viewport.
   # @return [String] single scrollbar character.
   def scrollbar_char(row_in_viewport)
-    h = @height
-    return '|' if h <= 1
-    return row_in_viewport == 0 ? '▲' : '▼' if h == 2
-
-    return '▲' if row_in_viewport == 0
-    return '▼' if row_in_viewport == h - 1
-
-    track_row = row_in_viewport - 1
-    track_row >= @handle_start && track_row <= @handle_end ? '█' : '░'
+    row_in_viewport >= @handle_start && row_in_viewport <= @handle_end ? '█' : '░'
   end
 end
