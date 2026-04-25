@@ -141,7 +141,6 @@ class Screen
   def run_event_loop
     @pretend_ui_lock = false
     $stdin.echo = false
-    print TTY::Cursor.hide
     print MouseEvent.start_tracking
     $stdin.raw do
       event_loop
@@ -212,7 +211,9 @@ class Screen
     # look okay. Not the most effective algorithm, but very simple and very fast
     # in common cases.
 
+    did_paint = false
     until @invalidated.empty?
+      did_paint = true
       # Figure out repaint order of @content first.
       repaint = @invalidated.to_a.delete_if { @popups.include? it }
       # Repaint parents before children, so that
@@ -232,9 +233,45 @@ class Screen
       # Repaint done, mark all components as up-to-date
       @repainting.clear
     end
+    position_cursor if did_paint
+  end
+
+  # Returns the absolute screen coordinates where the hardware cursor should sit,
+  # or nil if it should be hidden. Walks the active component(s); the topmost popup
+  # takes precedence over tiled content.
+  # @return [Point | nil]
+  def cursor_position
+    @popups.reverse_each do |popup|
+      pos = find_cursor_position(popup)
+      return pos unless pos.nil?
+    end
+    @content.nil? ? nil : find_cursor_position(@content)
   end
 
   private
+
+  # Walks the subtree and returns the cursor_position of the first active component
+  # that supplies one, or nil if none.
+  def find_cursor_position(root)
+    found = nil
+    root.on_tree do
+      next unless found.nil? && it.active?
+
+      pos = it.cursor_position
+      found = pos unless pos.nil?
+    end
+    found
+  end
+
+  # Hides or moves the hardware cursor based on the current focus state.
+  def position_cursor
+    pos = cursor_position
+    if pos.nil?
+      print TTY::Cursor.hide
+    else
+      print TTY::Cursor.move_to(pos.x, pos.y), TTY::Cursor.show
+    end
+  end
 
   # Recalculates positions of all windows, and repaints the scene. Automatically called whenever terminal size changes.
   # Call when the app starts. {:size} provides correct size of the terminal.

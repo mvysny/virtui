@@ -15,6 +15,10 @@ module Keys
   END_ = "\e[F"
   PAGE_UP = "\e[5~"
   PAGE_DOWN = "\e[6~"
+  BACKSPACE = "\u007f"
+  DELETE = "\e[3~"
+  CTRL_H = "\b"
+  BACKSPACES = [BACKSPACE, CTRL_H].freeze
   CTRL_U = "\u0015"
   CTRL_D = "\4"
   ENTER = "\u000d"
@@ -31,7 +35,7 @@ module Keys
       # Read 6 chars: mouse events are e.g. `\e[Mxyz`
       char += $stdin.read_nonblock(6)
     rescue IO::EAGAINWaitReadable
-      # The 'ESC' key pressed => only the \e char is emitted.
+      # The "ESC" key pressed => only the \e char is emitted.
     end
     char
   end

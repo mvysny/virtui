@@ -234,6 +234,49 @@ describe Screen do
       screen.repaint
       assert !tiled_repainted
     end
+
+    it 'hides the hardware cursor after repaint when no component owns it' do
+      w = add_window
+      screen.invalidate(w)
+      screen.prints.clear
+      screen.repaint
+      assert_includes screen.prints, TTY::Cursor.hide
+    end
+
+    it 'shows and positions the hardware cursor when a focused component supplies a cursor_position' do
+      w = add_window
+      w.content.define_singleton_method(:can_activate?) { true }
+      w.content.define_singleton_method(:cursor_position) { Point.new(7, 4) }
+      screen.focused = w.content
+      screen.prints.clear
+      screen.invalidate(w)
+      screen.repaint
+      assert_includes screen.prints, TTY::Cursor.move_to(7, 4)
+      assert_includes screen.prints, TTY::Cursor.show
+    end
+
+    it 'does not emit cursor commands when nothing is invalidated' do
+      screen.prints.clear
+      screen.repaint
+      assert_equal [], screen.prints
+    end
+
+    it 'prefers a cursor_position from a popup over tiled content' do
+      w = add_window
+      w.content.define_singleton_method(:can_activate?) { true }
+      w.content.define_singleton_method(:cursor_position) { Point.new(1, 1) }
+      screen.focused = w.content
+      popup = PopupWindow.new
+      popup.content.define_singleton_method(:can_activate?) { true }
+      popup.content.define_singleton_method(:cursor_position) { Point.new(99, 33) }
+      screen.add_popup(popup)
+      screen.focused = popup
+      screen.prints.clear
+      screen.invalidate(popup)
+      screen.repaint
+      assert_includes screen.prints, TTY::Cursor.move_to(99, 33)
+      refute_includes screen.prints, TTY::Cursor.move_to(1, 1)
+    end
   end
 
   context 'handle_key (private)' do

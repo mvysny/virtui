@@ -134,6 +134,13 @@ class Component
   # to show the entire component contents, without scrolling.
   def content_size = nil
 
+  # Where the hardware terminal cursor should sit when this component is the
+  # cursor owner. Returns `nil` to indicate the cursor should be hidden.
+  # The {Screen} positions the hardware cursor after each repaint cycle by
+  # consulting the active component(s).
+  # @return [Point | nil] absolute screen coordinates, or nil to hide.
+  def cursor_position = nil
+
   protected
 
   attr_writer :parent

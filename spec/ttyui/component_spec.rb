@@ -133,6 +133,10 @@ describe Component do
     end
   end
 
+  it 'cursor_position returns nil by default' do
+    assert_nil Component.new.cursor_position
+  end
+
   it 'invalidate adds component to screen invalidated set' do
     c = Component.new
     Screen.instance.invalidated_clear

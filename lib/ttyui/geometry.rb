@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+# A point with {Integer} `x` and `y`, both 0-based.
+class Point < Data.define(:x, :y)
+  def to_s = "#{x},#{y}"
+end
+
 # A size with {Integer} `width` and `height`.
 class Size < Data.define(:width, :height)
   def to_s = "#{width}x#{height}"
