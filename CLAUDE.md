@@ -24,11 +24,11 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt. It has three laye
 
 **Application layer (`lib/`):**
 - `AppLayout`: orchestrates three windows — `VMWindow` (VM list/controls), `SystemWindow` (host CPU/RAM/disk), and a log window
-- `Ballooning`: background thread that auto-scales VM memory (increases by 30% at >70% usage, decreases by 10% below 60%)
+- `Ballooning`: auto-scales VM memory (increases by 30% at ≥65% usage, decreases by 10% at ≤55%); runs on the UI thread, must not be called from a background thread
 
 **Libvirt backend (`lib/virt/`):**
 - `Virt`/`VirtCmd`: wraps `virsh` CLI commands
-- `VirtCache`: thread-safe cache that refreshes VM data every 2 seconds; updates are pushed to UI via `event_queue.submit`
+- `VirtCache`: thread-safe cache of VM runtime data; `update` is called from a background timer thread
 - `VMEmulator`: demo/test mode that simulates VMs without libvirt
 
-**Update flow:** `VirtCache` polls libvirt every 2s → `Ballooning` adjusts memory → submits a block to `EventQueue` → UI thread calls `layout.update_data` → dirty components repaint.
+**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `VirtCache#update` → submits a block to `EventQueue` → UI thread runs `Ballooning#update` then `layout.update_data` → dirty components repaint.
