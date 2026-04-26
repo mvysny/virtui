@@ -235,6 +235,27 @@ describe Screen do
       assert !tiled_repainted
     end
 
+    it 'paints popup descendants after tiled descendants so popup contents are not overdrawn' do
+      # Regression: ScreenPane refactor put popups under the pane (depth 1) and
+      # their contents at depth 2. A tiled list at depth 3 would then sort *after*
+      # popup.content and overdraw it, leaving the popup empty until the user
+      # nudged the popup's cursor and triggered a fresh paint.
+      w = add_window
+      popup = PopupWindow.new
+      popup.content = ['option']
+      screen.add_popup(popup)
+      screen.invalidated_clear
+
+      order = []
+      w.content.define_singleton_method(:repaint) { order << :tiled_content }
+      popup.content.define_singleton_method(:repaint) { order << :popup_content }
+      screen.invalidate(w.content)
+      screen.invalidate(popup.content)
+      screen.repaint
+
+      assert_equal %i[tiled_content popup_content], order
+    end
+
     it 'hides the hardware cursor after repaint when no component owns it' do
       w = add_window
       screen.invalidate(w)

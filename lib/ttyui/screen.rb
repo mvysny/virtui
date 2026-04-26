@@ -205,15 +205,28 @@ class Screen
     until @invalidated.empty?
       did_paint = true
       popups = @pane.popups
-      # Figure out repaint order of tiled components first.
-      repaint = @invalidated.to_a.delete_if { popups.include? it }
-      # Repaint parents before children, so that
-      # children won't paint over parents.
-      repaint.sort_by!(&:depth)
 
-      # If some tiled component needs repaint, it may draw over popups.
-      # In such case repaint all popups.
-      repaint += repaint.empty? ? popups.filter { @invalidated.include? it } : popups
+      # Partition invalidated components into tiled vs popup-tree. Sorting by
+      # depth across the whole tree would interleave them: a tiled grandchild
+      # (depth 3) sorts after a popup's content (depth 2) and overdraws it.
+      popup_tree = Set.new
+      popups.each { |p| p.on_tree { popup_tree << it } }
+      tiled, popup_invalidated = @invalidated.to_a.partition { !popup_tree.include?(it) }
+
+      # Within the tiled tree, paint parents before children.
+      tiled.sort_by!(&:depth)
+
+      repaint = if tiled.empty?
+                  # Only popups need repaint — paint just their invalidated
+                  # components in depth order.
+                  popup_invalidated.sort_by(&:depth)
+                else
+                  # Tiled components may overdraw popups; repaint each open
+                  # popup's full subtree on top, in stacking order
+                  # (parent-before-child within each popup).
+                  tiled + popups.flat_map { |p| collect_subtree(p) }
+                end
+
       @repainting = repaint.to_set
       @invalidated.clear
 
@@ -234,6 +247,14 @@ class Screen
   def cursor_position = @focused&.cursor_position
 
   private
+
+  # Collects a component and all its descendants in tree order
+  # (parent before children).
+  def collect_subtree(component)
+    result = []
+    component.on_tree { result << it }
+    result
+  end
 
   # Hides or moves the hardware cursor based on the current focus state.
   def position_cursor
