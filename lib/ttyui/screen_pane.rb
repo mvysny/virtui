@@ -18,6 +18,11 @@ class ScreenPane < Component
   def initialize
     super
     @popups = []
+    # {Hash<PopupWindow, Component>} per-popup snapshot of {Screen#focused} taken
+    # just before the popup was added. Restored when the popup closes so focus
+    # returns to where the user was, instead of falling through to {#content}
+    # and getting cascaded to the first activatable child.
+    @popup_prior_focus = {}
     @status_bar = Component::Label.new
     @status_bar.parent = self
   end
@@ -57,6 +62,7 @@ class ScreenPane < Component
     raise unless window.is_a? PopupWindow
     raise if !window.parent.nil?
 
+    @popup_prior_focus[window] = screen.focused
     @popups << window
     window.parent = self
     window.center
@@ -65,13 +71,25 @@ class ScreenPane < Component
   end
 
   # Removes a popup. If the popup held focus, focus shifts to the now-topmost
-  # remaining popup, falling back to {#content}, then to nil.
+  # remaining popup, falling back to the focus snapshotted when the popup was
+  # opened (if still attached), then to {#content}, then to nil.
   # @param window [PopupWindow]
   def remove_popup(window)
     raise 'window is not a popup' unless @popups.delete(window)
 
+    prior = @popup_prior_focus.delete(window)
+    # Detach first so the popup becomes its own root; then any prior pointing
+    # *inside* that popup is detectable via `p.root == window`.
     window.parent = nil
+    # If any other popup recorded its prior focus inside the popup we're
+    # removing, forward it to *our* prior so chained closures still climb
+    # back to the original owner instead of stopping at a detached component.
+    @popup_prior_focus.transform_values! { |p| p && p.root == window ? prior : p }
+
+    @removing_popup_prior = prior
     on_child_removed(window)
+  ensure
+    @removing_popup_prior = nil
   end
 
   # @return [Boolean] true if this pane currently hosts the popup.
@@ -120,7 +138,9 @@ class ScreenPane < Component
 
   # Focus repair when a child detaches. Default Component#on_child_removed
   # would refocus to `self` (the pane), which isn't a useful focus target.
-  # Instead, route focus to the now-topmost popup, then to content, then nil.
+  # Instead, route focus to the now-topmost popup, then to the prior focus
+  # snapshotted when this popup was opened (if still attached), then to
+  # content, then nil.
   def on_child_removed(child)
     return unless attached?
 
@@ -130,7 +150,10 @@ class ScreenPane < Component
     cursor = f
     while cursor
       if cursor == child
-        screen.focused = @popups.last || @content
+        fallback = @popups.last
+        fallback ||= @removing_popup_prior if @removing_popup_prior&.attached?
+        fallback ||= @content
+        screen.focused = fallback
         return
       end
       cursor = cursor.parent
