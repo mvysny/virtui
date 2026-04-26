@@ -52,9 +52,14 @@ class Component
   # Also called for inactive components. Inactive component should just return false.
   #
   # Default implementation searches for a component with {:key_shortcut} and focuses it.
+  # The shortcut search is suppressed while the focused component owns the hardware
+  # cursor (e.g. a {Component::TextField} the user is typing into) so that hotkeys
+  # don't steal printable keys from the editor.
   # @param key [String] a key.
   # @return [Boolean] true if the key was handled, false if not.
   def handle_key(key)
+    return false unless screen.cursor_position.nil?
+
     c = find_shortcut_component(key)
     if !c.nil?
       screen.focused = c

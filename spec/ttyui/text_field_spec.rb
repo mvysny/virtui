@@ -119,6 +119,24 @@ describe Component::TextField do
     end
   end
 
+  context 'shortcut interaction' do
+    it 'receives a key that matches a sibling shortcut while focused' do
+      screen = Screen.instance
+      layout = Component::Layout::Absolute.new
+      screen.content = layout
+      sibling = Class.new(Component) { def can_activate? = true }.new
+      sibling.key_shortcut = 'p'
+      tf = Component::TextField.new
+      tf.rect = Rect.new(0, 0, 10, 1)
+      layout.add([sibling, tf])
+      screen.focused = tf
+
+      assert layout.handle_key('p')
+      assert_equal 'p', tf.text
+      assert_equal tf, screen.focused
+    end
+  end
+
   context 'handle_key' do
     it 'inserts printable chars at the caret' do
       f = field(width: 10)

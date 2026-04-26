@@ -98,6 +98,25 @@ describe Component do
     assert_equal false, Component.new.handle_key('a')
   end
 
+  context '#handle_key cursor-owner suppression' do
+    it 'returns false without focusing a matching shortcut when the focused component owns the cursor' do
+      screen = Screen.instance
+      layout = Component::Layout::Absolute.new
+      screen.content = layout
+      shortcut = Class.new(Component) { def can_activate? = true }.new
+      shortcut.key_shortcut = 'p'
+      cursor_owner = Class.new(Component) do
+        def can_activate? = true
+        def cursor_position = Point.new(0, 0)
+      end.new
+      layout.add([shortcut, cursor_owner])
+      screen.focused = cursor_owner
+
+      assert_equal false, layout.handle_key('p')
+      assert_equal cursor_owner, screen.focused
+    end
+  end
+
   context '#find_shortcut_component' do
     it 'returns nil when key_shortcut is not set' do
       assert_nil Component.new.find_shortcut_component('a')
