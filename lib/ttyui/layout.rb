@@ -37,6 +37,7 @@ class Component
       child.parent = nil
       @children.delete(child)
       invalidate if @children.empty?
+      on_child_removed(child)
     end
 
     def content_size
@@ -107,21 +108,24 @@ class Component
 
     def children = content.nil? ? [] : [content]
 
-    # Sets the new content of this component.
-    #
-    # Note for implementors: override this, call super and then store the new content to `@content`.
+    # Sets the new content of this component. Updates `@content` itself; including
+    # classes may still override to add behaviour (e.g. a special-cased Array
+    # input) but should call `super` to perform the swap.
     # @param content [Component | nil] the component to set or clear.
     def content=(content)
       raise unless content.nil? || content.is_a?(Component)
       raise if !content.nil? && !content.parent.nil?
       return if self.content == content
 
-      self.content&.parent = nil
-      return if content.nil?
-
-      content.parent = self
-      content.invalidate
-      layout(content)
+      old = self.content
+      old&.parent = nil
+      @content = content
+      unless content.nil?
+        content.parent = self
+        content.invalidate
+        layout(content)
+      end
+      on_child_removed(old) unless old.nil?
     end
 
     def rect=(rect)

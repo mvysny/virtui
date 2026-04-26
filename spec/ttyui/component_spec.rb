@@ -156,6 +156,98 @@ describe Component do
     assert_nil Component.new.cursor_position
   end
 
+  context '#attached?' do
+    it 'is true when root is the screen content' do
+      layout = Component::Layout::Absolute.new
+      child = Class.new(Component) { def can_activate? = true }.new
+      layout.add(child)
+      Screen.instance.content = layout
+      assert child.attached?
+      assert layout.attached?
+    end
+
+    it 'is true when root is a popup' do
+      popup = PopupWindow.new
+      Screen.instance.add_popup(popup)
+      assert popup.attached?
+      assert popup.content.attached?
+    end
+
+    it 'is false for an orphan component' do
+      assert !Component.new.attached?
+    end
+
+    it 'is false once detached from the screen content' do
+      layout = Component::Layout::Absolute.new
+      child = Class.new(Component) { def can_activate? = true }.new
+      layout.add(child)
+      Screen.instance.content = layout
+      layout.remove(child)
+      assert !child.attached?
+    end
+  end
+
+  context '#on_child_removed' do
+    def activatable
+      Class.new(Component) { def can_activate? = true }.new
+    end
+
+    it 'refocuses to self when the focused component was the removed child' do
+      screen = Screen.instance
+      layout = Component::Layout::Absolute.new
+      screen.content = layout
+      child = activatable
+      layout.add(child)
+      screen.focused = child
+
+      layout.remove(child)
+      assert_equal layout, screen.focused
+    end
+
+    it 'refocuses to self when the focused component was a descendant of the removed subtree' do
+      screen = Screen.instance
+      outer = Component::Layout::Absolute.new
+      screen.content = outer
+      inner = Component::Layout::Absolute.new
+      leaf = activatable
+      inner.add(leaf)
+      outer.add(inner)
+      screen.focused = leaf
+
+      outer.remove(inner)
+      assert_equal outer, screen.focused
+    end
+
+    it 'leaves focus alone when the focused component is unrelated to the removal' do
+      screen = Screen.instance
+      layout = Component::Layout::Absolute.new
+      screen.content = layout
+      sibling = activatable
+      removed = activatable
+      layout.add([sibling, removed])
+      screen.focused = sibling
+
+      layout.remove(removed)
+      assert_equal sibling, screen.focused
+    end
+
+    it 'is a no-op in a detached subtree (does not raise nor mutate screen.focused)' do
+      screen = Screen.instance
+      attached_layout = Component::Layout::Absolute.new
+      anchor = activatable
+      attached_layout.add(anchor)
+      screen.content = attached_layout
+      screen.focused = anchor
+
+      detached = Component::Layout::Absolute.new
+      child = activatable
+      detached.add(child)
+
+      detached.remove(child)
+      assert_equal anchor, screen.focused
+    end
+  end
+
   it 'invalidate adds component to screen invalidated set' do
     c = Component.new
     Screen.instance.invalidated_clear

@@ -135,6 +135,36 @@ class Component
   # Called when the component receives a focus.
   def on_focus; end
 
+  # @return [Boolean] true if this component's tree is currently mounted on the
+  # {Screen} as either the main content or a popup.
+  def attached?
+    r = root
+    screen.content == r || screen.popups.include?(r)
+  end
+
+  # Called by container components after `child` has been detached from
+  # `self.children` (its `parent` is already nil and it is no longer in the
+  # children list). Default behavior repairs dangling focus: if the focused
+  # component lived inside the removed subtree, focus shifts to `self` so the
+  # cursor doesn't dangle on a detached component. No-op if `self` is not
+  # attached to the screen — focus state in a detached subtree is moot.
+  # @param child [Component] the just-detached child.
+  def on_child_removed(child)
+    return unless attached?
+
+    f = screen.focused
+    return if f.nil?
+
+    cursor = f
+    until cursor.nil?
+      if cursor == child
+        screen.focused = self
+        return
+      end
+      cursor = cursor.parent
+    end
+  end
+
   # When a component wraps contents, this function returns a {Size} big enough
   # to show the entire component contents, without scrolling.
   def content_size = nil

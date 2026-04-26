@@ -110,6 +110,38 @@ describe Window do
       assert_equal new_content, w.content
       assert_equal w, new_content.parent
     end
+
+    it 'content= refocuses to the window when the replaced content held focus' do
+      screen = Screen.instance
+      layout = Component::Layout::Absolute.new
+      screen.content = layout
+      w = Window.new
+      layout.add(w)
+      old = w.content
+      old.define_singleton_method(:can_activate?) { true }
+      screen.focused = old
+
+      replacement = Component::List.new
+      replacement.define_singleton_method(:can_activate?) { true }
+      w.content = replacement
+
+      # Window's on_focus cascade lands focus on the new content.
+      assert_equal replacement, screen.focused
+    end
+
+    it 'content= clears focus to the window when content is set to nil and held focus' do
+      screen = Screen.instance
+      layout = Component::Layout::Absolute.new
+      screen.content = layout
+      w = Window.new
+      layout.add(w)
+      old = w.content
+      old.define_singleton_method(:can_activate?) { true }
+      screen.focused = old
+
+      w.content = nil
+      assert_equal w, screen.focused
+    end
   end
 
   context 'layout' do
