@@ -97,16 +97,9 @@ describe Component::TextField do
   end
 
   context 'cursor_position' do
-    it 'is nil when inactive' do
-      f = Component::TextField.new
-      f.rect = Rect.new(2, 3, 10, 1)
-      assert_nil f.cursor_position
-    end
-
     it 'sits at rect.left when text empty' do
       f = Component::TextField.new
       f.rect = Rect.new(5, 2, 10, 1)
-      f.active = true
       assert_equal Point.new(5, 2), f.cursor_position
     end
 
@@ -122,7 +115,6 @@ describe Component::TextField do
     it 'is nil when width is zero' do
       f = Component::TextField.new
       f.rect = Rect.new(0, 0, 0, 1)
-      f.active = true
       assert_nil f.cursor_position
     end
   end

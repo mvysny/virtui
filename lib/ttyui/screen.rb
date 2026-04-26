@@ -101,15 +101,18 @@ class Screen
 
     check_locked
     if @popups.include?(focused)
+      @focused = focused
       focused.on_tree { it.active = true if it.can_activate? }
       focused.on_focus
       return
     elsif @popups.include?(focused&.root)
+      @focused = focused
       focused.active = true
       return
     end
 
     if focused.nil?
+      @focused = nil
       @content&.on_tree { it.active = false }
     else
       root = focused.root
@@ -237,31 +240,12 @@ class Screen
   end
 
   # Returns the absolute screen coordinates where the hardware cursor should sit,
-  # or nil if it should be hidden. Walks the active component(s); the topmost popup
-  # takes precedence over tiled content.
+  # or nil if it should be hidden. Only the {#focused} component owns the cursor:
+  # there can be multiple active components (the focus path), but only one focused.
   # @return [Point | nil]
-  def cursor_position
-    @popups.reverse_each do |popup|
-      pos = find_cursor_position(popup)
-      return pos unless pos.nil?
-    end
-    @content.nil? ? nil : find_cursor_position(@content)
-  end
+  def cursor_position = @focused&.cursor_position
 
   private
-
-  # Walks the subtree and returns the cursor_position of the first active component
-  # that supplies one, or nil if none.
-  def find_cursor_position(root)
-    found = nil
-    root.on_tree do
-      next unless found.nil? && it.active?
-
-      pos = it.cursor_position
-      found = pos unless pos.nil?
-    end
-    found
-  end
 
   # Hides or moves the hardware cursor based on the current focus state.
   def position_cursor

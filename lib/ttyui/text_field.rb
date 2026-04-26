@@ -12,7 +12,7 @@ class Component
   #
   # The caret is a logical index in `0..text.length`. The hardware cursor is
   # positioned by {Screen} after each repaint cycle when this component is
-  # active; see {Component#cursor_position}.
+  # focused; see {Component#cursor_position}.
   class TextField < Component
     def initialize
       super
@@ -52,7 +52,7 @@ class Component
     def can_activate? = true
 
     def cursor_position
-      return nil unless active? && rect.width.positive?
+      return nil unless rect.width.positive?
 
       Point.new(rect.left + @caret, rect.top)
     end
