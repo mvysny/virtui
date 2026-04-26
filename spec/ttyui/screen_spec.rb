@@ -398,6 +398,60 @@ describe Screen do
         screen.remove_popup(bottom)
         assert_equal prior, screen.focused
       end
+
+      it 'restores prior focus inside a sibling window instead of cascading to the first child' do
+        # Reproduces the bug where opening a popup from window B (not the first
+        # child) and pressing ESC moved focus to window A (the first child)
+        # because the layout cascade picks the first activatable child.
+        layout = Component::Layout::Absolute.new
+        screen.content = layout
+        first = Window.new
+        second = Window.new
+        layout.add(first)
+        layout.add(second)
+        screen.focused = second
+        prior = screen.focused
+        assert_equal second.content, prior
+
+        popup = PopupWindow.new
+        popup.content = ['a']
+        screen.add_popup(popup)
+        assert_equal popup.content, screen.focused
+
+        screen.remove_popup(popup)
+        assert_equal prior, screen.focused
+      end
+
+      it 'forwards a closed popup\'s prior focus to popups that pointed at it' do
+        # bottom remembers vms-style focus; top remembers bottom's content.
+        # If we close bottom (focus is in top, so focus is untouched), then
+        # close top, focus should still climb back to the original owner —
+        # not get stranded on a detached component and fall through to content.
+        layout = Component::Layout::Absolute.new
+        screen.content = layout
+        first = Window.new
+        second = Window.new
+        layout.add(first)
+        layout.add(second)
+        screen.focused = second
+        original = screen.focused
+
+        bottom = PopupWindow.new
+        bottom.content = ['a']
+        screen.add_popup(bottom)
+        top = PopupWindow.new
+        top.content = ['b']
+        screen.add_popup(top)
+
+        # Close the non-topmost popup first; focus stays in top.
+        screen.remove_popup(bottom)
+        assert_equal top.content, screen.focused
+
+        # Closing top should now restore the original focus (second.content),
+        # not cascade to first.content.
+        screen.remove_popup(top)
+        assert_equal original, screen.focused
+      end
     end
 
     context 'event routing' do

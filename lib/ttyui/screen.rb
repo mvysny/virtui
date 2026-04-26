@@ -34,6 +34,11 @@ class Screen
     # {Array<Window>} modal popup windows, listed in order as they were opened.
     # Last popup is the topmost one and receives all key events.
     @popups = []
+    # {Hash<PopupWindow, Component>} per-popup snapshot of {#focused} taken just
+    # before the popup was added. Restored when the popup closes so focus
+    # returns to where the user was, instead of falling through to @content
+    # and getting cascaded to the first activatable child.
+    @popup_prior_focus = {}
     @size = EventQueue::TTYSizeEvent.create
     # {Set<Component>} invalidated components (need repaint)
     @invalidated = Set.new
@@ -132,6 +137,7 @@ class Screen
   def add_popup(window)
     raise unless window.is_a? PopupWindow
 
+    @popup_prior_focus[window] = @focused
     @popups << window
     window.center
     self.focused = window
@@ -170,7 +176,18 @@ class Screen
     check_locked
     raise 'window is not a popup' unless @popups.delete(window)
 
-    self.focused = @popups.last || @content if @focused && @focused.root == window
+    prior = @popup_prior_focus.delete(window)
+    # If any other popup recorded its prior focus inside the popup we're
+    # removing, forward it to *our* prior so chained closures still climb
+    # back to the original owner instead of stopping at a detached component.
+    @popup_prior_focus.transform_values! { |p| p && p.root == window ? prior : p }
+
+    if @focused && @focused.root == window
+      fallback = @popups.last
+      fallback ||= prior if prior && prior.attached?
+      fallback ||= @content
+      self.focused = fallback
+    end
     needs_full_repaint
   end
 
