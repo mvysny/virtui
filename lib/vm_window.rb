@@ -94,14 +94,7 @@ class VMWindow < Window
 
   def handle_key(key)
     return true if super
-
-    if footer&.active?
-      if key == Keys::ESC
-        close_search
-        return true
-      end
-      return false
-    end
+    return false if footer&.active?
 
     if key == '/'
       open_search
@@ -158,7 +151,9 @@ class VMWindow < Window
   def open_search
     return if footer
 
-    self.footer = Component::TextField.new
+    field = Component::TextField.new
+    field.on_escape = method(:close_search)
+    self.footer = field
     screen.focused = footer
   end
 

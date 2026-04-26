@@ -301,6 +301,118 @@ describe Component::TextField do
     end
   end
 
+  context 'on_escape' do
+    it 'is nil by default' do
+      assert_nil Component::TextField.new.on_escape
+    end
+
+    it 'fires when ESC is pressed and is set' do
+      f = field(width: 10)
+      called = false
+      f.on_escape = -> { called = true }
+      assert f.handle_key(Keys::ESC)
+      assert called
+    end
+
+    it 'consumes ESC when set (returns true)' do
+      f = field(width: 10)
+      f.on_escape = -> {}
+      assert f.handle_key(Keys::ESC)
+    end
+
+    it 'lets ESC fall through (returns false) when not set' do
+      f = field(width: 10)
+      assert !f.handle_key(Keys::ESC)
+    end
+
+    it 'can be cleared by setting nil' do
+      f = field(width: 10)
+      f.on_escape = -> {}
+      f.on_escape = nil
+      assert !f.handle_key(Keys::ESC)
+    end
+
+    it 'accepts a Method object' do
+      f = field(width: 10)
+      receiver = Class.new { attr_reader :hit; def fire; @hit = true; end }.new
+      f.on_escape = receiver.method(:fire)
+      f.handle_key(Keys::ESC)
+      assert receiver.hit
+    end
+  end
+
+  context 'on_change' do
+    it 'is nil by default' do
+      assert_nil Component::TextField.new.on_change
+    end
+
+    it 'fires on text= when text changes' do
+      f = field(width: 10)
+      received = nil
+      f.on_change = ->(t) { received = t }
+      f.text = 'hello'
+      assert_equal 'hello', received
+    end
+
+    it 'does not fire on text= no-op' do
+      f = field(width: 10, text: 'hi')
+      called = false
+      f.on_change = ->(_) { called = true }
+      f.text = 'hi'
+      assert !called
+    end
+
+    it 'fires on insert via keystroke' do
+      f = field(width: 10)
+      received = nil
+      f.on_change = ->(t) { received = t }
+      f.handle_key('a')
+      assert_equal 'a', received
+    end
+
+    it 'fires on backspace deletion' do
+      f = field(width: 10, text: 'hi')
+      f.caret = 2
+      received = nil
+      f.on_change = ->(t) { received = t }
+      f.handle_key(Keys::BACKSPACE)
+      assert_equal 'h', received
+    end
+
+    it 'fires on delete-at-caret' do
+      f = field(width: 10, text: 'hi')
+      f.caret = 0
+      received = nil
+      f.on_change = ->(t) { received = t }
+      f.handle_key(Keys::DELETE)
+      assert_equal 'i', received
+    end
+
+    it 'does not fire on caret= (text unchanged)' do
+      f = field(width: 10, text: 'hello')
+      called = false
+      f.on_change = ->(_) { called = true }
+      f.caret = 3
+      assert !called
+    end
+
+    it 'does not fire when insert is rejected (at capacity)' do
+      f = field(width: 5, text: 'four') # max 4 chars
+      called = false
+      f.on_change = ->(_) { called = true }
+      f.handle_key('!')
+      assert !called
+    end
+
+    it 'fires when on_width_changed truncates text' do
+      f = field(width: 10, text: 'hello')
+      received = nil
+      f.on_change = ->(t) { received = t }
+      f.rect = Rect.new(0, 0, 4, 1) # max 3 chars
+      assert_equal 'hel', received
+    end
+  end
+
   context 'on_width_changed' do
     it 'truncates text when width shrinks below text length+1' do
       f = field(width: 10, text: 'hello')

@@ -18,6 +18,8 @@ class Component
       super
       @text = +''
       @caret = 0
+      @on_escape = nil
+      @on_change = nil
     end
 
     # @return [String] current text contents.
@@ -25,6 +27,17 @@ class Component
 
     # @return [Integer] caret index in `0..text.length`.
     attr_reader :caret
+
+    # Optional callback fired when ESC is pressed. When set, ESC is consumed by
+    # the field; when nil, ESC falls through to the parent (default behavior).
+    # @return [Proc | Method | nil] no-arg callable, or nil.
+    attr_accessor :on_escape
+
+    # Optional callback fired whenever {#text} changes. Receives the new text
+    # as a single argument. Not fired by {#caret=} (text unchanged) and not
+    # fired when a setter is a no-op.
+    # @return [Proc | Method | nil] one-arg callable, or nil.
+    attr_accessor :on_change
 
     # Sets the text. Truncates to fit if longer than `rect.width - 1`. Caret is
     # clamped to the new text length.
@@ -37,6 +50,7 @@ class Component
       @text = +new_text
       @caret = @caret.clamp(0, @text.length)
       invalidate
+      @on_change&.call(@text)
     end
 
     # Sets the caret position. Clamped to `0..text.length`.
@@ -68,6 +82,10 @@ class Component
       when Keys::END_ then self.caret = @text.length
       when *Keys::BACKSPACES then delete_before_caret
       when Keys::DELETE then delete_at_caret
+      when Keys::ESC
+        return false if @on_escape.nil?
+
+        @on_escape.call
       else
         return insert(key) if printable?(key)
 
@@ -98,6 +116,7 @@ class Component
 
       @text = @text[0, [max_text_length, 0].max]
       @caret = @caret.clamp(0, @text.length)
+      @on_change&.call(@text)
     end
 
     private
@@ -111,6 +130,7 @@ class Component
       @text = @text.dup.insert(@caret, char)
       @caret += 1
       invalidate
+      @on_change&.call(@text)
       true
     end
 
@@ -121,6 +141,7 @@ class Component
       @text.slice!(@caret - 1)
       @caret -= 1
       invalidate
+      @on_change&.call(@text)
     end
 
     def delete_at_caret
@@ -129,6 +150,7 @@ class Component
       @text = @text.dup
       @text.slice!(@caret)
       invalidate
+      @on_change&.call(@text)
     end
 
     def printable?(key)
