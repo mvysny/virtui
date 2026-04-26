@@ -5,6 +5,7 @@ require_relative 'popup_window'
 require_relative 'event_queue'
 require_relative 'component'
 require_relative 'layout'
+require_relative 'screen_pane'
 require 'io/console'
 require 'tty-cursor'
 require 'tty-screen'
@@ -31,9 +32,6 @@ class Screen
     @@instance = self
     # {EventQueue} Event queue
     @event_queue = EventQueue.new
-    # {Array<Window>} modal popup windows, listed in order as they were opened.
-    # Last popup is the topmost one and receives all key events.
-    @popups = []
     @size = EventQueue::TTYSizeEvent.create
     # {Set<Component>} invalidated components (need repaint)
     @invalidated = Set.new
@@ -43,9 +41,12 @@ class Screen
     # Until the event loop is run, we pretend we're in the UI thread.
     # This allows AppScreen to initialize.
     @pretend_ui_lock = true
-    # Bottom status bar
-    @status_bar = Component::Label.new
+    # Structural root of the component tree: holds tiled content, popup stack and status bar.
+    @pane = ScreenPane.new
   end
+
+  # @return [ScreenPane] the structural root of the component tree.
+  attr_reader :pane
 
   # @return [Screen] the singleton instance
   def self.instance
@@ -54,21 +55,19 @@ class Screen
     @@instance
   end
 
-  # @return [Component | nil]
-  attr_reader :content
+  # @return [Component | nil] tiled content (forwarded to {ScreenPane}).
+  def content = @pane.content
 
   def content=(content)
-    raise unless content.is_a? Component
-
-    self.focused = nil
-    @content = content
+    @pane.content = content
     layout
   end
 
   # Provides access to {:width} and {:height} of the screen.
   attr_reader :size
-  # @return [Array<Window>] currently active popup windows. The array must not be modified!
-  attr_reader :popups
+  # @return [Array<Window>] currently active popup windows (forwarded to {ScreenPane}).
+  # The array must not be modified!
+  def popups = @pane.popups
   # @return [EventQueue] the event queue
   attr_reader :event_queue
 
@@ -95,47 +94,36 @@ class Screen
   attr_reader :focused
 
   # Sets the focused {Component}. Focused component receives keyboard events.
+  # All focusable components live under {#pane}, so this is a single uniform
+  # path (no separate popup-vs-content branches).
   # @param focused [Component | nil] the new component to be focused.
   def focused=(focused)
     raise unless focused.nil? || focused.is_a?(Component)
 
     check_locked
-    if @popups.include?(focused)
-      @focused = focused
-      focused.on_tree { it.active = true if it.can_activate? }
-      focused.on_focus
-      return
-    elsif @popups.include?(focused&.root)
-      @focused = focused
-      focused.active = true
-      return
-    end
-
     if focused.nil?
       @focused = nil
-      @content&.on_tree { it.active = false }
+      @pane.on_tree { it.active = false if it.can_activate? }
     else
-      root = focused.root
-      raise if root != @content || @popups.include?(root)
+      raise if focused.root != @pane
 
       @focused = focused
-      active = [focused]
-      active << active.last.parent until active.last.parent.nil?
-      active = active.to_set
-      @content.on_tree { it.active = active.include?(it) if it.can_activate? }
+      active = Set[focused]
+      cursor = focused.parent
+      until cursor.nil?
+        active << cursor
+        cursor = cursor.parent
+      end
+      @pane.on_tree { it.active = active.include?(it) if it.can_activate? }
       @focused.on_focus
     end
-    @status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
+    @pane.status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
   end
 
   # @param window [PopupWindow] the popup to add. Will be centered and painted automatically.
   def add_popup(window)
-    raise unless window.is_a? PopupWindow
-
-    @popups << window
-    window.center
-    self.focused = window
-    invalidate(window)
+    check_locked
+    @pane.add_popup(window)
     # no need to fully repaint the scene: PopupWindow simply paints over current screen contents.
   end
 
@@ -158,26 +146,24 @@ class Screen
   def active_window
     check_locked
     result = nil
-    @content&.on_tree { result = it if it.is_a?(Window) && it.active? }
+    @pane.content&.on_tree { result = it if it.is_a?(Window) && it.active? }
     result
   end
 
   # Removes a popup. Repaints the whole scene, which should visually "remove" the window. The window will also no longer
-  # receive keys.
+  # receive keys. Focus repair is handled by {ScreenPane#on_child_removed}.
   #
   # Does nothing if the window is not open on this screen.
   def remove_popup(window)
     check_locked
-    raise 'window is not a popup' unless @popups.delete(window)
-
-    self.focused = @popups.last || @content if @focused && @focused.root == window
+    @pane.remove_popup(window)
     needs_full_repaint
   end
 
   # @return [Boolean] if screen contains this window.
   def has_popup?(window)
     check_locked
-    @popups.include?(window)
+    @pane.has_popup?(window)
   end
 
   # Testing only - creates new screen, locks the UI, and prevents any redraws,
@@ -190,7 +176,7 @@ class Screen
 
   def close
     clear
-    @content = nil
+    @pane = nil
     @@instance = nil
   end
 
@@ -218,15 +204,16 @@ class Screen
     did_paint = false
     until @invalidated.empty?
       did_paint = true
-      # Figure out repaint order of @content first.
-      repaint = @invalidated.to_a.delete_if { @popups.include? it }
+      popups = @pane.popups
+      # Figure out repaint order of tiled components first.
+      repaint = @invalidated.to_a.delete_if { popups.include? it }
       # Repaint parents before children, so that
       # children won't paint over parents.
       repaint.sort_by!(&:depth)
 
-      # If some @content needs repaint, it may draw over popups.
+      # If some tiled component needs repaint, it may draw over popups.
       # In such case repaint all popups.
-      repaint += repaint.empty? ? @popups.filter { @invalidated.include? it } : @popups
+      repaint += repaint.empty? ? popups.filter { @invalidated.include? it } : popups
       @repainting = repaint.to_set
       @invalidated.clear
 
@@ -263,40 +250,24 @@ class Screen
   def layout
     check_locked
     needs_full_repaint
-    @content.rect = Rect.new(0, 0, size.width, size.height - 1)
-    @popups.each(&:center)
-    @status_bar.rect = Rect.new(0, size.height - 1, size.width, 1)
+    @pane.rect = Rect.new(0, 0, size.width, size.height)
     repaint
   end
 
   # Called after a popup is closed. Since a popup can cover any window, top-level component
   # or other popups, we need to redraw everything.
   def needs_full_repaint
-    @content&.on_tree { invalidate it }
-    @popups.each { invalidate it }
-    invalidate @status_bar
+    @pane&.on_tree { invalidate it }
   end
 
   # A key has been pressed on the keyboard. Handle it, or forward to active window.
   # @param [String] key
   # @return [Boolean] true if the key was handled by some window.
-  def handle_key(key)
-    topmost_popup = @popups.last
-    return topmost_popup.handle_key(key) unless topmost_popup.nil?
-    return @content.handle_key(key) unless @content.nil?
-
-    false
-  end
+  def handle_key(key) = @pane.handle_key(key)
 
   # Finds target window and calls {Window.handle_mouse}
   # @param event [MouseEvent]
-  def handle_mouse(event)
-    x = event.x - 1
-    y = event.y - 1
-    clicked = @popups.rfind { it.rect.contains?(x, y) }
-    clicked = @content if clicked.nil? && @popups.empty?
-    clicked&.handle_mouse(event)
-  end
+  def handle_mouse(event) = @pane.handle_mouse(event)
 
   def event_loop
     @event_queue.run_loop do |event|
