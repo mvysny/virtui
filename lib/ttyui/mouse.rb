@@ -2,8 +2,8 @@
 
 # A mouse event:
 # - `button` is a {Symbol}, one of `:left`, `:middle`, `:right`, `:scroll_up`, `:scroll_down`; `nil` if not known.
-# - `x` {Integer} x coordinate, 1-based.
-# - `y` {Integer} y coordinate, 1-based.
+# - `x` {Integer} x coordinate, 0-based.
+# - `y` {Integer} y coordinate, 0-based.
 class MouseEvent < Data.define(:button, :x, :y)
   # Checks whether given key is a mouse event key
   # @param key [String] key read via {Keys.getkey}
@@ -18,8 +18,10 @@ class MouseEvent < Data.define(:button, :x, :y)
     return nil unless mouse_event?(key)
 
     button = key[3].ord - 32
-    x = key[4].ord - 32
-    y = key[5].ord - 32
+    # XTerm reports coordinates 1-based (column N is encoded as N + 32);
+    # subtract 33 so that `x` and `y` are 0-based.
+    x = key[4].ord - 33
+    y = key[5].ord - 33
     button = case button
              when 0 then :left
              when 2 then :right

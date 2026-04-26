@@ -163,9 +163,9 @@ class Component
       elsif event.button == :scroll_up
         move_top_line_by(-4)
       else
-        return unless rect.contains?(event.x - 1, event.y - 1)
+        return unless rect.contains?(event.x, event.y)
 
-        line = event.y - 1 - rect.top + top_line
+        line = event.y - rect.top + top_line
         return unless @cursor.handle_mouse(line, event, @lines.size)
 
         move_viewport_to_cursor

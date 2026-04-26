@@ -78,9 +78,9 @@ class Component
 
     def handle_mouse(event)
       super
-      return unless event.button == :left && rect.contains?(event.x - 1, event.y - 1)
+      return unless event.button == :left && rect.contains?(event.x, event.y)
 
-      self.caret = (event.x - 1 - rect.left).clamp(0, @text.length)
+      self.caret = (event.x - rect.left).clamp(0, @text.length)
     end
 
     def repaint

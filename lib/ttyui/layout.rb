@@ -57,7 +57,7 @@ class Component
     def handle_mouse(event)
       super
       @children.each do |child|
-        child.handle_mouse(event) if child.rect.contains?(event.x - 1, event.y - 1)
+        child.handle_mouse(event) if child.rect.contains?(event.x, event.y)
       end
     end
 
@@ -103,7 +103,7 @@ class Component
 
     # @param event [MouseEvent]
     def handle_mouse(event)
-      content.handle_mouse(event) if !content.nil? && content.rect.contains?(event.x - 1, event.y - 1)
+      content.handle_mouse(event) if !content.nil? && content.rect.contains?(event.x, event.y)
     end
 
     def children = content.nil? ? [] : [content]

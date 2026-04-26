@@ -129,9 +129,7 @@ class ScreenPane < Component
   # open. This preserves modal click-blocking: an open popup eats clicks even
   # outside its rect.
   def handle_mouse(event)
-    x = event.x - 1
-    y = event.y - 1
-    clicked = @popups.rfind { it.rect.contains?(x, y) }
+    clicked = @popups.rfind { it.rect.contains?(event.x, event.y) }
     clicked = @content if clicked.nil? && @popups.empty?
     clicked&.handle_mouse(event)
   end

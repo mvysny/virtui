@@ -338,8 +338,8 @@ describe Component::List do
       l.content = (0..9).map(&:to_s)
       l.cursor = Component::List::Cursor.new
       attach_as_content(l)
-      # rect is 0,0 so event.y - 1 = 0-based row; click on row 2 (event.y=3)
-      l.handle_mouse(MouseEvent.new(:left, 5, 3))
+      # rect is 0,0; event.y is 0-based row; click on row 2.
+      l.handle_mouse(MouseEvent.new(:left, 5, 2))
       assert_equal 2, l.cursor.position
     end
 
@@ -349,7 +349,7 @@ describe Component::List do
       l.content = (0..9).map(&:to_s)
       l.cursor = Component::List::Cursor.new
       attach_as_content(l)
-      l.handle_mouse(MouseEvent.new(:left, 1, 1))
+      l.handle_mouse(MouseEvent.new(:left, 0, 0))
       assert_equal 0, l.cursor.position
     end
   end

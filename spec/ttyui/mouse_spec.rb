@@ -5,7 +5,7 @@ require 'ttyui/mouse'
 
 describe MouseEvent do
   it 'parses' do
-    assert_equal MouseEvent.new(:left, 1, 2), MouseEvent.parse("\e[M !\"")
+    assert_equal MouseEvent.new(:left, 0, 1), MouseEvent.parse("\e[M !\"")
   end
 
   it 'parses 2' do

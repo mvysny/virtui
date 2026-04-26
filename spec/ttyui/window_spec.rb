@@ -210,16 +210,16 @@ describe Window do
     it 'ignores clicks on the border (outside content rect)' do
       called = false
       w.content.define_singleton_method(:handle_mouse) { |_| called = true }
-      # (1,1) → x-1=0, y-1=0: outside content rect which starts at (1,1)
-      w.handle_mouse(MouseEvent.new(:left, 1, 1))
+      # (0,0): outside content rect which starts at (1,1)
+      w.handle_mouse(MouseEvent.new(:left, 0, 0))
       assert !called
     end
 
     it 'delegates clicks inside content rect' do
       called = false
       w.content.define_singleton_method(:handle_mouse) { |_| called = true }
-      # (3,3) → x-1=2, y-1=2: inside content rect (1,1,18,8)
-      w.handle_mouse(MouseEvent.new(:left, 3, 3))
+      # (2,2): inside content rect (1,1,18,8)
+      w.handle_mouse(MouseEvent.new(:left, 2, 2))
       assert called
     end
   end

@@ -319,7 +319,7 @@ describe Screen do
       screen.content = Component::Layout::Absolute.new
       received = false
       screen.content.define_singleton_method(:handle_mouse) { |_| received = true }
-      screen.send(:handle_mouse, MouseEvent.new(:left, 1, 1))
+      screen.send(:handle_mouse, MouseEvent.new(:left, 0, 0))
       assert received
     end
 
@@ -328,7 +328,7 @@ describe Screen do
       received = false
       screen.content.define_singleton_method(:handle_mouse) { |_| received = true }
       screen.add_popup(PopupWindow.new)
-      screen.send(:handle_mouse, MouseEvent.new(:left, 1, 1))
+      screen.send(:handle_mouse, MouseEvent.new(:left, 0, 0))
       assert !received
     end
   end
@@ -514,9 +514,9 @@ describe Screen do
         content_received = false
         content_window.define_singleton_method(:handle_mouse) { |_event| content_received = true }
 
-        # popup rect: left=75, top=23, width=9, height=3 (centered on 160x50)
-        # MouseEvent coords are 1-based; (76,24) maps to (75,23) which is inside
-        screen.send(:handle_mouse, MouseEvent.new(:left, 76, 24))
+        # popup rect: left=75, top=23, width=9, height=3 (centered on 160x50);
+        # (75,23) is the popup's top-left corner.
+        screen.send(:handle_mouse, MouseEvent.new(:left, 75, 23))
 
         assert popup_received
         assert !content_received
@@ -526,8 +526,8 @@ describe Screen do
         content_received = false
         content_window.define_singleton_method(:handle_mouse) { |_event| content_received = true }
 
-        # click at (1,1) maps to (0,0), outside the popup
-        screen.send(:handle_mouse, MouseEvent.new(:left, 1, 1))
+        # click at (0,0) is outside the popup
+        screen.send(:handle_mouse, MouseEvent.new(:left, 0, 0))
 
         assert !content_received
       end

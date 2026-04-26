@@ -265,14 +265,14 @@ describe Component::TextField do
     it 'positions caret at clicked column' do
       f = field(width: 20, text: 'hello')
       f.rect = Rect.new(2, 3, 20, 1)
-      f.handle_mouse(MouseEvent.new(:left, 5, 4)) # x-1=4, col 4-2=2
+      f.handle_mouse(MouseEvent.new(:left, 4, 3)) # col 4 - rect.left 2 = 2
       assert_equal 2, f.caret
     end
 
     it 'clamps caret to text length when clicking past last char' do
       f = field(width: 20, text: 'hi')
       f.rect = Rect.new(0, 0, 20, 1)
-      f.handle_mouse(MouseEvent.new(:left, 11, 1)) # col 10, past 'hi'
+      f.handle_mouse(MouseEvent.new(:left, 10, 0)) # col 10, past 'hi'
       assert_equal 2, f.caret
     end
 

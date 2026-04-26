@@ -180,9 +180,8 @@ describe Component::Layout do
       child = child_class.new
       child.rect = Rect.new(5, 5, 10, 10)
       layout.add(child)
-      # MouseEvent coords are 1-based; layout subtracts 1 before calling contains?
-      # So event (6, 6) maps to 0-based (5, 5), which is the top-left of child's rect
-      event = MouseEvent.new(:left, 6, 6)
+      # Event (5, 5) is at the top-left of child's rect.
+      event = MouseEvent.new(:left, 5, 5)
       layout.handle_mouse(event)
       assert_equal [event], child.received_events
     end
@@ -193,7 +192,7 @@ describe Component::Layout do
       child = child_class.new
       child.rect = Rect.new(5, 5, 10, 10)
       layout.add(child)
-      event = MouseEvent.new(:left, 1, 1)
+      event = MouseEvent.new(:left, 0, 0)
       layout.handle_mouse(event)
       assert_equal [], child.received_events
     end
@@ -206,7 +205,7 @@ describe Component::Layout do
       c1.rect = Rect.new(0, 0, 10, 10)
       c2.rect = Rect.new(0, 0, 10, 10)
       layout.add([c1, c2])
-      event = MouseEvent.new(:left, 1, 1)
+      event = MouseEvent.new(:left, 0, 0)
       layout.handle_mouse(event)
       assert_equal [event], c1.received_events
       assert_equal [event], c2.received_events
