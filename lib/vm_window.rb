@@ -13,6 +13,7 @@ require_relative 'utils'
 require_relative 'ttyui/screen'
 require_relative 'system_window'
 require_relative 'ttyui/picker_window'
+require_relative 'ttyui/text_field'
 
 # Shows a quick overview of all VMs
 class VMWindow < Window
@@ -94,6 +95,19 @@ class VMWindow < Window
   def handle_key(key)
     return true if super
 
+    if footer&.active?
+      if key == Keys::ESC
+        close_search
+        return true
+      end
+      return false
+    end
+
+    if key == '/'
+      open_search
+      return true
+    end
+
     current_vm = @line_data[content.cursor.position] unless content.cursor.position.nil?
     return false if current_vm.nil?
 
@@ -116,7 +130,9 @@ class VMWindow < Window
   end
 
   def keyboard_hint
-    "p #{Rainbow('Power').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  m #{Rainbow('Memory').cadetblue}  d #{Rainbow('toggle Disk stat').cadetblue}"
+    return "ESC #{Rainbow('close search').cadetblue}" if footer
+
+    "p #{Rainbow('Power').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  m #{Rainbow('Memory').cadetblue}  d #{Rainbow('toggle Disk stat').cadetblue}  / #{Rainbow('Search').cadetblue}"
   end
 
   protected
@@ -138,6 +154,17 @@ class VMWindow < Window
   end
 
   private
+
+  def open_search
+    return if footer
+
+    self.footer = Component::TextField.new
+    screen.focused = footer
+  end
+
+  def close_search
+    self.footer = nil
+  end
 
   def show_memory_popup
     current_vm = @line_data[content.cursor.position] || return

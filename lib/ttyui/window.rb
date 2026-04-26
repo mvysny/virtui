@@ -38,8 +38,61 @@ class Window < Component
     @border_right = 1
     # {String} Window caption, shown in the upper-left part
     @caption = caption
+    # {Component | nil} optional bottom-row chrome that overlays the bottom
+    # border (e.g. a search field).
+    @footer = nil
     # Set the default content.
     self.content = Component::List.new
+  end
+
+  # @return [Component | nil] optional component overlaying the bottom border row.
+  attr_reader :footer
+
+  # Sets the bottom-row chrome slot. The footer overlays the bottom border at full
+  # inner width and is positioned automatically; pass `nil` to remove.
+  #
+  # Symmetric to {#content=}: validates the new component, swaps parent pointers,
+  # invalidates the old/new components and the window border, and repairs focus
+  # via {#on_child_removed} if the removed footer held it.
+  # @param new_footer [Component | nil]
+  def footer=(new_footer)
+    raise unless new_footer.nil? || new_footer.is_a?(Component)
+    return if @footer == new_footer
+    raise if !new_footer.nil? && !new_footer.parent.nil?
+
+    old = @footer
+    old&.parent = nil
+    @footer = new_footer
+    unless new_footer.nil?
+      new_footer.parent = self
+      new_footer.invalidate
+      layout_footer
+    end
+    invalidate # repaint border row that the footer covers/uncovers
+    on_child_removed(old) unless old.nil?
+  end
+
+  def children
+    @footer.nil? ? super : super + [@footer]
+  end
+
+  def handle_key(key)
+    return @footer.handle_key(key) if @footer&.active?
+
+    super
+  end
+
+  def handle_mouse(event)
+    if @footer && @footer.rect.contains?(event.x, event.y)
+      @footer.handle_mouse(event)
+    else
+      super
+    end
+  end
+
+  def rect=(new_rect)
+    super
+    layout_footer
   end
 
   # @param value [Boolean]
@@ -114,6 +167,15 @@ class Window < Component
     )
     frame = Rainbow(frame).green if active?
     screen.print frame
+  end
+
+  private
+
+  def layout_footer
+    return if @footer.nil? || rect.empty?
+
+    width = [rect.width - 2, 0].max
+    @footer.rect = Rect.new(rect.left + 1, rect.top + rect.height - 1, width, 1)
   end
 end
 
