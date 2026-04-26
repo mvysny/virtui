@@ -325,6 +325,81 @@ describe Screen do
       assert !screen.has_popup?(w)
     end
 
+    context 'remove_popup focus repair' do
+      it 'falls back to the now-topmost popup when the closed popup held focus' do
+        screen.content = Component::Layout::Absolute.new
+        screen.content.add(Window.new)
+        bottom = PopupWindow.new
+        bottom.content = ['a']
+        screen.add_popup(bottom)
+        top = PopupWindow.new
+        top.content = ['b']
+        screen.add_popup(top)
+        # focus is currently inside top (add_popup focused it)
+        assert_equal top.content, screen.focused
+
+        screen.remove_popup(top)
+        assert_equal bottom.content, screen.focused
+      end
+
+      it 'falls back to content when the only popup closes and held focus' do
+        layout = Component::Layout::Absolute.new
+        screen.content = layout
+        w = Window.new
+        layout.add(w)
+        popup = PopupWindow.new
+        popup.content = ['a']
+        screen.add_popup(popup)
+        assert_equal popup.content, screen.focused
+
+        screen.remove_popup(popup)
+        # focus cascades down through layout → window → content
+        assert_equal w.content, screen.focused
+      end
+
+      it 'falls back to nil when the only popup closes with no content' do
+        popup = PopupWindow.new
+        popup.content = ['a']
+        screen.add_popup(popup)
+        assert_equal popup.content, screen.focused
+
+        screen.remove_popup(popup)
+        assert_nil screen.focused
+      end
+
+      it 'leaves focus untouched when the closed popup did not own focus' do
+        layout = Component::Layout::Absolute.new
+        screen.content = layout
+        w = Window.new
+        layout.add(w)
+        popup = PopupWindow.new
+        popup.content = ['a']
+        screen.add_popup(popup)
+        screen.focused = w
+        prior = screen.focused
+        refute_nil prior
+
+        screen.remove_popup(popup)
+        assert_equal prior, screen.focused
+      end
+
+      it 'leaves focus untouched when a non-topmost popup closes (focus is in the topmost)' do
+        screen.content = Component::Layout::Absolute.new
+        screen.content.add(Window.new)
+        bottom = PopupWindow.new
+        bottom.content = ['a']
+        screen.add_popup(bottom)
+        top = PopupWindow.new
+        top.content = ['b']
+        screen.add_popup(top)
+        prior = screen.focused
+        assert_equal top.content, prior
+
+        screen.remove_popup(bottom)
+        assert_equal prior, screen.focused
+      end
+    end
+
     context 'event routing' do
       let(:popup) do
         w = PopupWindow.new('test')

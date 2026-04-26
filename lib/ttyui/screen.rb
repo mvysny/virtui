@@ -170,6 +170,7 @@ class Screen
     check_locked
     raise 'window is not a popup' unless @popups.delete(window)
 
+    self.focused = @popups.last || @content if @focused && @focused.root == window
     needs_full_repaint
   end
 
