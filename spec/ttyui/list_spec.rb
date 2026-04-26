@@ -326,12 +326,18 @@ describe Component::List do
       assert_equal 0, l.top_line
     end
 
+    def attach_as_content(component)
+      pane = Screen.instance.pane
+      pane.instance_variable_set(:@content, component)
+      component.send(:parent=, pane)
+    end
+
     it 'moves cursor on left click within rect' do
       l = Component::List.new
       l.rect = Rect.new(0, 0, 20, 5)
       l.content = (0..9).map(&:to_s)
       l.cursor = Component::List::Cursor.new
-      Screen.instance.instance_variable_set(:@content, l)
+      attach_as_content(l)
       # rect is 0,0 so event.y - 1 = 0-based row; click on row 2 (event.y=3)
       l.handle_mouse(MouseEvent.new(:left, 5, 3))
       assert_equal 2, l.cursor.position
@@ -342,7 +348,7 @@ describe Component::List do
       l.rect = Rect.new(5, 5, 10, 5)
       l.content = (0..9).map(&:to_s)
       l.cursor = Component::List::Cursor.new
-      Screen.instance.instance_variable_set(:@content, l)
+      attach_as_content(l)
       l.handle_mouse(MouseEvent.new(:left, 1, 1))
       assert_equal 0, l.cursor.position
     end

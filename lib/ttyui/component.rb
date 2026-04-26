@@ -136,11 +136,8 @@ class Component
   def on_focus; end
 
   # @return [Boolean] true if this component's tree is currently mounted on the
-  # {Screen} as either the main content or a popup.
-  def attached?
-    r = root
-    screen.content == r || screen.popups.include?(r)
-  end
+  # {Screen}, i.e. its root is the {ScreenPane}.
+  def attached? = root == screen.pane
 
   # Called by container components after `child` has been detached from
   # `self.children` (its `parent` is already nil and it is no longer in the
