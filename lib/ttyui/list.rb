@@ -155,6 +155,28 @@ class Component
       end
     end
 
+    # Moves the cursor to the next line whose text contains {query} (case-insensitive
+    # substring match). Search wraps around the end of the list. Only lines reachable
+    # by the current {#cursor} are considered.
+    #
+    # @param query [String] substring to match. Empty query never matches.
+    # @param include_current [Boolean] when true, the current cursor position is
+    #   eligible (useful when the query has just changed and the current line may
+    #   still match); when false, the search starts after the current position
+    #   (useful for "find next" key bindings that should advance past the current).
+    # @return [Boolean] true if a match was found.
+    def select_next(query, include_current: false)
+      search_and_go(query, include_current: include_current, reverse: false)
+    end
+
+    # Mirror of {#select_next} that walks the list backwards.
+    # @param query [String]
+    # @param include_current [Boolean]
+    # @return [Boolean] true if a match was found.
+    def select_prev(query, include_current: false)
+      search_and_go(query, include_current: include_current, reverse: true)
+    end
+
     # @param event [MouseEvent]
     def handle_mouse(event)
       super
@@ -208,10 +230,20 @@ class Component
         def handle_mouse(_line, _event, _line_count)
           false
         end
+
+        def candidate_positions(_line_count)
+          []
+        end
       end
 
       # @return [Integer] 0-based line index of the current cursor position.
       attr_reader :position
+
+      # @param line_count [Integer] number of lines in the list.
+      # @return [Array<Integer>] positions the cursor can land on, in ascending order.
+      def candidate_positions(line_count)
+        (0...line_count).to_a
+      end
 
       # @param key [String] pressed keyboard key.
       # @param line_count [Integer] number of lines in the list.
@@ -298,6 +330,10 @@ class Component
           end
         end
 
+        def candidate_positions(line_count)
+          @positions.select { it < line_count }
+        end
+
         protected
 
         def go_down_by(lines, line_count)
@@ -325,6 +361,43 @@ class Component
     end
 
     private
+
+    def search_and_go(query, include_current:, reverse:)
+      return false if query.empty?
+
+      candidates = @cursor.candidate_positions(@lines.size)
+      return false if candidates.empty?
+
+      ordered = order_for_search(candidates, @cursor.position, include_current: include_current, reverse: reverse)
+      query_lc = query.downcase
+      match = ordered.find { |idx| Rainbow.uncolor(@lines[idx].to_s).downcase.include?(query_lc) }
+      return false unless match
+
+      @cursor.go(match)
+      move_viewport_to_cursor
+      invalidate
+      true
+    end
+
+    # Rotates {candidates} (sorted ascending) so iteration starts from the position
+    # appropriate for "find next" / "find prev" with optional inclusion of the current.
+    def order_for_search(candidates, current, include_current:, reverse:)
+      if reverse
+        before, after = if include_current
+                         [candidates.select { it <= current }, candidates.select { it > current }]
+                       else
+                         [candidates.select { it < current }, candidates.select { it >= current }]
+                       end
+        before.reverse + after.reverse
+      else
+        after, before = if include_current
+                          [candidates.select { it >= current }, candidates.select { it < current }]
+                        else
+                          [candidates.select { it > current }, candidates.select { it <= current }]
+                        end
+        after + before
+      end
+    end
 
     # Scrolls the viewport so the cursor is visible.
     def move_viewport_to_cursor

@@ -744,6 +744,189 @@ describe Component::List, '#content_size' do
     l.content = %w[one two three four five]
     assert_equal 5, l.content_size.height
   end
+
+  context 'select_next' do
+    def list(content: %w[apple banana cherry date elderberry], cursor: Component::List::Cursor.new)
+      l = Component::List.new
+      l.rect = Rect.new(0, 0, 20, 10)
+      l.content = content
+      l.cursor = cursor
+      l
+    end
+
+    it 'returns false on empty query' do
+      l = list
+      assert !l.select_next('')
+      assert_equal 0, l.cursor.position
+    end
+
+    it 'moves to the next matching line after current' do
+      l = list # cursor at 0
+      assert l.select_next('an') # banana
+      assert_equal 1, l.cursor.position
+    end
+
+    it 'is case-insensitive' do
+      l = list
+      assert l.select_next('BAN')
+      assert_equal 1, l.cursor.position
+    end
+
+    it 'matches as substring' do
+      l = list
+      assert l.select_next('rry')
+      assert_equal 2, l.cursor.position # cherry
+    end
+
+    it 'wraps around to find a match before the current position' do
+      l = list(cursor: Component::List::Cursor.new(position: 3)) # date
+      assert l.select_next('apple')
+      assert_equal 0, l.cursor.position
+    end
+
+    it 'returns false when no line matches' do
+      l = list
+      assert !l.select_next('zzz')
+      assert_equal 0, l.cursor.position
+    end
+
+    it 'skips current position when include_current is false' do
+      l = list(cursor: Component::List::Cursor.new(position: 1)) # banana
+      assert l.select_next('an') # finds another match — none after, wraps; banana is the only match, so we land back on it
+      # only one match; with include_current: false, we still wrap and return to banana
+      assert_equal 1, l.cursor.position
+    end
+
+    it 'matches current position when include_current is true' do
+      l = list(cursor: Component::List::Cursor.new(position: 1))
+      assert l.select_next('banana', include_current: true)
+      assert_equal 1, l.cursor.position
+    end
+
+    it 'advances past current when include_current is false even if current matches' do
+      l = list(content: %w[foo bar foobar baz], cursor: Component::List::Cursor.new(position: 0))
+      assert l.select_next('foo')
+      assert_equal 2, l.cursor.position # foobar
+    end
+
+    it 'returns false on empty content' do
+      l = list(content: [])
+      assert !l.select_next('any')
+    end
+
+    it 'returns false with Cursor::None' do
+      l = list(cursor: Component::List::Cursor::None.new)
+      assert !l.select_next('apple')
+    end
+
+    it 'ignores ANSI escape codes in line text when matching' do
+      l = list(content: ["\e[31mred apple\e[0m", 'green pear'])
+      assert l.select_next('apple')
+      assert_equal 0, l.cursor.position
+    end
+
+    it 'scrolls viewport so the match is visible' do
+      l = Component::List.new
+      l.rect = Rect.new(0, 0, 20, 3)
+      l.content = (0..19).map { |i| "line #{i}" }
+      l.cursor = Component::List::Cursor.new
+      assert l.select_next('line 15')
+      assert_equal 15, l.cursor.position
+      assert l.top_line >= 13 && l.top_line <= 15
+    end
+
+    context 'with Cursor::Limited' do
+      it 'only matches lines at allowed positions' do
+        l = list(content: %w[apple banana cherry date elderberry],
+                 cursor: Component::List::Cursor::Limited.new([0, 2, 4]))
+        # cursor at 0 (apple); "an" matches banana (1) but 1 is not allowed
+        assert !l.select_next('an')
+        assert_equal 0, l.cursor.position
+      end
+
+      it 'finds a match on an allowed position' do
+        l = list(content: %w[apple banana cherry date elderberry],
+                 cursor: Component::List::Cursor::Limited.new([0, 2, 4]))
+        assert l.select_next('rry') # cherry (2) is allowed
+        assert_equal 2, l.cursor.position
+      end
+
+      it 'wraps within allowed positions' do
+        l = list(content: %w[apple banana cherry date elderberry],
+                 cursor: Component::List::Cursor::Limited.new([0, 2, 4], position: 4))
+        assert l.select_next('apple')
+        assert_equal 0, l.cursor.position
+      end
+
+      it 'ignores allowed positions past end of content' do
+        l = list(content: %w[apple banana],
+                 cursor: Component::List::Cursor::Limited.new([0, 5, 10]))
+        # only position 0 is in range; "banana" is at 1 which is not allowed
+        assert !l.select_next('banana')
+      end
+    end
+  end
+
+  context 'select_prev' do
+    def list(content: %w[apple banana cherry date elderberry], cursor: Component::List::Cursor.new(position: 4))
+      l = Component::List.new
+      l.rect = Rect.new(0, 0, 20, 10)
+      l.content = content
+      l.cursor = cursor
+      l
+    end
+
+    it 'moves to the previous matching line before current' do
+      l = list # cursor at 4 (elderberry)
+      assert l.select_prev('an')
+      assert_equal 1, l.cursor.position # banana
+    end
+
+    it 'wraps around when no earlier match' do
+      l = list(cursor: Component::List::Cursor.new(position: 0))
+      assert l.select_prev('elder')
+      assert_equal 4, l.cursor.position
+    end
+
+    it 'returns false when no line matches' do
+      l = list
+      assert !l.select_prev('zzz')
+    end
+
+    it 'skips current when include_current is false' do
+      l = list(content: %w[foo bar foobar baz], cursor: Component::List::Cursor.new(position: 2))
+      assert l.select_prev('foo')
+      assert_equal 0, l.cursor.position
+    end
+
+    it 'matches current when include_current is true' do
+      l = list(content: %w[foo bar foobar baz], cursor: Component::List::Cursor.new(position: 2))
+      assert l.select_prev('foo', include_current: true)
+      assert_equal 2, l.cursor.position
+    end
+
+    it 'returns false with Cursor::None' do
+      l = list(cursor: Component::List::Cursor::None.new)
+      assert !l.select_prev('apple')
+    end
+
+    context 'with Cursor::Limited' do
+      it 'only matches lines at allowed positions' do
+        l = list(content: %w[apple banana cherry date elderberry],
+                 cursor: Component::List::Cursor::Limited.new([0, 2, 4], position: 4))
+        # "an" matches banana (1) but 1 is not allowed; date (3) not allowed either
+        assert !l.select_prev('an')
+        assert_equal 4, l.cursor.position
+      end
+
+      it 'finds a match on an allowed position' do
+        l = list(content: %w[apple banana cherry date elderberry],
+                 cursor: Component::List::Cursor::Limited.new([0, 2, 4], position: 4))
+        assert l.select_prev('rry') # cherry (2) is allowed
+        assert_equal 2, l.cursor.position
+      end
+    end
+  end
 end
 
 describe Component::List::Cursor::Limited do
@@ -833,5 +1016,28 @@ describe Component::List::Cursor::Limited do
     assert_equal 2, c.position
     c.handle_key(Keys::DOWN_ARROW, 10, 10)
     assert_equal 4, c.position
+  end
+
+  it 'candidate_positions returns allowed positions within line_count' do
+    assert_equal [0, 2, 4, 8], cursor.candidate_positions(10)
+    assert_equal [0, 2, 4], cursor.candidate_positions(5)
+    assert_equal [0], cursor.candidate_positions(1)
+    assert_equal [], cursor.candidate_positions(0)
+  end
+end
+
+describe Component::List::Cursor do
+  it 'candidate_positions returns 0 to line_count - 1' do
+    c = Component::List::Cursor.new
+    assert_equal [0, 1, 2, 3, 4], c.candidate_positions(5)
+    assert_equal [], c.candidate_positions(0)
+  end
+end
+
+describe Component::List::Cursor::None do
+  it 'candidate_positions is always empty' do
+    c = Component::List::Cursor::None.new
+    assert_equal [], c.candidate_positions(0)
+    assert_equal [], c.candidate_positions(10)
   end
 end
