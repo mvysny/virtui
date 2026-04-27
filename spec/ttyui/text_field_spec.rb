@@ -341,6 +341,104 @@ describe Component::TextField do
     end
   end
 
+  context 'on_key_up' do
+    it 'is nil by default' do
+      assert_nil Component::TextField.new.on_key_up
+    end
+
+    it 'fires when UP arrow is pressed and is set' do
+      f = field(width: 10)
+      called = false
+      f.on_key_up = -> { called = true }
+      assert f.handle_key(Keys::UP_ARROW)
+      assert called
+    end
+
+    it 'consumes UP arrow when set (returns true)' do
+      f = field(width: 10)
+      f.on_key_up = -> {}
+      assert f.handle_key(Keys::UP_ARROW)
+    end
+
+    it 'lets UP arrow fall through (returns false) when not set' do
+      f = field(width: 10)
+      assert !f.handle_key(Keys::UP_ARROW)
+    end
+
+    it 'can be cleared by setting nil' do
+      f = field(width: 10)
+      f.on_key_up = -> {}
+      f.on_key_up = nil
+      assert !f.handle_key(Keys::UP_ARROW)
+    end
+
+    it 'does not fire on `k` (which is printable text)' do
+      f = field(width: 10)
+      called = false
+      f.on_key_up = -> { called = true }
+      assert f.handle_key('k')
+      assert_equal 'k', f.text
+      assert !called
+    end
+
+    it 'accepts a Method object' do
+      f = field(width: 10)
+      receiver = Class.new { attr_reader :hit; def fire; @hit = true; end }.new
+      f.on_key_up = receiver.method(:fire)
+      f.handle_key(Keys::UP_ARROW)
+      assert receiver.hit
+    end
+  end
+
+  context 'on_key_down' do
+    it 'is nil by default' do
+      assert_nil Component::TextField.new.on_key_down
+    end
+
+    it 'fires when DOWN arrow is pressed and is set' do
+      f = field(width: 10)
+      called = false
+      f.on_key_down = -> { called = true }
+      assert f.handle_key(Keys::DOWN_ARROW)
+      assert called
+    end
+
+    it 'consumes DOWN arrow when set (returns true)' do
+      f = field(width: 10)
+      f.on_key_down = -> {}
+      assert f.handle_key(Keys::DOWN_ARROW)
+    end
+
+    it 'lets DOWN arrow fall through (returns false) when not set' do
+      f = field(width: 10)
+      assert !f.handle_key(Keys::DOWN_ARROW)
+    end
+
+    it 'can be cleared by setting nil' do
+      f = field(width: 10)
+      f.on_key_down = -> {}
+      f.on_key_down = nil
+      assert !f.handle_key(Keys::DOWN_ARROW)
+    end
+
+    it 'does not fire on `j` (which is printable text)' do
+      f = field(width: 10)
+      called = false
+      f.on_key_down = -> { called = true }
+      assert f.handle_key('j')
+      assert_equal 'j', f.text
+      assert !called
+    end
+
+    it 'accepts a Method object' do
+      f = field(width: 10)
+      receiver = Class.new { attr_reader :hit; def fire; @hit = true; end }.new
+      f.on_key_down = receiver.method(:fire)
+      f.handle_key(Keys::DOWN_ARROW)
+      assert receiver.hit
+    end
+  end
+
   context 'on_change' do
     it 'is nil by default' do
       assert_nil Component::TextField.new.on_change

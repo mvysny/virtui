@@ -20,6 +20,8 @@ class Component
       @caret = 0
       @on_escape = nil
       @on_change = nil
+      @on_key_up = nil
+      @on_key_down = nil
     end
 
     # @return [String] current text contents.
@@ -38,6 +40,20 @@ class Component
     # fired when a setter is a no-op.
     # @return [Proc | Method | nil] one-arg callable, or nil.
     attr_accessor :on_change
+
+    # Optional callback fired when the UP arrow key is pressed. When set, UP is
+    # consumed by the field; when nil, UP falls through to the parent (default
+    # behavior). Only triggered by {Keys::UP_ARROW}, not by `k`, since `k` is a
+    # printable character inserted into {#text}.
+    # @return [Proc | Method | nil] no-arg callable, or nil.
+    attr_accessor :on_key_up
+
+    # Optional callback fired when the DOWN arrow key is pressed. When set,
+    # DOWN is consumed by the field; when nil, DOWN falls through to the parent
+    # (default behavior). Only triggered by {Keys::DOWN_ARROW}, not by `j`,
+    # since `j` is a printable character inserted into {#text}.
+    # @return [Proc | Method | nil] no-arg callable, or nil.
+    attr_accessor :on_key_down
 
     # Sets the text. Truncates to fit if longer than `rect.width - 1`. Caret is
     # clamped to the new text length.
@@ -86,6 +102,14 @@ class Component
         return false if @on_escape.nil?
 
         @on_escape.call
+      when Keys::UP_ARROW
+        return false if @on_key_up.nil?
+
+        @on_key_up.call
+      when Keys::DOWN_ARROW
+        return false if @on_key_down.nil?
+
+        @on_key_down.call
       else
         return insert(key) if printable?(key)
 
