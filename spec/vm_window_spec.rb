@@ -92,6 +92,16 @@ describe VMWindow do
       assert_nil window.footer
     end
 
+    it 'ENTER closes the search' do
+      window.handle_key('/')
+      window.footer.handle_key(Keys::ENTER)
+      assert_nil window.footer
+    end
+
+    it 'shows the cursor on the list while searching' do
+      assert window.content.show_cursor_when_inactive
+    end
+
     it 'jumps to the matching VM as the user types' do
       window.handle_key('/')
       window.footer.handle_key('w') # win11

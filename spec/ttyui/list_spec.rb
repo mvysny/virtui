@@ -423,6 +423,81 @@ describe Component::List do
       assert_includes Rainbow.uncolor(line0), 'c'
       assert_includes Rainbow.uncolor(line1), 'd'
     end
+
+    it 'does not highlight the cursor line when inactive by default' do
+      old_rainbow = Rainbow.enabled
+      Rainbow.enabled = true
+      begin
+        l = Component::List.new
+        l.rect = Rect.new(0, 0, 20, 3)
+        l.content = %w[a b c]
+        l.cursor = Component::List::Cursor.new(position: 1)
+        # active stays false
+        Screen.instance.prints.clear
+        l.repaint
+        line1_content = Screen.instance.prints[3]
+        assert !line1_content.include?("\e["),
+               "Expected no ANSI color codes when inactive, got: #{line1_content.inspect}"
+      ensure
+        Rainbow.enabled = old_rainbow
+      end
+    end
+
+    it 'highlights the cursor line when inactive if show_cursor_when_inactive is true' do
+      old_rainbow = Rainbow.enabled
+      Rainbow.enabled = true
+      begin
+        l = Component::List.new
+        l.rect = Rect.new(0, 0, 20, 3)
+        l.content = %w[a b c]
+        l.cursor = Component::List::Cursor.new(position: 1)
+        l.show_cursor_when_inactive = true
+        Screen.instance.prints.clear
+        l.repaint
+        line1_content = Screen.instance.prints[3]
+        assert line1_content.include?("\e["),
+               "Expected cursor line to have ANSI color codes when show_cursor_when_inactive=true, got: #{line1_content.inspect}"
+      ensure
+        Rainbow.enabled = old_rainbow
+      end
+    end
+  end
+
+  context 'show_cursor_when_inactive' do
+    it 'is false by default' do
+      assert !Component::List.new.show_cursor_when_inactive
+    end
+
+    it 'can be set to true' do
+      l = Component::List.new
+      l.show_cursor_when_inactive = true
+      assert l.show_cursor_when_inactive
+    end
+
+    it 'invalidates when changed' do
+      l = Component::List.new
+      l.rect = Rect.new(0, 0, 20, 5)
+      Screen.instance.invalidated_clear
+      l.show_cursor_when_inactive = true
+      assert Screen.instance.invalidated?(l)
+    end
+
+    it 'is a no-op when value unchanged' do
+      l = Component::List.new
+      l.rect = Rect.new(0, 0, 20, 5)
+      l.show_cursor_when_inactive = true
+      Screen.instance.invalidated_clear
+      l.show_cursor_when_inactive = true
+      assert !Screen.instance.invalidated?(l)
+    end
+
+    it 'coerces truthy/falsy to boolean' do
+      l = Component::List.new
+      l.show_cursor_when_inactive = 'yes'
+      assert_equal true, l.show_cursor_when_inactive
+      l.show_cursor_when_inactive = nil
+      assert_equal false, l.show_cursor_when_inactive
+    end
   end
 end
 

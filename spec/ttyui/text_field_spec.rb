@@ -439,6 +439,46 @@ describe Component::TextField do
     end
   end
 
+  context 'on_enter' do
+    it 'is nil by default' do
+      assert_nil Component::TextField.new.on_enter
+    end
+
+    it 'fires when ENTER is pressed and is set' do
+      f = field(width: 10)
+      called = false
+      f.on_enter = -> { called = true }
+      assert f.handle_key(Keys::ENTER)
+      assert called
+    end
+
+    it 'consumes ENTER when set (returns true)' do
+      f = field(width: 10)
+      f.on_enter = -> {}
+      assert f.handle_key(Keys::ENTER)
+    end
+
+    it 'lets ENTER fall through (returns false) when not set' do
+      f = field(width: 10)
+      assert !f.handle_key(Keys::ENTER)
+    end
+
+    it 'can be cleared by setting nil' do
+      f = field(width: 10)
+      f.on_enter = -> {}
+      f.on_enter = nil
+      assert !f.handle_key(Keys::ENTER)
+    end
+
+    it 'accepts a Method object' do
+      f = field(width: 10)
+      receiver = Class.new { attr_reader :hit; def fire; @hit = true; end }.new
+      f.on_enter = receiver.method(:fire)
+      f.handle_key(Keys::ENTER)
+      assert receiver.hit
+    end
+  end
+
   context 'on_change' do
     it 'is nil by default' do
       assert_nil Component::TextField.new.on_change

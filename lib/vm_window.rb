@@ -31,6 +31,7 @@ class VMWindow < Window
     # {Boolean} show disk stats for shutoff'd VMs
     @show_disk_stat = false
     content.cursor = Component::List::Cursor.new
+    content.show_cursor_when_inactive = true
     self.scrollbar = true
   end
 
@@ -153,6 +154,7 @@ class VMWindow < Window
 
     field = Component::TextField.new
     field.on_escape = method(:close_search)
+    field.on_enter = method(:close_search)
     field.on_change = ->(text) { content.select_next(text, include_current: true) }
     field.on_key_down = -> { content.select_next(field.text) }
     field.on_key_up = -> { content.select_prev(field.text) }

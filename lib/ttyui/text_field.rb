@@ -22,6 +22,7 @@ class Component
       @on_change = nil
       @on_key_up = nil
       @on_key_down = nil
+      @on_enter = nil
     end
 
     # @return [String] current text contents.
@@ -54,6 +55,11 @@ class Component
     # since `j` is a printable character inserted into {#text}.
     # @return [Proc | Method | nil] no-arg callable, or nil.
     attr_accessor :on_key_down
+
+    # Optional callback fired when ENTER is pressed. When set, ENTER is consumed
+    # by the field; when nil, ENTER falls through to the parent (default behavior).
+    # @return [Proc | Method | nil] no-arg callable, or nil.
+    attr_accessor :on_enter
 
     # Sets the text. Truncates to fit if longer than `rect.width - 1`. Caret is
     # clamped to the new text length.
@@ -110,6 +116,10 @@ class Component
         return false if @on_key_down.nil?
 
         @on_key_down.call
+      when Keys::ENTER
+        return false if @on_enter.nil?
+
+        @on_enter.call
       else
         return insert(key) if printable?(key)
 

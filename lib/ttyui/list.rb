@@ -29,6 +29,8 @@ class Component
       @cursor = Cursor::None.new
       # {Symbol} scrollbar visibility: :gone, :visible, or :optional.
       @scrollbar_visibility = :gone
+      # {Boolean} if true, the cursor highlight is painted even when the list is inactive.
+      @show_cursor_when_inactive = false
     end
 
     # @return [Boolean] if true and a line is added or new content is set, auto-scrolls to the bottom.
@@ -42,6 +44,19 @@ class Component
 
     # @return [Symbol] scrollbar visibility: :gone, :visible, or :optional.
     attr_reader :scrollbar_visibility
+
+    # @return [Boolean] when true, the cursor highlight is painted even while the list
+    #   is inactive (e.g. when focus is on a sibling search field). Defaults to false.
+    attr_reader :show_cursor_when_inactive
+
+    # @param value [Boolean]
+    def show_cursor_when_inactive=(value)
+      value = !!value
+      return if @show_cursor_when_inactive == value
+
+      @show_cursor_when_inactive = value
+      invalidate
+    end
 
     # Sets the scrollbar visibility.
     # @param value [Symbol] :gone, :visible, or :optional.
@@ -469,7 +484,7 @@ class Component
       line = (@lines[index] || '').to_s
       line = trim_to(line, content_width - 2)
       line = " #{line} "
-      is_cursor = active? && index < @lines.size && @cursor.position == index
+      is_cursor = (active? || @show_cursor_when_inactive) && index < @lines.size && @cursor.position == index
       line = if is_cursor
                Rainbow(Rainbow.uncolor(line)).bg(:darkslategray)
              else
