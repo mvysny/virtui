@@ -15,6 +15,7 @@ describe VMWindow do
       cache.update
       VMWindow.new(cache, Ballooning.new(cache))
     end
+    Screen.instance.content = w
     w.rect = Rect.new(0, 0, 20, 20)
     w.active = true
     w.content.active = true
@@ -75,6 +76,63 @@ describe VMWindow do
       window.handle_key(Keys::UP_ARROW)
       assert_equal 0, window.content.cursor.position
       window.handle_key(Keys::UP_ARROW)
+      assert_equal 0, window.content.cursor.position
+    end
+  end
+
+  context('search') do
+    it 'opens a TextField in the footer on /' do
+      window.handle_key('/')
+      assert_instance_of Component::TextField, window.footer
+    end
+
+    it 'ESC closes the search' do
+      window.handle_key('/')
+      window.footer.handle_key(Keys::ESC)
+      assert_nil window.footer
+    end
+
+    it 'jumps to the matching VM as the user types' do
+      window.handle_key('/')
+      window.footer.handle_key('w') # win11
+      assert_equal 8, window.content.cursor.position
+    end
+
+    it 'is case-insensitive and matches substrings' do
+      window.handle_key('/')
+      window.footer.text = 'FED' # Fedora
+      assert_equal 2, window.content.cursor.position
+    end
+
+    it 'down arrow jumps to the next match' do
+      window.handle_key('/')
+      window.footer.text = 'a' # matches BASE (0) and Fedora (2)
+      assert_equal 0, window.content.cursor.position # lands on BASE (include_current)
+      window.footer.handle_key(Keys::DOWN_ARROW)
+      assert_equal 2, window.content.cursor.position # Fedora
+    end
+
+    it 'up arrow jumps to the previous match' do
+      window.handle_key('/')
+      window.footer.text = 'a' # matches BASE (0) and Fedora (2)
+      window.content.cursor.go(2) # Fedora
+      window.footer.handle_key(Keys::UP_ARROW)
+      assert_equal 0, window.content.cursor.position # BASE
+    end
+
+    it 'down/up wrap around the list' do
+      window.handle_key('/')
+      window.footer.text = 'a' # matches BASE (0) and Fedora (2)
+      window.content.cursor.go(2) # Fedora — last match
+      window.footer.handle_key(Keys::DOWN_ARROW)
+      assert_equal 0, window.content.cursor.position # wraps to BASE
+    end
+
+    it 'only lands on cursor-allowed positions (VM header rows)' do
+      window.handle_key('/')
+      window.footer.text = 'cpu' # appears on stat rows, never on header rows
+      # No VM header line contains 'cpu', and stat rows are not allowed positions,
+      # so cursor stays put.
       assert_equal 0, window.content.cursor.position
     end
   end

@@ -153,6 +153,9 @@ class VMWindow < Window
 
     field = Component::TextField.new
     field.on_escape = method(:close_search)
+    field.on_change = ->(text) { content.select_next(text, include_current: true) }
+    field.on_key_down = -> { content.select_next(field.text) }
+    field.on_key_up = -> { content.select_prev(field.text) }
     self.footer = field
     screen.focused = footer
   end
