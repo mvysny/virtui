@@ -159,7 +159,7 @@ class VMWindow < Window
     field.on_key_down = -> { content.select_next(field.text) }
     field.on_key_up = -> { content.select_prev(field.text) }
     self.footer = field
-    screen.focused = footer
+    field.focus
   end
 
   def close_search

@@ -98,6 +98,18 @@ describe Component do
     assert_equal false, Component.new.handle_key('a')
   end
 
+  context '#focus' do
+    it 'sets screen.focused to self' do
+      screen = Screen.instance
+      layout = Component::Layout::Absolute.new
+      screen.content = layout
+      c = Class.new(Component) { def can_activate? = true }.new
+      layout.add([c])
+      c.focus
+      assert_equal c, screen.focused
+    end
+  end
+
   context '#handle_key cursor-owner suppression' do
     it 'returns false without focusing a matching shortcut when the focused component owns the cursor' do
       screen = Screen.instance

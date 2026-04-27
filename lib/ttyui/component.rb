@@ -40,6 +40,11 @@ class Component
   # @return [Screen] the screen which owns this component
   def screen = Screen.instance
 
+  # Focuses this component. Equivalent to `screen.focused = self`.
+  def focus
+    screen.focused = self
+  end
+
   # Repaints the component. Default implementation does nothing.
   #
   # The component must fully draw over {:rect}, and must not draw outside of {:rect}.
