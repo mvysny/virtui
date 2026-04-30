@@ -42,6 +42,10 @@ class PickerWindow < PopupWindow
     end
   end
 
+  def keyboard_hint
+    @options.map { "#{it.key} #{Rainbow(it.caption).cadetblue}" }.join('  ')
+  end
+
   # @param caption [String] the window caption
   # @param options [Array<Array<String, String>>] maps keyboard key to the option caption. No Rainbow formatting must be used.
   # @param block called with the option key once one is selected by the user. Not called if the window is closed via ESC or q
