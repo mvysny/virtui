@@ -117,7 +117,9 @@ class Screen
       @pane.on_tree { it.active = active.include?(it) if it.can_activate? }
       @focused.on_focus
     end
-    @pane.status_bar.text = "q #{Rainbow('quit').cadetblue}  #{active_window&.keyboard_hint}".strip
+    top_window = @pane.popups.last || active_window
+    q_action = @pane.popups.empty? ? 'quit' : 'close'
+    @pane.status_bar.text = "q #{Rainbow(q_action).cadetblue}  #{top_window&.keyboard_hint}".strip
   end
 
   # @param window [PopupWindow] the popup to add. Will be centered and painted automatically.

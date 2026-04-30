@@ -119,6 +119,31 @@ describe Screen do
     end
   end
 
+  context 'status bar' do
+    def status_text = Rainbow.uncolor(screen.pane.status_bar.instance_variable_get(:@lines).first || '')
+
+    it "shows 'q quit' and the active window's hint when no popup is open" do
+      w = Class.new(Window) { def keyboard_hint = 'h help' }.new
+      screen.content = Component::Layout::Absolute.new
+      screen.content.add(w)
+      screen.focused = w
+      assert_equal 'q quit  h help', status_text
+    end
+
+    it "shows 'q close' and the popup's hint when a popup is open" do
+      popup = Class.new(PopupWindow) { def keyboard_hint = 'a all' }.new('foo')
+      screen.add_popup(popup)
+      assert_equal 'q close  a all', status_text
+    end
+
+    it "reverts to 'q quit' after the popup closes" do
+      popup = PopupWindow.new('foo')
+      screen.add_popup(popup)
+      popup.close
+      assert_equal 'q quit', status_text
+    end
+  end
+
   context 'size' do
     it 'returns screen dimensions' do
       assert_equal 160, screen.size.width
