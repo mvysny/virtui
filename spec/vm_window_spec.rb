@@ -7,9 +7,10 @@ require 'vm_window'
 require 'timecop'
 
 describe VMWindow do
+  before { Screen.fake }
+  after { Screen.close }
   let(:now) { Time.now }
   let(:window) do
-    Screen.fake
     cache = Timecop.freeze(now) { VirtCache.new(VMEmulator.demo, PcEmulator.new) }
     w = Timecop.freeze(now + 5) do
       cache.update

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../spec_helper'
+require 'ttyui/screen'
 require 'ttyui/picker_window'
 require 'ttyui/keys'
 
