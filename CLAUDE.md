@@ -13,16 +13,9 @@ bundle exec rubocop               # Lint
 
 ## Architecture
 
-VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt. It has three layers:
+VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt. It has two layers:
 
-**TUI Framework (`lib/ttyui/`)** — a custom terminal UI toolkit:
-- `Screen`: main event loop, window management, rendering
-- `Component`: base class for all UI elements; forms a tree hierarchy with parent/child relationships and an invalidation model (mark dirty → batched repaint)
-- `Window`: bordered widget with a caption; uses `Component::List` as its default content
-- `Component::List`: scrollable list of text lines with optional cursor support (arrows, jk, Home/End, Ctrl+U/D, Page Up/Down, mouse); cursor is `Cursor::None` by default, `Cursor::Limited` restricts movement to specific positions
-- `EventQueue`: async event handling (keyboard, mouse, TTY resize); background threads submit tasks to the UI thread via `screen.event_queue.submit {}`
-
-**Application layer (`lib/`):**
+**Application layer (`lib/`):** built on the [tuile](https://github.com/mvysny/tuile) TUI gem.
 - `AppLayout`: orchestrates three windows — `VMWindow` (VM list/controls), `SystemWindow` (host CPU/RAM/disk), and a log window
 - `Ballooning`: auto-scales VM memory (increases by 30% at ≥65% usage, decreases by 10% at ≤55%); runs on the UI thread, must not be called from a background thread
 
@@ -31,4 +24,4 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt. It has three laye
 - `VirtCache`: thread-safe cache of VM runtime data; `update` is called from a background timer thread
 - `VMEmulator`: demo/test mode that simulates VMs without libvirt
 
-**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `VirtCache#update` → submits a block to `EventQueue` → UI thread runs `Ballooning#update` then `layout.update_data` → dirty components repaint.
+**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `VirtCache#update` → submits a block to tuile's `EventQueue` → UI thread runs `Ballooning#update` then `layout.update_data` → dirty components repaint.
