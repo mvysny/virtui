@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
-require_relative 'ttyui/window'
+require 'tuile'
 require_relative 'formatter'
-require_relative 'ttyui/popup_window'
 
 # Shows host OS info, such as CPU info, memory info.
-class SystemWindow < Window
+class SystemWindow < Tuile::Component::Window
+  include Tuile
+
   # @param virt_cache [VirtCache]
   def initialize(virt_cache)
     super('System')
@@ -126,7 +127,7 @@ class SystemWindow < Window
       lines += [['xsave', 'Faster saving/restoring of extended CPU state during VM entry/exit']]
     end
 
-    InfoPopupWindow.open('Help', lines.map { it[0] + ': ' + Rainbow(it[1]).cadetblue })
+    Component::InfoPopupWindow.open('Help', lines.map { it[0] + ': ' + Rainbow(it[1]).cadetblue })
   end
 
   # Draws and returns a header.

@@ -5,11 +5,9 @@ ruby '>= 4.0'
 
 gem 'concurrent-ruby'
 gem 'rainbow', '~> 3.1.0'
-gem 'strings-truncation'
-gem 'tty-box', '~> 0.7.0'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
-gem 'tty-screen'
+gem 'tuile', path: '../tuile'
 gem 'unicode-display_width'
 
 group :development do

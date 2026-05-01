@@ -1,21 +1,22 @@
 # frozen_string_literal: true
 
+require 'tuile'
+require 'tty-cursor'
+require 'rainbow'
 require_relative 'virt/virt'
-require_relative 'ttyui/window'
 require_relative 'sysinfo'
 require_relative 'virt/virtcache'
-require 'tty-cursor'
 require_relative 'formatter'
 require_relative 'virt/ballooning'
 require_relative 'virt/vm_emulator'
-require 'rainbow'
 require_relative 'utils'
-require_relative 'ttyui/screen'
 require_relative 'system_window'
 require_relative 'vm_window'
 
 # A screen, holding all windows.
-class AppLayout < Component::Layout::Absolute
+class AppLayout < Tuile::Component::Layout::Absolute
+  include Tuile
+
   # @param virt_cache [VirtCache]
   # @param ballooning [Ballooning]
   def initialize(virt_cache, ballooning)
@@ -23,8 +24,9 @@ class AppLayout < Component::Layout::Absolute
     @virt_cache = virt_cache
     @system = SystemWindow.new(virt_cache)
     @vms = VMWindow.new(virt_cache, ballooning)
-    @log = LogWindow.new
-    @log.configure_logger $log
+    @log = Component::LogWindow.new
+    $log.remove_handler :console
+    $log.add_handler [:console, { output: Component::LogWindow::IO.new(@log), enable_color: true }]
     add([@system, @vms, @log])
     @vms.key_shortcut = '1'
     @system.key_shortcut = '2'

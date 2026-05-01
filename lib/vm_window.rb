@@ -1,22 +1,21 @@
 # frozen_string_literal: true
 
+require 'tuile'
+require 'tty-cursor'
+require 'rainbow'
 require_relative 'virt/virt'
-require_relative 'ttyui/window'
 require_relative 'sysinfo'
 require_relative 'virt/virtcache'
-require 'tty-cursor'
 require_relative 'formatter'
 require_relative 'virt/ballooning'
 require_relative 'virt/vm_emulator'
-require 'rainbow'
 require_relative 'utils'
-require_relative 'ttyui/screen'
 require_relative 'system_window'
-require_relative 'ttyui/picker_window'
-require_relative 'ttyui/text_field'
 
 # Shows a quick overview of all VMs
-class VMWindow < Window
+class VMWindow < Tuile::Component::Window
+  include Tuile
+
   # @param virt_cache [VirtCache]
   # @param ballooning [Ballooning]
   def initialize(virt_cache, ballooning)
@@ -174,7 +173,7 @@ class VMWindow < Window
       return
     end
     opts = [['b', 'toggle autoBallooning'], ['m', 'Max memory & disable autoballooning']]
-    PickerWindow.open('Memory', opts) do |key|
+    Component::PickerWindow.open('Memory', opts) do |key|
       if key == 'b' # toggle Ballooning
         $log.info "Toggling balloning for '#{current_vm}'"
         @ballooning.toggle_enable(current_vm)
@@ -192,7 +191,7 @@ class VMWindow < Window
     state = @virt_cache.state(current_vm)
     opts = [['s', 'Start'], ['o', 'shut dOwn gracefully'], ['O', 'force Off'], ['r', 'reboot (soft)'],
             ['R', 'Reset (hard)']]
-    PickerWindow.open('Power', opts) do |key|
+    Component::PickerWindow.open('Power', opts) do |key|
       if key == 's' # start
         if state == :shut_off
           $log.info "Starting '#{current_vm}'"

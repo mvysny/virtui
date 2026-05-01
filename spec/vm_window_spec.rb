@@ -6,6 +6,7 @@ require 'virt/vm_emulator'
 require 'vm_window'
 require 'timecop'
 
+module Tuile
 describe VMWindow do
   before { Screen.fake }
   after { Screen.close }
@@ -42,13 +43,13 @@ describe VMWindow do
 
   it 'show_power_popup opens picker' do
     window.handle_key('p')
-    assert(Screen.instance.popups.any? { it.is_a?(PickerWindow) })
+    assert(Screen.instance.popups.any? { it.is_a?(Component::PickerWindow) })
   end
 
   it 'show_memory_popup opens picker for running VM' do
     window.content.cursor.go(4) # Ubuntu is running
     window.handle_key('m')
-    assert(Screen.instance.popups.any? { it.is_a?(PickerWindow) })
+    assert(Screen.instance.popups.any? { it.is_a?(Component::PickerWindow) })
   end
 
   context('cursor movement') do
@@ -147,4 +148,5 @@ describe VMWindow do
       assert_equal 0, window.content.cursor.position
     end
   end
+end
 end
