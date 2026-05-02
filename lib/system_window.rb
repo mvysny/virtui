@@ -18,7 +18,7 @@ class SystemWindow < Tuile::Component::Window
   end
 
   def update
-    content.content do |lines|
+    content.lines do |lines|
       # CPU
       lines << header('CPU', @cpu_info, :dodgerblue)
       host_cpu_usage = @virt_cache.host_cpu_usage.to_i
@@ -128,7 +128,7 @@ class SystemWindow < Tuile::Component::Window
       lines += [['xsave', 'Faster saving/restoring of extended CPU state during VM entry/exit']]
     end
 
-    Component::InfoPopupWindow.open('Help', lines.map { it[0] + ': ' + Rainbow(it[1]).cadetblue })
+    Component::InfoWindow.open('Help', lines.map { it[0] + ': ' + Rainbow(it[1]).cadetblue })
   end
 
   # Draws and returns a header.
