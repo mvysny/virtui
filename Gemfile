@@ -7,7 +7,7 @@ gem 'concurrent-ruby'
 gem 'rainbow', '~> 3.1.0'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
-gem 'tuile', path: '../tuile'
+gem 'tuile', '~> 0.1.0'
 gem 'unicode-display_width'
 
 group :development do
