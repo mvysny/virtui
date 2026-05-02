@@ -20,6 +20,7 @@ class VMWindow < Tuile::Component::Window
   # @param ballooning [Ballooning]
   def initialize(virt_cache, ballooning)
     super('VMs')
+    self.content = Component::List.new
     @f = Formatter.new
     # {VirtCache}
     @virt_cache = virt_cache
