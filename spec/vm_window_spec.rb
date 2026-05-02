@@ -28,28 +28,28 @@ describe VMWindow do
   it 'has the right content' do
     content = window.content.content.map { Rainbow.uncolor(it) }
     assert_equal '⏹ BASE──────────', content[0]
-    assert_equal '    vda: 50%   64G   128G | ', content[1]
+    assert_equal '    vda: 50%   64G   128G |', content[1]
     assert_equal '⏹ Fedora────────', content[2]
-    assert_equal '    vda: 50%   64G   128G | ', content[3]
+    assert_equal '    vda: 50%   64G   128G |', content[3]
     assert_equal '▶ Ubuntu 🎈─────', content[4]
     assert_equal '    CPU:  0%          1 t |   0%          8 t', content[5]
     assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[6]
-    assert_equal '    vda: 50%   64G   128G | ', content[7]
+    assert_equal '    vda: 50%   64G   128G |', content[7]
     assert_equal '▶ win11 🎈──────', content[8]
     assert_equal '    CPU:  0%          1 t |   0%          8 t', content[9]
     assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[10]
-    assert_equal '    vda: 50%   64G   128G | ', content[11]
+    assert_equal '    vda: 50%   64G   128G |', content[11]
   end
 
   it 'show_power_popup opens picker' do
     window.handle_key('p')
-    assert(Screen.instance.popups.any? { it.is_a?(Component::PickerWindow) })
+    assert(Screen.instance.popups.any? { it.content.is_a?(Component::PickerWindow) })
   end
 
   it 'show_memory_popup opens picker for running VM' do
     window.content.cursor.go(4) # Ubuntu is running
     window.handle_key('m')
-    assert(Screen.instance.popups.any? { it.is_a?(Component::PickerWindow) })
+    assert(Screen.instance.popups.any? { it.content.is_a?(Component::PickerWindow) })
   end
 
   context('cursor movement') do

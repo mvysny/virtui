@@ -19,7 +19,8 @@ module Tuile
       w.handle_key 'h'
       popups = Screen.instance.popups
       assert_equal 1, popups.length
-      assert_equal Component::InfoPopupWindow, popups[0].class
+      assert_equal Component::Popup, popups[0].class
+      assert_equal Component::InfoPopupWindow, popups[0].content.class
     end
   end
 end
