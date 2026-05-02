@@ -8,10 +8,11 @@ require 'virt/ballooning'
 
 module Tuile
   describe AppLayout do
+    before { Screen.fake }
+    after { Screen.close }
     let(:layout) do
       Helpers.setup_dummy_logger
       cache = VirtCache.new(VMEmulator.demo, PcEmulator.new)
-      Screen.new
       AppLayout.new(cache, Ballooning.new(cache))
     end
 
