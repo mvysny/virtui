@@ -27,7 +27,7 @@ class AppLayout < Tuile::Component::Layout::Absolute
     @log = Component::LogWindow.new
     $log.remove_handler :console
     $log.add_handler [:console, { output: Component::LogWindow::IO.new(@log), enable_color: true }]
-    add([@system, @vms, @log])
+    add([@vms, @system, @log])
     @vms.key_shortcut = '1'
     @system.key_shortcut = '2'
     @log.key_shortcut = '3'
