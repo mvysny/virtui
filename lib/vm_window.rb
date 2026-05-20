@@ -138,13 +138,13 @@ class VMWindow < Tuile::Component::Window
 
   def repaint_border
     super
-    return unless visible?
+    return if rect.empty?
 
     y = rect.top
     fourth = rect.width / 4
     color = active? ? :green : :white
-    Screen.instance.print TTY::Cursor.move_to(rect.left + fourth - 5, y), Rainbow(' Guest usage ').fg(:black).bg(color)
-    Screen.instance.print TTY::Cursor.move_to(rect.left + 3 * fourth - 5, y), Rainbow(' Host usage ').fg(:black).bg(color)
+    screen.print TTY::Cursor.move_to(rect.left + fourth - 5, y), Rainbow(' Guest usage ').fg(:black).bg(color)
+    screen.print TTY::Cursor.move_to(rect.left + 3 * fourth - 5, y), Rainbow(' Host usage ').fg(:black).bg(color)
   end
 
   private
