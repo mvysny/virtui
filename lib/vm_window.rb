@@ -2,7 +2,6 @@
 
 require 'tuile'
 require 'tty-cursor'
-require 'rainbow'
 require_relative 'virt/virt'
 require_relative 'sysinfo'
 require_relative 'virt/virtcache'
@@ -47,6 +46,7 @@ class VMWindow < Tuile::Component::Window
     column_width = (rect.width - 16) / 2
     return if column_width.negative? # paint nothing if window is not big enough
 
+    theme = screen.theme
     domains = @virt_cache.domains.sort_by(&:upcase) # Array<String>
     cursor_positions = [] # allowed cursor positions
     cpus = @virt_cache.cpu_info.cpus
@@ -66,24 +66,24 @@ class VMWindow < Tuile::Component::Window
           cpu_usage = cache.guest_cpu_usage.to_i
           host_cpu_usage = (cache.cpu_usage / cpus).to_i
           cpuguest = progress_bar("#{cpu_usage.to_s.rjust(3)}%", "#{data.info.cpus.to_s.rjust(3)} t", column_width,
-                                  cpu_usage, 100, :royalblue)
+                                  cpu_usage, 100, theme[:cpu_vm])
           cpuhost = progress_bar("#{host_cpu_usage.to_s.rjust(3)}%", "#{cpus.to_s.rjust(3)} t", column_width,
-                                 host_cpu_usage, 100, :dodgerblue)
-          lines << "    #{Rainbow('CPU').fg(:dodgerblue)}:#{cpuguest} | #{cpuhost}"
+                                 host_cpu_usage, 100, theme[:cpu])
+          lines << "    #{theme.cpu('CPU')}:#{cpuguest} | #{cpuhost}"
           @line_data << domain_name
 
           guest_mem_usage = cache.data.mem_stat.guest_mem
           host_mem_usage = cache.data.mem_stat.host_mem
-          memguest = progress_bar2(column_width, guest_mem_usage, :magenta)
-          memhost = progress_bar2(column_width, MemoryUsage.of(host_ram.total, host_mem_usage.used), :maroon)
-          lines << "    #{Rainbow('RAM').fg(:maroon)}:#{memguest} | #{memhost}"
+          memguest = progress_bar2(column_width, guest_mem_usage, theme[:ram_vm])
+          memhost = progress_bar2(column_width, MemoryUsage.of(host_ram.total, host_mem_usage.used), theme[:ram])
+          lines << "    #{theme.ram('RAM')}:#{memguest} | #{memhost}"
           @line_data << domain_name
         end
         next unless @show_disk_stat || data.running?
 
         data.disk_stat.each do |ds| # {DiskStat}
-          name = Rainbow(ds.name[0..3].rjust(4)).fg(:gold)
-          guest_du = progress_bar2(column_width, ds.guest_usage, :chocolate)
+          name = theme.disk_label(ds.name[0..3].rjust(4))
+          guest_du = progress_bar2(column_width, ds.guest_usage, theme[:disk_vm])
           host_du = progress_bar_qcow2(column_width, ds)
           lines << "   #{name}:#{guest_du} | #{host_du}"
           @line_data << domain_name
@@ -124,14 +124,21 @@ class VMWindow < Tuile::Component::Window
   end
 
   def keyboard_hint
-    return "ESC #{Rainbow('close search').cadetblue}" if footer
+    t = screen.theme
+    return "ESC #{t.hint('close search')}" if footer
 
-    "p #{Rainbow('Power').cadetblue}  v #{Rainbow('run Viewer').cadetblue}  m #{Rainbow('Memory').cadetblue}  d #{Rainbow('toggle Disk stat').cadetblue}  / #{Rainbow('Search').cadetblue}"
+    "p #{t.hint('Power')}  v #{t.hint('run Viewer')}  m #{t.hint('Memory')}  " \
+      "d #{t.hint('toggle Disk stat')}  / #{t.hint('Search')}"
   end
 
   protected
 
   def on_width_changed
+    super
+    update
+  end
+
+  def on_theme_changed
     super
     update
   end
@@ -142,9 +149,12 @@ class VMWindow < Tuile::Component::Window
 
     y = rect.top
     fourth = rect.width / 4
-    color = active? ? :green : :white
-    screen.print TTY::Cursor.move_to(rect.left + fourth - 5, y), Rainbow(' Guest usage ').fg(:black).bg(color)
-    screen.print TTY::Cursor.move_to(rect.left + 3 * fourth - 5, y), Rainbow(' Host usage ').fg(:black).bg(color)
+    theme = screen.theme
+    bg = active? ? theme.active_border_color : theme[:tab_inactive]
+    screen.print TTY::Cursor.move_to(rect.left + fourth - 5, y),
+                 StyledString.styled(' Guest usage ', fg: :black, bg: bg).to_ansi
+    screen.print TTY::Cursor.move_to(rect.left + 3 * fourth - 5, y),
+                 StyledString.styled(' Host usage ', fg: :black, bg: bg).to_ansi
   end
 
   private
@@ -235,7 +245,7 @@ class VMWindow < Tuile::Component::Window
   # @param cache [VirtCache::VMCache]
   # @return [String]
   def format_vm_overview_line(cache)
-    line = "#{format_domain_state(cache.data.state)} #{Rainbow(cache.info.name).white}"
+    line = "#{format_domain_state(cache.data.state)} #{screen.theme.vm_name(cache.info.name)}"
     cache.data.mem_stat
     if cache.data.running?
       if cache.data.balloon?
@@ -255,7 +265,6 @@ class VMWindow < Tuile::Component::Window
         end
       end
       line += " \u{1F422}" if cache.stale?
-      #   line += "   #{Rainbow('Host RSS RAM').bright.red}: #{@f.format(memstat.host_mem)}"
     end
     header(line)
   end
@@ -263,9 +272,9 @@ class VMWindow < Tuile::Component::Window
   # Draws and returns a header.
   # @param left [String] what to show to the left
   def header(left)
-    left_size = Unicode::DisplayWidth.of(Rainbow.uncolor(left))
+    left_size = StyledString.parse(left).display_width
     frame = '─' * (rect.width - left_size - 4).clamp(0, nil)
-    left + Rainbow(frame).fg('#333333')
+    left + screen.theme.frame(frame)
   end
 
   # @param left [String] of size 10
@@ -273,13 +282,13 @@ class VMWindow < Tuile::Component::Window
   # @param width [Integer] width of the bar in chars.
   # @param value [Integer] current value, for drawing of the progress bar
   # @param max [Integer] max value, for drawing of the progress bar
-  # @param color [Symbol | String] progress bar color
+  # @param color [Tuile::Color] progress bar color
   def progress_bar(left, right, width, value, max, color)
     left = left.ljust(11) unless left.empty?
     right = right.rjust(6)
     pb_width = (width - left.size - right.size).clamp(0, nil)
-    pb = @f.progress_bar2(pb_width, value, max, color)
-    left + pb + right
+    pb = @f.progress_bar2(pb_width, value, max, color, screen.theme[:frame])
+    left + pb.to_ansi + right
   end
 
   # @param width [Integer] the width of the bar in chars.
@@ -292,11 +301,12 @@ class VMWindow < Tuile::Component::Window
   end
 
   def format_domain_state(state)
+    theme = screen.theme
     case state
-    when :running  then Rainbow("\u{25B6}").green
-    when :shut_off then Rainbow("\u{23F9}").darkred
-    when :paused   then Rainbow("\u{23F8}").yellow
-    else; Rainbow('?').red
+    when :running  then theme.ok("\u{25B6}")
+    when :shut_off then theme.off("\u{23F9}")
+    when :paused   then theme.warn("\u{23F8}")
+    else; theme.error('?')
     end
   end
 
@@ -307,17 +317,18 @@ class VMWindow < Tuile::Component::Window
     host_du = @virt_cache.host_disk_usage(ds)
     return nil if host_du.nil?
 
+    theme = screen.theme
     overhead_percent = ds.overhead_percent
-    overhead_color = case overhead_percent
+    overhead_token = case overhead_percent
                      when ..10
-                       :green
+                       :ok
                      when 10..20
-                       :yellow
+                       :warn
                      else
-                       :red
+                       :error
                      end
-    op = Rainbow(overhead_percent.to_s.rjust(3)).fg(overhead_color)
+    op = theme.fg(overhead_token, overhead_percent.to_s.rjust(3))
     prefix = "#{op}% #{format_byte_size(host_du.used).rjust(5)} "
-    prefix + progress_bar('', format_byte_size(host_du.total), width - 11, host_du.used, host_du.total, :goldenrod)
+    prefix + progress_bar('', format_byte_size(host_du.total), width - 11, host_du.used, host_du.total, theme[:disk])
   end
 end

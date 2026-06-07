@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'rainbow'
+require 'tuile'
 require_relative 'sysinfo'
 require_relative 'utils'
 
@@ -10,15 +10,16 @@ class Formatter
   # @param width [Integer] the width of the progress bar, in characters. The height is always 1.
   # @param value [Integer] the value
   # @param max_value [Integer] the max value
-  # @param color [Symbol | String] color
-  # @return [String] Rainbow progress bar
-  def progress_bar2(width, value, max_value, color, char = '#')
+  # @param color [Tuile::Color] color of the filled portion
+  # @param rest_color [Tuile::Color] color of the unfilled portion
+  # @return [Tuile::StyledString] progress bar
+  def progress_bar2(width, value, max_value, color, rest_color, char = '#')
     raise "#{max_value} must not be negative" if max_value.negative?
-    return '' if max_value.zero? || width.zero?
+    return Tuile::StyledString::EMPTY if max_value.zero? || width.zero?
 
     value = value.clamp(0, max_value)
     progressbar_char_length = (value * width / max_value).to_i
-    pb = char * progressbar_char_length
-    Rainbow(pb).fg(color) + Rainbow('-' * (width - progressbar_char_length)).fg('#333333')
+    Tuile::StyledString.styled(char * progressbar_char_length, fg: color) +
+      Tuile::StyledString.styled('-' * (width - progressbar_char_length), fg: rest_color)
   end
 end

@@ -2,7 +2,6 @@
 
 require 'tuile'
 require 'tty-cursor'
-require 'rainbow'
 require_relative 'virt/virt'
 require_relative 'sysinfo'
 require_relative 'virt/virtcache'

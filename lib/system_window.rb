@@ -18,41 +18,42 @@ class SystemWindow < Tuile::Component::Window
   end
 
   def update
+    theme = screen.theme
     content.lines do |lines|
       # CPU
-      lines << header('CPU', @cpu_info, :dodgerblue)
+      lines << header('CPU', @cpu_info, :cpu)
       host_cpu_usage = @virt_cache.host_cpu_usage.to_i
-      lines << progress_bar("Used:#{host_cpu_usage.to_s.rjust(3)}%", host_cpu_usage, 100, :dodgerblue,
+      lines << progress_bar("Used:#{host_cpu_usage.to_s.rjust(3)}%", host_cpu_usage, 100, theme[:cpu],
                             "#{@virt_cache.cpu_info.cpus} t")
       vm_cpu_usage = @virt_cache.total_vm_cpu_usage.to_i
       up = @virt_cache.up
-      lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, :royalblue, "#{up} up")
+      lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, theme[:cpu_vm], "#{up} up")
 
       # Memory
-      lines << header('RAM', '', :maroon)
+      lines << header('RAM', '', :ram)
       host_ram = @virt_cache.host_mem_stat.ram
-      lines << progress_bar2('Used', host_ram, :maroon)
+      lines << progress_bar2('Used', host_ram, theme[:ram])
       total_vm_rss_usage = @virt_cache.total_vm_rss_usage
       lines << progress_bar(" VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
-                            total_vm_rss_usage, host_ram.total, :magenta, format_byte_size(host_ram.total))
+                            total_vm_rss_usage, host_ram.total, theme[:ram_vm], format_byte_size(host_ram.total))
       host_swap = @virt_cache.host_mem_stat.swap
-      lines << progress_bar2('Swap', host_swap, :maroon)
+      lines << progress_bar2('Swap', host_swap, theme[:ram])
 
       # Disk
       disks = @virt_cache.disks
       disk_usage = disks.values.inject(MemoryUsage::ZERO) { |sum, obj| sum + obj.usage }
-      lines << header('Disks', format_byte_size(disk_usage.total), :goldenrod)
+      lines << header('Disks', format_byte_size(disk_usage.total), :disk)
       disks.each do |name, usage|
-        lines << Rainbow("#{name}:").fg(:gold)
-        lines << progress_bar2('Used', usage.usage, :goldenrod)
+        lines << theme.disk_label("#{name}:")
+        lines << progress_bar2('Used', usage.usage, theme[:disk])
         lines << progress_bar2(' VMs', MemoryUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage),
-                               :chocolate)
+                               theme[:disk_vm])
       end
     end
   end
 
   def keyboard_hint
-    "h #{Rainbow('Help').cadetblue}"
+    "h #{screen.theme.hint('Help')}"
   end
 
   def handle_key(key)
@@ -69,6 +70,11 @@ class SystemWindow < Tuile::Component::Window
   protected
 
   def on_width_changed
+    super
+    update
+  end
+
+  def on_theme_changed
     super
     update
   end
@@ -128,28 +134,30 @@ class SystemWindow < Tuile::Component::Window
       lines += [['xsave', 'Faster saving/restoring of extended CPU state during VM entry/exit']]
     end
 
-    Component::InfoWindow.open('Help', lines.map { it[0] + ': ' + Rainbow(it[1]).cadetblue })
+    Component::InfoWindow.open('Help', lines.map { it[0] + ': ' + screen.theme.hint(it[1]) })
   end
 
   # Draws and returns a header.
   # @param left [String] what to show to the left
   # @param right [String] what to show to the right
-  # @param color [Symbol | String] the color to draw `left` and `right`
-  def header(left, right, color)
+  # @param token [Symbol] the theme token to draw `left` and `right` with
+  def header(left, right, token)
+    theme = screen.theme
     frame = '─' * (rect.width - left.size - right.size - 4).clamp(0, nil)
-    Rainbow(left).fg(color) + Rainbow(frame).fg('#333333') + Rainbow(right).fg(color)
+    theme.fg(token, left) + theme.frame(frame) + theme.fg(token, right)
   end
 
   # @param left [String] of size 14
   # @param right [String] of size 5
   # @param value [Integer] current value, for drawing of the progress bar
   # @param max [Integer] max value, for drawing of the progress bar
+  # @param color [Tuile::Color] progress bar color
   def progress_bar(left, value, max, color, right)
     left = left.ljust(16)
     right = right.rjust(6)
     pb_width = (rect.width - 4 - left.size - right.size).clamp(0, nil)
-    pb = @f.progress_bar2(pb_width, value, max, color)
-    left + pb + right
+    pb = @f.progress_bar2(pb_width, value, max, color, screen.theme[:frame])
+    left + pb.to_ansi + right
   end
 
   # @param tag [String] 4-char tag

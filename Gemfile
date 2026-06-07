@@ -4,11 +4,9 @@ source 'https://rubygems.org'
 ruby '>= 4.0'
 
 gem 'concurrent-ruby'
-gem 'rainbow', '~> 3.1.0'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
-gem 'tuile', '~> 0.5.0'
-gem 'unicode-display_width'
+gem 'tuile', path: '../tuile'
 
 group :development do
   gem 'rake', '~> 13.4'
