@@ -1,8 +1,14 @@
 # frozen_string_literal: true
 
-# Pretty-format bytes with suffixes like k, m, g (for KiB, MiB, GiB), showing one decimal place when needed.
+# Pretty-formats a byte count with a binary (1024-based) unit suffix `K`/`M`/`G`/`T`/`P`,
+# showing one decimal place only when it adds precision. Negative values keep their sign;
+# zero renders as `"0"`. Magnitudes above petabytes are capped at `P`.
+#
+# Top-level helper loaded manually from {Virtui} (see `lib/core_ext/`); defines no
+# constant, so the Zeitwerk loader ignores it.
+#
 # @param bytes [Integer] size in bytes
-# @return [String] "1.0K", "23.8M", "8.0G" and such
+# @return [String] e.g. `"0"`, `"1.0K"`, `"23.8M"`, `"8.0G"`, `"-512K"`
 def format_byte_size(bytes)
   return '0' if bytes.zero?
   return "-#{format_byte_size(-bytes)}" if bytes.negative?
