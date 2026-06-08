@@ -1,11 +1,19 @@
 # frozen_string_literal: true
 
 module Virt
-  # Controls the memory for one VM. The VM must support ballooning otherwise nothing is done.
-  # The memory upgrade is instant, but the memory downgrade happens only once awhile.
+  # Auto-scales the memory of a single VM based on its guest memory usage.
+  #
+  # On each {#update}: memory is increased immediately (by 30%) when guest usage rises to
+  # 65% or above, and decreased gently (by 10%) when it falls to 55% or below — the latter
+  # rate-limited by a back-off period so the guest has time to settle. Does nothing if the
+  # VM lacks ballooning support, is shut off, or the user has disabled it. Memory never
+  # drops below {#min_actual} nor rises above the VM's configured maximum. The thresholds
+  # and rates are set in the constructor.
+  #
+  # Owned and driven by {Ballooning}; runs on the UI thread only.
   class BallooningVM
-    # @param virt_cache [Cache]
-    # @param vmid [String]
+    # @param virt_cache [Cache] the runtime cache to read VM data from and act through
+    # @param vmid [String] the VM name
     def initialize(virt_cache, vmid)
       @virt_cache = virt_cache
       @vmid = vmid
@@ -63,12 +71,16 @@ module Virt
     # of memory available to the guest OS will be smaller.
     attr_accessor :min_actual
 
-    # - `text` [String] textual representation of the change, useful for debug purposes.
-    # - `memory_delta` [Integer] no change applied to memory if zero; memory increased if positive; memory decreased if
-    #    negative.
+    # The outcome of one ballooning {#update} for a VM: a human-readable explanation and
+    # the percentage change applied. Immutable and thread-safe (a frozen {Data} value object).
     #
-    # Immutable, thread-safe.
+    # @!attribute [r] text
+    #   @return [String] human-readable description of the decision, for debug logging
+    # @!attribute [r] memory_delta
+    #   @return [Integer] percentage change applied: `0` for no change, positive for an
+    #     increase, negative for a decrease
     class Status < Data.define(:text, :memory_delta)
+      # @return [String] `text; d=memory_delta`
       def to_s = "#{text}; d=#{memory_delta}"
     end
 
@@ -81,12 +93,20 @@ module Virt
     # @return [Boolean] if the VM was running during the last ballooning update
     def was_running? = @was_running
 
+    # Enables or disables automatic ballooning for this VM. Clears any active back-off so
+    # the user's manual change takes effect on the next {#update}.
+    #
+    # @param enabled [Boolean] `true` to enable, `false` to disable
     def enabled=(enabled)
       @enabled = !!enabled
       @back_off_until = nil # This is user manual action, user wants to see effects now.
     end
 
-    # Call every 2 seconds, to control the VM
+    # Runs one control step: reads the VM's current memory stats and increases, decreases,
+    # or leaves its memory unchanged, recording the decision in {#status}. Call every ~2s.
+    #
+    # @return [void]
+    # @raise [RuntimeError] if the VM is running but its {DomainInfo} can't be found
     def update
       unless @enabled
         @status = Status.new('ballooning disabled by user', 0)
