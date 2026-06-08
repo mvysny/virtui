@@ -1,14 +1,26 @@
 # frozen_string_literal: true
 
 module Interpolator
-  # Returns `value_from` if current time is less than `time_from`; `value_to` if current time is
-  # greater than `time_to`; a linear interpolation between `value_from` and `value_to` otherwise.
+  # An {Interpolator} that ramps linearly from `value_from` to `value_to` over the time
+  # window `time_from..time_to`.
   #
-  # Both `value_from` and `value_to` must be {Numeric} (ideally {Float}); both `time_from` and `time_to`
-  # must be {Time}.
+  # {#value} returns `value_from` before the window, `value_to` after it, and a linear
+  # blend in between. Immutable and thread-safe (a frozen {Data} value object).
   #
-  # Immutable, thread-safe.
+  # @!attribute [r] value_from
+  #   @return [Numeric] value returned at or before `time_from`
+  # @!attribute [r] value_to
+  #   @return [Numeric] value returned at or after `time_to`
+  # @!attribute [r] time_from
+  #   @return [Time] start of the interpolation window
+  # @!attribute [r] time_to
+  #   @return [Time] end of the interpolation window; must not precede `time_from`
   class Linear < Data.define(:value_from, :value_to, :time_from, :time_to)
+    # Validates the value object on construction.
+    #
+    # @raise [RuntimeError] if `value_from`/`value_to` are not {Numeric} or
+    #   `time_from`/`time_to` are not {Time}
+    # @raise [RuntimeError] if `time_from` is later than `time_to`
     def initialize(hash)
       super
       unless value_from.is_a?(Numeric) && value_to.is_a?(Numeric) && time_from.is_a?(Time) && time_to.is_a?(Time)
