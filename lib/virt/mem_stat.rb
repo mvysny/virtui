@@ -1,33 +1,34 @@
 # frozen_string_literal: true
 
 module Virt
-  # VM memory stats
+  # Memory statistics for a single VM, spanning both the host's view (`actual`, `rss`) and
+  # the guest's own view (`available`, `usable`, `unused`, `disk_caches`).
   #
-  # - `actual` {Integer} The actually configured memory size in bytes, given to the VM by host.
-  # - `unused` {Integer}  Inside the Linux kernel this actually is named `MemFree`.
-  #   That memory is available for immediate use as it is currently neither used by processes
-  #   or the kernel for caching. So it is really unused (and is just eating energy and provides no benefit).
-  #   `nil` if ballooning is unavailable.
-  # - `available` {Integer} Memory in bytes available for the guest OS. Inside the Linux kernel this is
-  #   named `MemTotal`. This is
-  #   the maximum allowed memory, which is slightly less than the currently configured
-  #   memory size `actual`, as the Linux kernel and BIOS need some space for themselves.
-  #   `nil` if ballooning is unavailable.
-  # - `usable` {Integer} Inside the Linux kernel this is named `MemAvailable`. This consists
-  #   of the free space plus the space, which can be easily reclaimed. This for example includes
-  #   read caches, which contain data read from IO devices, from which the data can be read
-  #   again if the need arises in the future.
-  #   `nil` if ballooning is unavailable.
-  # - `disk_caches` {Integer} disk cache size in bytes.
-  #   `nil` if ballooning is unavailable.
-  # - `rss` {Integer} The resident set size in bytes, which is the number of pages currently
-  #   "actively" used by the QEMU process on the host system. QEMU by default
-  #   only allocates the pages on demand when they are first accessed. A newly started VM actually
-  #   uses only very few pages, but the number of pages increases with each new memory allocation.
-  # - `last_updated` {Integer} seconds since epoch when the values have been retrieved from the VM.
-  #   If this number stays unchanged, you need to setup VM refresh.
+  # The guest-reported fields require a working balloon device plus guest tools; they are
+  # `nil` when that data isn't available (see {#guest_data_available?}). Immutable and
+  # thread-safe (a frozen {Data} value object). More info:
+  # https://pmhahn.github.io/virtio-balloon
   #
-  # More info here: https://pmhahn.github.io/virtio-balloon
+  # @!attribute [r] actual
+  #   @return [Integer] currently configured memory size given to the VM by the host, in bytes
+  # @!attribute [r] unused
+  #   @return [Integer, nil] truly unused memory (kernel `MemFree`): neither used by
+  #     processes nor held as cache, in bytes. `nil` if ballooning is unavailable
+  # @!attribute [r] available
+  #   @return [Integer, nil] memory the guest OS sees as total (kernel `MemTotal`), in
+  #     bytes — slightly less than `actual` since kernel/BIOS reserve some. `nil` if
+  #     ballooning is unavailable
+  # @!attribute [r] usable
+  #   @return [Integer, nil] memory the guest can readily use (kernel `MemAvailable`):
+  #     free space plus easily reclaimable caches, in bytes. `nil` if ballooning is unavailable
+  # @!attribute [r] disk_caches
+  #   @return [Integer, nil] guest disk cache size, in bytes. `nil` if ballooning is unavailable
+  # @!attribute [r] rss
+  #   @return [Integer] resident set size of the QEMU process on the host, in bytes — pages
+  #     actually touched so far (QEMU allocates on demand, so this grows over the VM's life)
+  # @!attribute [r] last_updated
+  #   @return [Integer] epoch seconds when these values were fetched from the VM; if it
+  #     stops advancing, VM refresh needs to be set up
   class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches, :rss, :last_updated)
     # @return [MemoryUsage | nil] the guest memory stats or nil if unavailable.
     def guest_mem
@@ -43,6 +44,7 @@ module Virt
     # @return [Boolean] true if the guest data is available
     def guest_data_available? = !available.nil? && !usable.nil? && !disk_caches.nil? && !unused.nil?
 
+    # @return [String] human-readable summary; includes guest detail only when available
     def to_s
       result = "actual #{format_byte_size(actual)}"
       result += "(rss=#{format_byte_size(rss)})" unless rss.nil?
