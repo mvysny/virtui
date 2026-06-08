@@ -29,7 +29,7 @@ module Virt
   # @!attribute [r] last_updated
   #   @return [Integer] epoch seconds when these values were fetched from the VM; if it
   #     stops advancing, VM refresh needs to be set up
-  class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches, :rss, :last_updated)
+  class MemoryStat < Data.define(:actual, :unused, :available, :usable, :disk_caches, :rss, :last_updated)
     # @return [ResourceUsage | nil] the guest memory stats or nil if unavailable.
     def guest_mem
       guest_data_available? ? ResourceUsage.new(available, usable) : nil

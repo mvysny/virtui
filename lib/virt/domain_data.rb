@@ -17,7 +17,7 @@ module Virt
   #   @return [Integer] cumulative used CPU time (user + system) in milliseconds; diffed
   #     between snapshots to compute usage
   # @!attribute [r] mem_stat
-  #   @return [MemStat, nil] memory stats; `nil` if the VM is not running
+  #   @return [MemoryStat, nil] memory stats; `nil` if the VM is not running
   # @!attribute [r] disk_stat
   #   @return [Array<DiskStat>] disk stats, one per connected disk
   class DomainData < Data.define(:info, :state, :sampled_at, :cpu_time, :mem_stat, :disk_stat)

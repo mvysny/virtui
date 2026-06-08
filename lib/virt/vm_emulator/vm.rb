@@ -9,17 +9,17 @@ module Virt
       # Minimum memory we pretend the guest apps need.
       # @return [Integer]
       MIN_APP_MEMORY = 128.MiB
-      # Memory the kernel+BIOS reserve — the gap between {MemStat}'s `actual` and `available`.
+      # Memory the kernel+BIOS reserve — the gap between {MemoryStat}'s `actual` and `available`.
       # @return [Integer]
       BIOS_KERNEL = 128.MiB
-      # Smallest allowed value of {MemStat}'s `actual`.
+      # Smallest allowed value of {MemoryStat}'s `actual`.
       # @return [Integer]
       MIN_ACTUAL = MIN_APP_MEMORY + BIOS_KERNEL
 
       # Creates a VM (initially shut off).
       #
       # @param info [DomainInfo] static VM configuration
-      # @param initial_actual [Integer] {MemStat}'s `actual` when the VM is started, in bytes
+      # @param initial_actual [Integer] {MemoryStat}'s `actual` when the VM is started, in bytes
       # @param started_initial_apps [Integer] guest-app memory the VM ramps to after start,
       #   in bytes; change it later via {#memory_app=}
       # @raise [RuntimeError] if any size is below its minimum (`max_memory`/`initial_actual`
@@ -42,7 +42,7 @@ module Virt
       # Convenience constructor: a 1-CPU VM whose initial app usage is half of `actual`.
       #
       # @param name [String] VM name
-      # @param actual [Integer] initial {MemStat} `actual`, in bytes
+      # @param actual [Integer] initial {MemoryStat} `actual`, in bytes
       # @param max_actual [Integer] the VM's maximum memory, in bytes (defaults to a large
       #   multiple of `actual`)
       # @return [VM] the new VM
@@ -78,7 +78,7 @@ module Virt
         @shut_down_at = nil
         @actual = Interpolator::Const.new(@initial_actual)
         # Mem used by guest apps. This doesn't include disk_caches.
-        # This can be higher than 'MemStat.available' - we pretend that the rest of the app memory
+        # This can be higher than 'MemoryStat.available' - we pretend that the rest of the app memory
         # is swapped out.
         @mem_apps = Interpolator::Linear.from_now(0, started_initial_apps, @startup_seconds)
       end
@@ -151,9 +151,9 @@ module Virt
                   end
       end
 
-      # Computes the VM's current {MemStat} from its simulated state.
+      # Computes the VM's current {MemoryStat} from its simulated state.
       #
-      # @return [MemStat, nil] the current memory stats, or `nil` if the VM is not running
+      # @return [MemoryStat, nil] the current memory stats, or `nil` if the VM is not running
       def to_mem_stat
         return nil unless running?
 
@@ -164,7 +164,7 @@ module Virt
         disk_caches = @disk_caches.clamp(0, usable)
         rss = (apps + disk_caches).clamp(nil, available) + BIOS_KERNEL
         unused = usable - disk_caches
-        MemStat.new(actual, unused, available, usable, disk_caches, rss, DomainData.millis_now / 1000)
+        MemoryStat.new(actual, unused, available, usable, disk_caches, rss, DomainData.millis_now / 1000)
       end
     end
   end

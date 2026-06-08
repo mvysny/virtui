@@ -56,7 +56,7 @@ module Virt
       # {Boolean} if the VM was running during the last ballooning update
       @was_running = false
 
-      # {Integer | nil} the value of {MemStat.last_updated} or nil.
+      # {Integer | nil} the value of {MemoryStat.last_updated} or nil.
       # This is the last date of the data upon which a decision was made.
       @last_update_at = nil
 

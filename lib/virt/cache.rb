@@ -48,7 +48,7 @@ module Virt
     end
 
     # @param domain [String] domain name
-    # @return [MemStat, nil] memory stats, or `nil` if the VM isn't running
+    # @return [MemoryStat, nil] memory stats, or `nil` if the VM isn't running
     def memstat(domain)
       data(domain)&.mem_stat
     end

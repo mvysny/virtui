@@ -14,7 +14,7 @@ module UI
     # @param char [String] the character used for the filled portion
     # @return [Tuile::StyledString] the rendered bar; empty when `max_value` or `width` is zero
     # @raise [RuntimeError] if `max_value` is negative
-    def progress_bar2(width, value, max_value, color, rest_color, char = '#')
+    def progress_bar(width, value, max_value, color, rest_color, char = '#')
       raise "#{max_value} must not be negative" if max_value.negative?
       return Tuile::StyledString::EMPTY if max_value.zero? || width.zero?
 

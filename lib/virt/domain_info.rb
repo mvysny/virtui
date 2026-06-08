@@ -10,7 +10,7 @@ module Virt
   # @!attribute [r] cpus
   #   @return [Integer] number of virtual CPUs allocated
   # @!attribute [r] max_memory
-  #   @return [Integer] maximum memory allocated to the VM, in bytes; {MemStat}'s `actual`
+  #   @return [Integer] maximum memory allocated to the VM, in bytes; {MemoryStat}'s `actual`
   #     can never exceed this
   class DomainInfo < Data.define(:name, :cpus, :max_memory)
     # @return [String] human-readable summary, e.g. `"web: CPUs: 4, RAM: 8.0G"`

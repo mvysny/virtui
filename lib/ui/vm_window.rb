@@ -71,8 +71,8 @@ module UI
 
             guest_mem_usage = cache.data.mem_stat.guest_mem
             host_mem_usage = cache.data.mem_stat.host_mem
-            memguest = progress_bar2(column_width, guest_mem_usage, theme[:ram_vm])
-            memhost = progress_bar2(column_width, ResourceUsage.of(host_ram.total, host_mem_usage.used), theme[:ram])
+            memguest = usage_bar(column_width, guest_mem_usage, theme[:ram_vm])
+            memhost = usage_bar(column_width, ResourceUsage.of(host_ram.total, host_mem_usage.used), theme[:ram])
             lines << "    #{theme.ram('RAM')}:#{memguest} | #{memhost}"
             @line_data << domain_name
           end
@@ -80,7 +80,7 @@ module UI
 
           data.disk_stat.each do |ds| # {Virt::DiskStat}
             name = theme.disk_label(ds.name[0..3].rjust(4))
-            guest_du = progress_bar2(column_width, ds.guest_usage, theme[:disk_vm])
+            guest_du = usage_bar(column_width, ds.guest_usage, theme[:disk_vm])
             host_du = progress_bar_qcow2(column_width, ds)
             lines << "   #{name}:#{guest_du} | #{host_du}"
             @line_data << domain_name
@@ -317,7 +317,7 @@ module UI
       left = left.ljust(11) unless left.empty?
       right = right.rjust(6)
       pb_width = (width - left.size - right.size).clamp(0, nil)
-      pb = @f.progress_bar2(pb_width, value, max, color, screen.theme[:frame])
+      pb = @f.progress_bar(pb_width, value, max, color, screen.theme[:frame])
       left + pb.to_ansi + right
     end
 
@@ -328,7 +328,7 @@ module UI
     # @param mem_usage [ResourceUsage, nil] the resource usage to render
     # @param color [Tuile::Color] progress bar color
     # @return [String] the rendered segment
-    def progress_bar2(width, mem_usage, color)
+    def usage_bar(width, mem_usage, color)
       return ' ' * width if mem_usage.nil?
 
       progress_bar("#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",

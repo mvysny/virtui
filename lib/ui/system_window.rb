@@ -34,12 +34,12 @@ module UI
         # Memory
         lines << header('RAM', '', :ram)
         host_ram = @virt_cache.host_mem_stat.ram
-        lines << progress_bar2('Used', host_ram, theme[:ram])
+        lines << usage_bar('Used', host_ram, theme[:ram])
         total_vm_rss_usage = @virt_cache.total_vm_rss_usage
         lines << progress_bar(" VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
                               total_vm_rss_usage, host_ram.total, theme[:ram_vm], format_byte_size(host_ram.total))
         host_swap = @virt_cache.host_mem_stat.swap
-        lines << progress_bar2('Swap', host_swap, theme[:ram])
+        lines << usage_bar('Swap', host_swap, theme[:ram])
 
         # Disk
         disks = @virt_cache.disks
@@ -47,9 +47,9 @@ module UI
         lines << header('Disks', format_byte_size(disk_usage.total), :disk)
         disks.each do |name, usage|
           lines << theme.disk_label("#{name}:")
-          lines << progress_bar2('Used', usage.usage, theme[:disk])
-          lines << progress_bar2(' VMs', ResourceUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage),
-                                 theme[:disk_vm])
+          lines << usage_bar('Used', usage.usage, theme[:disk])
+          lines << usage_bar(' VMs', ResourceUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage),
+                             theme[:disk_vm])
         end
       end
     end
@@ -180,7 +180,7 @@ module UI
       left = left.ljust(16)
       right = right.rjust(6)
       pb_width = (rect.width - 4 - left.size - right.size).clamp(0, nil)
-      pb = @f.progress_bar2(pb_width, value, max, color, screen.theme[:frame])
+      pb = @f.progress_bar(pb_width, value, max, color, screen.theme[:frame])
       left + pb.to_ansi + right
     end
 
@@ -191,7 +191,7 @@ module UI
     # @param mem_usage [ResourceUsage] the resource usage to render
     # @param color [Tuile::Color] progress bar color
     # @return [String] the rendered row
-    def progress_bar2(tag, mem_usage, color)
+    def usage_bar(tag, mem_usage, color)
       progress_bar("#{tag}:#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
                    mem_usage.used, mem_usage.total, color,
                    format_byte_size(mem_usage.total))

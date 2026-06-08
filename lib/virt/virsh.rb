@@ -56,9 +56,9 @@ module Virt
           mem_available = values['balloon.available']&.to_i&.KiB
           last_updated = values['balloon.last-update'].to_i
 
-          mem_stat = MemStat.new(mem_current, mem_unused, mem_available, mem_usable,
-                                 values['balloon.disk_caches']&.to_i&.KiB,
-                                 values['balloon.rss'].to_i.KiB, last_updated)
+          mem_stat = MemoryStat.new(mem_current, mem_unused, mem_available, mem_usable,
+                                    values['balloon.disk_caches']&.to_i&.KiB,
+                                    values['balloon.rss'].to_i.KiB, last_updated)
         end
 
         disk_stat = parse_disk_data(values)
