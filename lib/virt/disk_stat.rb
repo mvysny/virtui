@@ -1,13 +1,23 @@
 # frozen_string_literal: true
 
 module Virt
-  # A VM disk statistics.
+  # Statistics for a single VM disk device.
   #
-  # - `name` {String} the name of the device, e.g. `vda` or `sda`
-  # - `allocation` {Integer} how much of the guest’s disk has real data behind it
-  # - `capacity` {Integer} maximum size of the guest disk
-  # - `physical` {Integer} how big the qcow2 file actually is on host's filesystem right now
-  # - `path` {String} path to the qcow2 file
+  # Distinguishes three sizes that are easy to confuse: how much data the guest has
+  # written (`allocation`), the guest disk's nominal size (`capacity`), and how many bytes
+  # the backing qcow2 file currently occupies on the host (`physical`). Immutable and
+  # thread-safe (a frozen {Data} value object).
+  #
+  # @!attribute [r] name
+  #   @return [String] the device name, e.g. `"vda"` or `"sda"`
+  # @!attribute [r] allocation
+  #   @return [Integer] bytes of the guest disk that have real data behind them
+  # @!attribute [r] capacity
+  #   @return [Integer] nominal (maximum) size of the guest disk, in bytes
+  # @!attribute [r] physical
+  #   @return [Integer] current on-host size of the qcow2 file, in bytes
+  # @!attribute [r] path
+  #   @return [String] path to the qcow2 file on the host
   class DiskStat < Data.define(:name, :allocation, :capacity, :physical, :path)
     # @return [MemoryUsage] `allocation` used out of `capacity`
     def guest_usage = MemoryUsage.of(capacity, allocation)
@@ -21,6 +31,7 @@ module Virt
       (((physical.to_f / allocation) - 1) * 100).clamp(-100, 999).to_i
     end
 
+    # @return [String] human-readable summary of guest usage and host overhead
     def to_s
       "#{name}: #{format_byte_size(allocation)}/#{format_byte_size(capacity)} (#{percent_used}%); physical #{format_byte_size(physical)} (#{overhead_percent}% overhead)"
     end
