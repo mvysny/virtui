@@ -15,17 +15,17 @@ Tuile.logger = $log
 # Update terminal title to show "VirTUI"
 print "\e]0;VirTUI\a"
 
-# Don't use LibVirtClient for now: it doesn't provide all necessary data
-# virt = LibVirtClient.new
-virt = VirtCmd.new if VirtCmd.available?
-virt ||= VMEmulator.demo
-virt_cache = VirtCache.new(virt, SysInfo.new)
+# Don't use Virt::LibVirtClient for now: it doesn't provide all necessary data
+# virt = Virt::LibVirtClient.new
+virt = Virt::Cmd.new if Virt::Cmd.available?
+virt ||= Virt::VMEmulator.demo
+virt_cache = Virt::Cache.new(virt, SysInfo.new)
 
-ballooning = Ballooning.new(virt_cache)
+ballooning = Virt::Ballooning.new(virt_cache)
 screen = Tuile::Screen.new
-screen.theme_def = VirTUITheme::THEME_DEF
+screen.theme_def = UI::Theme::THEME_DEF
 screen.on_error = ->(e) { $log.fatal('Uncaught event loop exception', e) }
-layout = AppLayout.new(virt_cache, ballooning)
+layout = UI::AppLayout.new(virt_cache, ballooning)
 screen.content = layout
 screen.focused = layout.vms
 

@@ -3,14 +3,14 @@
 require_relative '../spec_helper'
 require 'timecop'
 
-describe BallooningVM do
+describe Virt::BallooningVM do
   it 'doesnt attempt to control stopped VM' do
-    virt = VMEmulator.new
+    virt = Virt::VMEmulator.new
     virt.allow_set_actual = false
-    virt.add(VMEmulator::VM.simple('vm0'))
-    virt_cache = VirtCache.new(virt, PcEmulator.new)
+    virt.add(Virt::VMEmulator::VM.simple('vm0'))
+    virt_cache = Virt::Cache.new(virt, PcEmulator.new)
 
-    b = BallooningVM.new(virt_cache, 'vm0')
+    b = Virt::BallooningVM.new(virt_cache, 'vm0')
     b.update
     Timecop.freeze(Time.now + 200) do
       b.update
@@ -18,14 +18,14 @@ describe BallooningVM do
   end
 
   it 'increases memory even though in backoff' do
-    virt = VMEmulator.new
+    virt = Virt::VMEmulator.new
     virt.allow_set_actual = false
-    vm = virt.add(VMEmulator::VM.simple('vm0'))
+    vm = virt.add(Virt::VMEmulator::VM.simple('vm0'))
     vm.start
-    virt_cache = VirtCache.new(virt, PcEmulator.new)
+    virt_cache = Virt::Cache.new(virt, PcEmulator.new)
     assert_equal 2.GiB, vm.to_mem_stat.actual
 
-    b = BallooningVM.new(virt_cache, 'vm0')
+    b = Virt::BallooningVM.new(virt_cache, 'vm0')
     b.min_actual = 2.GiB
     b.update
     # should issue no update - the VM is just starting

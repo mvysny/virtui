@@ -18,27 +18,31 @@ extensions, and configures a [Zeitwerk](https://github.com/fxn/zeitwerk) loader
 over `lib/`. Both `bin/virtui` and `spec/spec_helper.rb` just `require 'virtui'`;
 everything else autoloads. Conventions to keep the loader happy:
 
-- **One constant per file**, named after the path (`lib/virt/virt_cmd.rb` → `VirtCmd`).
-  Don't add `require`/`require_relative` for sibling classes — reference the constant and it autoloads.
-- **`lib/virt/` is collapsed**, so its files define top-level constants (`VirtCmd`,
-  `VirtCache`, `Ballooning`, …) rather than a `Virt::` namespace.
+- **One constant per file**, named after the path (`lib/virt/cmd.rb` → `Virt::Cmd`,
+  `lib/ui/vm_window.rb` → `UI::VMWindow`). Don't add `require`/`require_relative`
+  for sibling classes — reference the constant and it autoloads.
+- **Two namespaces map to directories:** `lib/virt/` → `Virt::` (libvirt backend
+  domain model + clients) and `lib/ui/` → `UI::` (tuile presentation). Host-system
+  metrics (`SysInfo`, `MemoryStat`, `CpuStat`, `DiskUsage`, …) and generic helpers
+  (`Run`, `Interpolator`) stay top-level. `lib/virt.rb` / `lib/ui.rb` define+document
+  the modules.
 - **`lib/core_ext/` is ignored** by the loader and required manually: it holds the
   `Numeric` byte-unit monkey-patch and the top-level `format_byte_size` helper —
   things that don't define a matching constant.
-- Acronym casing (`VMWindow`, `VMEmulator`, `VirTUITheme`, `BallooningVM`) is set
-  via `inflector.inflect` in `lib/virtui.rb`; add an entry there for new ones.
+- Acronym casing (`UI`, `VMWindow`, `VMEmulator`, `VM`, `BallooningVM`) is set via
+  `inflector.inflect` in `lib/virtui.rb`; add an entry there for new ones.
 
 ## Architecture
 
 VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt. It has two layers:
 
-**Application layer (`lib/`):** built on the [tuile](https://github.com/mvysny/tuile) TUI gem.
-- `AppLayout`: orchestrates three windows — `VMWindow` (VM list/controls), `SystemWindow` (host CPU/RAM/disk), and a log window
-- `Ballooning`: auto-scales VM memory (increases by 30% at ≥65% usage, decreases by 10% at ≤55%); runs on the UI thread, must not be called from a background thread
+**UI layer (`lib/ui/`, `UI::`):** built on the [tuile](https://github.com/mvysny/tuile) TUI gem.
+- `UI::AppLayout`: orchestrates three windows — `UI::VMWindow` (VM list/controls), `UI::SystemWindow` (host CPU/RAM/disk), and a log window
+- `Virt::Ballooning`: auto-scales VM memory (increases by 30% at ≥65% usage, decreases by 10% at ≤55%); runs on the UI thread, must not be called from a background thread
 
-**Libvirt backend (`lib/virt/`):**
-- `Virt`/`VirtCmd`: wraps `virsh` CLI commands
-- `VirtCache`: thread-safe cache of VM runtime data; `update` is called from a background timer thread
-- `VMEmulator`: demo/test mode that simulates VMs without libvirt
+**Libvirt backend (`lib/virt/`, `Virt::`):**
+- `Virt::Cmd`: wraps `virsh` CLI commands (`Virt::LibVirtClient` is an unused, faster alternative)
+- `Virt::Cache`: thread-safe cache of VM runtime data; `update` is called from a background timer thread
+- `Virt::VMEmulator`: demo/test mode that simulates VMs without libvirt
 
-**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `VirtCache#update` → submits a block to tuile's `EventQueue` → UI thread runs `Ballooning#update` then `layout.update_data` → dirty components repaint.
+**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `Virt::Cache#update` → submits a block to tuile's `EventQueue` → UI thread runs `Virt::Ballooning#update` then `layout.update_data` → dirty components repaint.

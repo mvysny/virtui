@@ -3,13 +3,13 @@
 require_relative 'spec_helper'
 
 module Tuile
-  describe AppLayout do
+  describe UI::AppLayout do
     before { Screen.fake }
     after { Screen.close }
     let(:layout) do
       Helpers.setup_dummy_logger
-      cache = VirtCache.new(VMEmulator.demo, PcEmulator.new)
-      AppLayout.new(cache, Ballooning.new(cache))
+      cache = Virt::Cache.new(Virt::VMEmulator.demo, PcEmulator.new)
+      UI::AppLayout.new(cache, Virt::Ballooning.new(cache))
     end
 
     it 'smokes' do

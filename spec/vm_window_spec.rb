@@ -4,15 +4,15 @@ require_relative 'spec_helper'
 require 'timecop'
 
 module Tuile
-describe VMWindow do
+describe UI::VMWindow do
   before { Screen.fake }
   after { Screen.close }
   let(:now) { Time.now }
   let(:window) do
-    cache = Timecop.freeze(now) { VirtCache.new(VMEmulator.demo, PcEmulator.new) }
+    cache = Timecop.freeze(now) { Virt::Cache.new(Virt::VMEmulator.demo, PcEmulator.new) }
     w = Timecop.freeze(now + 5) do
       cache.update
-      VMWindow.new(cache, Ballooning.new(cache))
+      UI::VMWindow.new(cache, Virt::Ballooning.new(cache))
     end
     Screen.instance.content = w
     w.rect = Rect.new(0, 0, 20, 20)

@@ -18,14 +18,12 @@ loader = Zeitwerk::Loader.new
 loader.push_dir(__dir__)
 loader.ignore(__FILE__)               # this bootstrap defines no autoloadable constant
 loader.ignore("#{__dir__}/core_ext")  # loaded manually above
-# lib/virt groups the libvirt backend but is NOT a namespace: its files define
-# top-level constants (VirtCmd, VirtCache, Ballooning, ...).
-loader.collapse("#{__dir__}/virt")
+# lib/virt/ -> Virt:: (libvirt backend), lib/ui/ -> UI:: (tuile presentation).
 loader.inflector.inflect(
+  'ui' => 'UI',
   'vm_window' => 'VMWindow',
   'vm_emulator' => 'VMEmulator',
   'vm' => 'VM',
-  'virtui_theme' => 'VirTUITheme',
   'ballooning_vm' => 'BallooningVM'
 )
 loader.setup

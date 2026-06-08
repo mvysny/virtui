@@ -8,7 +8,7 @@ RSpec.configure do |config|
 end
 
 # Every Screen.fake starts with VirTUI's theme, so components can read custom tokens.
-Tuile::ThemeDef.default = VirTUITheme::THEME_DEF
+Tuile::ThemeDef.default = UI::Theme::THEME_DEF
 
 module Helpers
   # Sets a logger to `$log` and returns a {StringIO} which captures logged stuff.

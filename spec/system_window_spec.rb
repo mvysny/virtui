@@ -3,16 +3,16 @@
 require_relative 'spec_helper'
 
 module Tuile
-  describe SystemWindow do
-    let(:cache) { VirtCache.new(VMEmulator.demo, PcEmulator.new) }
+  describe UI::SystemWindow do
+    let(:cache) { Virt::Cache.new(Virt::VMEmulator.demo, PcEmulator.new) }
     before { Screen.fake }
     after { Screen.close }
     it 'smokes' do
-      SystemWindow.new(cache)
+      UI::SystemWindow.new(cache)
     end
 
     it 'shows help window' do
-      w = SystemWindow.new(cache)
+      w = UI::SystemWindow.new(cache)
       w.handle_key 'h'
       popups = Screen.instance.popups
       assert_equal 1, popups.length
