@@ -9,7 +9,7 @@ describe UI::VMWindow do
   after { Screen.close }
   let(:now) { Time.now }
   let(:window) do
-    cache = Timecop.freeze(now) { Virt::Cache.new(Virt::VMEmulator.demo, PcEmulator.new) }
+    cache = Timecop.freeze(now) { Virt::Cache.new(Virt::VMEmulator.demo, System::Emulator.new) }
     w = Timecop.freeze(now + 5) do
       cache.update
       UI::VMWindow.new(cache, Virt::Ballooning.new(cache))

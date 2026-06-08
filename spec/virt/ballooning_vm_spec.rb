@@ -8,7 +8,7 @@ describe Virt::BallooningVM do
     virt = Virt::VMEmulator.new
     virt.allow_set_actual = false
     virt.add(Virt::VMEmulator::VM.simple('vm0'))
-    virt_cache = Virt::Cache.new(virt, PcEmulator.new)
+    virt_cache = Virt::Cache.new(virt, System::Emulator.new)
 
     b = Virt::BallooningVM.new(virt_cache, 'vm0')
     b.update
@@ -22,7 +22,7 @@ describe Virt::BallooningVM do
     virt.allow_set_actual = false
     vm = virt.add(Virt::VMEmulator::VM.simple('vm0'))
     vm.start
-    virt_cache = Virt::Cache.new(virt, PcEmulator.new)
+    virt_cache = Virt::Cache.new(virt, System::Emulator.new)
     assert_equal 2.GiB, vm.to_mem_stat.actual
 
     b = Virt::BallooningVM.new(virt_cache, 'vm0')

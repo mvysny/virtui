@@ -7,21 +7,21 @@ module Virt
   # return immutable data which may be a bit stale in the worst case: this is okay since
   # it's only for display purposes.
   class Cache
-    # @property [MemoryStat]
+    # @property [System::MemoryStat]
     attr_reader :host_mem_stat
     # @property [CpuInfo]
     attr_reader :cpu_info
     # @property [Cmd]
     attr_reader :virt
 
-    # @property [Map{String => DiskUsage}] maps physical disk name to usage information.
+    # @property [Map{String => System::DiskUsage}] maps physical disk name to usage information.
     attr_reader :disks
 
     # @return [Set<String>] CPU flags such as `npt`, `nx` etc. Not just virtualization-related.
     attr_reader :cpu_flags
 
     # @param virt [Cmd] virt client
-    # @param sysinfo [SysInfo]
+    # @param sysinfo [System::Info]
     def initialize(virt, sysinfo)
       # {Cmd}- compatible client.
       @virt = virt
@@ -29,7 +29,7 @@ module Virt
       @cpu_info = virt.hostinfo
       # {Set<String>}
       @cpu_flags = sysinfo.cpu_flags
-      # {SysInfo}
+      # {System::Info}
       @sysinfo = sysinfo
       # {Integer}
       @cpu_count = @cpu_info.cpus
@@ -154,13 +154,13 @@ module Virt
         domain_data.each { |did, data| cache[did] = VMCache.diff(old_cache[did]&.data, data) }
         @cache = cache
 
-        # {MemoryStat} host stats
+        # {System::MemoryStat} host stats
         @host_mem_stat = @sysinfo.memory_stats
-        # {CpuUsage}
+        # {System::CpuUsage}
         @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
 
         qcow2_files = domain_data.values.flat_map { it.disk_stat }.filter { !it.path.nil? }.map { [it.path, it.physical] }
-        # {Map{String => DiskUsage}} maps physical disk name to usage information.
+        # {Map{String => System::DiskUsage}} maps physical disk name to usage information.
         @disks = @sysinfo.disk_usage(qcow2_files)
       end
     end

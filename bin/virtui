@@ -19,7 +19,7 @@ print "\e]0;VirTUI\a"
 # virt = Virt::LibVirtClient.new
 virt = Virt::Cmd.new if Virt::Cmd.available?
 virt ||= Virt::VMEmulator.demo
-virt_cache = Virt::Cache.new(virt, SysInfo.new)
+virt_cache = Virt::Cache.new(virt, System::Info.new)
 
 ballooning = Virt::Ballooning.new(virt_cache)
 screen = Tuile::Screen.new

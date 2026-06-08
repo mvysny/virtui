@@ -8,7 +8,7 @@ module Tuile
     after { Screen.close }
     let(:layout) do
       Helpers.setup_dummy_logger
-      cache = Virt::Cache.new(Virt::VMEmulator.demo, PcEmulator.new)
+      cache = Virt::Cache.new(Virt::VMEmulator.demo, System::Emulator.new)
       UI::AppLayout.new(cache, Virt::Ballooning.new(cache))
     end
 
