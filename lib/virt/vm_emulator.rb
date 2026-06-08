@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Virt
-  # An in-memory fleet of simulated VMs, API-compatible with {Cmd}, for demo/test mode
+  # An in-memory fleet of simulated VMs, API-compatible with {Virsh}, for demo/test mode
   # without libvirt. Each VM is a {VMEmulator::VM}; see {.demo} for a ready-made fleet.
   class VMEmulator
     # @param hostinfo [CpuInfo] the host CPU topology to report
@@ -67,7 +67,7 @@ module Virt
     # Builds a ready-made demo fleet: BASE (shut off), Ubuntu (running), win11 (running),
     # Fedora (shut off).
     #
-    # @return [VMEmulator] a {Cmd}-compatible emulator pre-populated with four VMs
+    # @return [VMEmulator] a {Virsh}-compatible emulator pre-populated with four VMs
     def self.demo
       e = VMEmulator.new
       e.add(VMEmulator::VM.simple('BASE', actual: 8.GiB, max_actual: 8.GiB))

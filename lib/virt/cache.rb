@@ -12,7 +12,7 @@ module Virt
     attr_reader :host_mem_stat
     # @return [CpuInfo] static host CPU topology
     attr_reader :cpu_info
-    # @return [Cmd] the libvirt client backing this cache
+    # @return [Virsh] the libvirt client backing this cache
     attr_reader :virt
 
     # @return [Hash{String => System::DiskUsage}] maps physical disk name to its usage
@@ -23,7 +23,7 @@ module Virt
 
     # Builds the cache and performs an initial {#update}.
     #
-    # @param virt [Cmd] libvirt client used to read VM data
+    # @param virt [Virsh] libvirt client used to read VM data
     # @param sysinfo [System::Info] host-metrics reader (or {System::Emulator})
     def initialize(virt, sysinfo)
       @virt = virt
@@ -86,7 +86,7 @@ module Virt
       cache(domain)&.info
     end
 
-    # Validates the requested size against the VM's limits, then delegates to {Cmd#set_actual}.
+    # Validates the requested size against the VM's limits, then delegates to {Virsh#set_actual}.
     #
     # @param domain [String] domain name
     # @param new_actual [Integer] the new `actual` memory size, in bytes

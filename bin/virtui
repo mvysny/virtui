@@ -17,7 +17,7 @@ print "\e]0;VirTUI\a"
 
 # Don't use Virt::LibVirtClient for now: it doesn't provide all necessary data
 # virt = Virt::LibVirtClient.new
-virt = Virt::Cmd.new if Virt::Cmd.available?
+virt = Virt::Virsh.new if Virt::Virsh.available?
 virt ||= Virt::VMEmulator.demo
 virt_cache = Virt::Cache.new(virt, System::Info.new)
 

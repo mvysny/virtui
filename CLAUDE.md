@@ -22,7 +22,7 @@ extensions, and configures a [Zeitwerk](https://github.com/fxn/zeitwerk) loader
 over `lib/`. Both `bin/virtui` and `spec/spec_helper.rb` just `require 'virtui'`;
 everything else autoloads. Conventions to keep the loader happy:
 
-- **One constant per file**, named after the path (`lib/virt/cmd.rb` → `Virt::Cmd`,
+- **One constant per file**, named after the path (`lib/virt/virsh.rb` → `Virt::Virsh`,
   `lib/ui/vm_window.rb` → `UI::VMWindow`). Don't add `require`/`require_relative`
   for sibling classes — reference the constant and it autoloads.
 - **Three namespaces map to directories:** `lib/virt/` → `Virt::` (libvirt backend
@@ -46,7 +46,7 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt, organized into th
 - `Virt::Ballooning`: auto-scales VM memory (increases by 30% at ≥65% usage, decreases by 10% at ≤55%); runs on the UI thread, must not be called from a background thread
 
 **Libvirt backend (`lib/virt/`, `Virt::`):**
-- `Virt::Cmd`: wraps `virsh` CLI commands
+- `Virt::Virsh`: wraps `virsh` CLI commands
 - `Virt::Cache`: thread-safe cache of VM runtime data; `update` is called from a background timer thread
 - `Virt::VMEmulator`: demo/test mode that simulates VMs without libvirt
 

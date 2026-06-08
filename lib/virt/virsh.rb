@@ -5,7 +5,7 @@ module Virt
   # text output). Install it with `sudo apt install libvirt-clients`.
   #
   # Stateless; the read methods accept fixture parameters for testing.
-  class Cmd
+  class Virsh
     # Maps the numeric `state.state` from `virsh domstats` to our state symbols; anything
     # else becomes `:other`.
     @@states = { 3 => :paused, 1 => :running, 5 => :shut_off }

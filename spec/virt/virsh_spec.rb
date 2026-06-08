@@ -13,14 +13,14 @@ VIRSH_NODEINFO = <<~EOF
   Memory size:         29987652 KiB
 EOF
 
-describe Virt::Cmd do
+describe Virt::Virsh do
   it 'hostinfo' do
-    info = Virt::Cmd.new.hostinfo(VIRSH_NODEINFO)
+    info = Virt::Virsh.new.hostinfo(VIRSH_NODEINFO)
     assert_equal 'x86_64: 1/8/2', info.to_s
   end
 
   it 'domain_data' do
-    result = Virt::Cmd.new.domain_data(File.read('spec/virt/domstats0.txt'), 0)
+    result = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats0.txt'), 0)
     assert_equal 2, result.size
     assert_equal 'ubuntu: CPUs: 8, RAM: 12G; running; actual 12G(rss=3.4G); guest: 241M/11G (2%) (unused=11G, disk_caches=37M)',
                  result['ubuntu'].to_s
@@ -31,10 +31,10 @@ describe Virt::Cmd do
 
   it 'cpu usage' do
     millis_since_epoch = 1_762_378_459_933
-    result0 = Virt::Cmd.new.domain_data(File.read('spec/virt/domstats0.txt'), millis_since_epoch)['ubuntu']
-    result1 = Virt::Cmd.new.domain_data(File.read('spec/virt/domstats1.txt'), millis_since_epoch + 10 * 1000)['ubuntu']
+    result0 = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats0.txt'), millis_since_epoch)['ubuntu']
+    result1 = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats1.txt'), millis_since_epoch + 10 * 1000)['ubuntu']
     assert_equal 22.51, result1.cpu_usage(result0).round(2)
-    result2 = Virt::Cmd.new.domain_data(File.read('spec/virt/domstats2.txt'), millis_since_epoch + 20 * 1000)['ubuntu']
+    result2 = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats2.txt'), millis_since_epoch + 20 * 1000)['ubuntu']
     assert_equal 181.43, result2.cpu_usage(result1).round(2)
   end
 end
