@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative 'spec_helper'
-require 'interpolator'
 require 'timecop'
 
 describe Interpolator::Const do

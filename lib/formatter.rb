@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-require 'tuile'
-require_relative 'sysinfo'
-require_relative 'utils'
-
 # Formats
 class Formatter
   # Draws pretty progress bar as one row.

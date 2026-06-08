@@ -1,19 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Add lib/ to the load path
-$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
-
 require 'bundler/setup'
 
-require 'tuile'
 require 'tty-logger'
-require 'virt/virt'
-require 'virt/virtcache'
-require 'virt/ballooning'
-require 'virt/vm_emulator'
-require 'app_layout'
-require 'virtui_theme'
+require_relative '../lib/virtui'
 
 # https://github.com/piotrmurach/tty-logger
 $log = TTY::Logger.new do |config|

@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 require_relative 'spec_helper'
-require 'virt/virtcache'
-require 'virt/vm_emulator'
-require 'vm_window'
 require 'timecop'
 
 module Tuile

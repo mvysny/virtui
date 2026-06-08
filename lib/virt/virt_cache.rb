@@ -1,10 +1,5 @@
 # frozen_string_literal: true
 
-require_relative '../sysinfo'
-require_relative 'virt'
-require_relative '../byte_prefixes'
-require 'concurrent-ruby'
-
 # Caches all VM runtime info for speedy access.
 #
 # Thread-safe: the {#update} is guarded by `@write_lock` and reads

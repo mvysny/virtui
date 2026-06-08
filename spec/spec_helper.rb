@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
 require 'tty-logger'
-require 'tuile'
-require 'virtui_theme'
+require 'virtui'
 
 RSpec.configure do |config|
   config.expect_with :minitest

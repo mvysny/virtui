@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 require_relative '../spec_helper'
-require 'virt/virt'
-require 'formatter'
 
 VIRSH_NODEINFO = <<~EOF
   CPU model:           x86_64

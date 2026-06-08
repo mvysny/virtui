@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require 'tuile'
-require_relative 'formatter'
-
 # Shows host OS info, such as CPU info, memory info.
 class SystemWindow < Tuile::Component::Window
   include Tuile

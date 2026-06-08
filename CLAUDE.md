@@ -11,6 +11,23 @@ bundle exec rspec spec/path/to_spec.rb:LINE     # Run a specific test by line nu
 bundle exec rubocop               # Lint
 ```
 
+## Autoloading (Zeitwerk)
+
+`lib/virtui.rb` is the entry point: it requires external gems, loads the core
+extensions, and configures a [Zeitwerk](https://github.com/fxn/zeitwerk) loader
+over `lib/`. Both `bin/virtui` and `spec/spec_helper.rb` just `require 'virtui'`;
+everything else autoloads. Conventions to keep the loader happy:
+
+- **One constant per file**, named after the path (`lib/virt/virt_cmd.rb` → `VirtCmd`).
+  Don't add `require`/`require_relative` for sibling classes — reference the constant and it autoloads.
+- **`lib/virt/` is collapsed**, so its files define top-level constants (`VirtCmd`,
+  `VirtCache`, `Ballooning`, …) rather than a `Virt::` namespace.
+- **`lib/core_ext/` is ignored** by the loader and required manually: it holds the
+  `Numeric` byte-unit monkey-patch and the top-level `format_byte_size` helper —
+  things that don't define a matching constant.
+- Acronym casing (`VMWindow`, `VMEmulator`, `VirTUITheme`, `BallooningVM`) is set
+  via `inflector.inflect` in `lib/virtui.rb`; add an entry there for new ones.
+
 ## Architecture
 
 VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt. It has two layers:

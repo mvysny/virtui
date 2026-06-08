@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 require_relative 'spec_helper'
-require 'system_window'
-require 'virt/vm_emulator'
-require 'virt/virtcache'
 
 module Tuile
   describe SystemWindow do

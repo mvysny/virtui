@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 require_relative 'spec_helper'
-require 'sysinfo'
-require 'byte_prefixes'
 
 describe MemoryUsage do
   it 'should produce good to_s' do

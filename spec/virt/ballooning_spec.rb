@@ -1,12 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../spec_helper'
-require 'virt/ballooning'
-require 'virt/virt'
-require 'virt/virtcache'
 require 'timecop'
-require 'virt/vm_emulator'
-require 'byte_prefixes'
 
 describe BallooningVM do
   it 'doesnt attempt to control stopped VM' do

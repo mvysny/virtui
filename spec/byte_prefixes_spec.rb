@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative 'spec_helper'
-require 'byte_prefixes'
 
 describe Numeric do
   describe '#KiB' do

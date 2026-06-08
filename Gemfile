@@ -7,6 +7,7 @@ gem 'concurrent-ruby'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
 gem 'tuile', '~> 0.6.0'
+gem 'zeitwerk', '~> 2.7'
 
 group :development do
   gem 'rake', '~> 13.4'

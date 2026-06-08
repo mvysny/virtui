@@ -1,17 +1,5 @@
 # frozen_string_literal: true
 
-require 'tuile'
-require 'tty-cursor'
-require_relative 'virt/virt'
-require_relative 'sysinfo'
-require_relative 'virt/virtcache'
-require_relative 'formatter'
-require_relative 'virt/ballooning'
-require_relative 'virt/vm_emulator'
-require_relative 'utils'
-require_relative 'system_window'
-require_relative 'vm_window'
-
 # A screen, holding all windows.
 class AppLayout < Tuile::Component::Layout::Absolute
   include Tuile

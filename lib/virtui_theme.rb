@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'tuile'
-
 # VirTUI's color theme: Tuile's built-in tokens plus app-specific ones, with
 # one coloring reader per custom token. Assign {THEME_DEF} to
 # `screen.theme_def=` so the screen picks the right variant for the terminal
