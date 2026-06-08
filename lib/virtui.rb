@@ -15,8 +15,7 @@ require 'date'
 
 # Core extensions: monkey-patches and top-level helpers. These don't define a
 # constant matching their path, so Zeitwerk can't manage them — load eagerly.
-require_relative 'core_ext/numeric'
-require_relative 'core_ext/format_byte_size'
+require_relative 'core_ext/bytes'
 
 loader = Zeitwerk::Loader.new
 loader.push_dir(__dir__)

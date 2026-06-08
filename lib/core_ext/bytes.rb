@@ -1,11 +1,32 @@
 # frozen_string_literal: true
 
+# Binary (power-of-1024) byte-size helpers: constructors on {Numeric} (`4.GiB`) and the
+# inverse renderer {#format_byte_size} (bytes → human string). Both are loaded manually
+# from {Virtui} (see `lib/core_ext/`) since neither defines a matching constant, so the
+# Zeitwerk loader ignores them.
+
+# Adds binary (power-of-1024) byte-size unit helpers to every number, so large byte
+# counts read as `4.GiB` instead of `4 * 1024 * 1024 * 1024`.
+class Numeric
+  # @return [Numeric] this number of kibibytes, in bytes (`self * 1024`)
+  def KiB
+    self * 1024
+  end
+
+  # @return [Numeric] this number of mebibytes, in bytes (`self * 1024**2`)
+  def MiB
+    self * 1024 * 1024
+  end
+
+  # @return [Numeric] this number of gibibytes, in bytes (`self * 1024**3`)
+  def GiB
+    self * 1024 * 1024 * 1024
+  end
+end
+
 # Pretty-formats a byte count with a binary (1024-based) unit suffix `K`/`M`/`G`/`T`/`P`,
 # showing one decimal place only when it adds precision. Negative values keep their sign;
 # zero renders as `"0"`. Magnitudes above petabytes are capped at `P`.
-#
-# Top-level helper loaded manually from {Virtui} (see `lib/core_ext/`); defines no
-# constant, so the Zeitwerk loader ignores it.
 #
 # @param bytes [Integer] size in bytes
 # @return [String] e.g. `"0"`, `"1.0K"`, `"23.8M"`, `"8.0G"`, `"-512K"`
