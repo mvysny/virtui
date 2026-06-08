@@ -1,12 +1,15 @@
 # frozen_string_literal: true
 
 module UI
-  # A screen, holding all windows.
+  # The top-level screen layout, orchestrating the three windows: {VMWindow} (VM
+  # list/controls), {SystemWindow} (host CPU/RAM/disk) and a log window. Also redirects
+  # `$log`'s console output into the log window and assigns the `1`/`2`/`3` focus
+  # shortcuts.
   class AppLayout < Tuile::Component::Layout::Absolute
     include Tuile
 
-    # @param virt_cache [Virt::Cache]
-    # @param ballooning [Virt::Ballooning]
+    # @param virt_cache [Virt::Cache] the runtime cache the windows read from
+    # @param ballooning [Virt::Ballooning] the ballooning controller for {VMWindow}
     def initialize(virt_cache, ballooning)
       super()
       @virt_cache = virt_cache
@@ -21,9 +24,17 @@ module UI
       @log.key_shortcut = '3'
     end
 
-    attr_reader :vms, :system, :log
+    # @return [VMWindow] the VM list/controls window
+    attr_reader :vms
+    # @return [SystemWindow] the host CPU/RAM/disk window
+    attr_reader :system
+    # @return [Tuile::Component::LogWindow] the log window
+    attr_reader :log
 
-    # Call when windows need to update their contents. Must be run with screen lock held.
+    # Refreshes every window's contents from the cache and repaints. Call when new data is
+    # available; must run with the screen lock held (on the UI thread).
+    #
+    # @return [void]
     def update_data
       screen.check_locked
       @system.update
@@ -31,6 +42,10 @@ module UI
       screen.repaint
     end
 
+    # Lays out the three windows within `rect`: VMs on top spanning the full width, with
+    # the system window and log side-by-side along the bottom.
+    #
+    # @param rect [Tuile::Rect] the area assigned to this layout
     def rect=(rect)
       super
       system_window_width = (rect.width / 2).clamp(0, 60)
