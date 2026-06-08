@@ -1,16 +1,27 @@
 # frozen_string_literal: true
 
 module Virt
-  # A VM information
+  # A point-in-time snapshot of one VM: its static {DomainInfo} plus the runtime state and
+  # metrics sampled at {#sampled_at}.
   #
-  # - `info` {DomainInfo} info
-  # - `state` {Symbol} one of `:running`, `:shut_off`, `:paused`, `:other`
-  # - `sampled_at` {Integer} milliseconds since the epoch; you can use [:millis_now]
-  # - `cpu_time` {Integer} milliseconds of used CPU time (user + system) since last sampling.
-  #   Used to calculate CPU usage.
-  # - `mem_stat` {MemStat} memory stats, `nil` if not running.
-  # - `disk_stat` {Array<DiskStat>} disk stats, one per every connected disk
+  # Two snapshots are diffed to derive CPU usage (see {#cpu_usage}). Immutable and
+  # thread-safe (a frozen {Data} value object).
+  #
+  # @!attribute [r] info
+  #   @return [DomainInfo] static VM configuration
+  # @!attribute [r] state
+  #   @return [Symbol] one of `:running`, `:shut_off`, `:paused`, `:other`
+  # @!attribute [r] sampled_at
+  #   @return [Integer] milliseconds since the epoch when this snapshot was taken (see {.millis_now})
+  # @!attribute [r] cpu_time
+  #   @return [Integer] cumulative used CPU time (user + system) in milliseconds; diffed
+  #     between snapshots to compute usage
+  # @!attribute [r] mem_stat
+  #   @return [MemStat, nil] memory stats; `nil` if the VM is not running
+  # @!attribute [r] disk_stat
+  #   @return [Array<DiskStat>] disk stats, one per connected disk
   class DomainData < Data.define(:info, :state, :sampled_at, :cpu_time, :mem_stat, :disk_stat)
+    # @return [Boolean] true if the VM is running
     def running? = state == :running
 
     # @return [Boolean] true if VM has proper ballooning support.
@@ -19,9 +30,16 @@ module Virt
     # @return [Integer] now, represented as milliseconds since the epoch.
     def self.millis_now = DateTime.now.strftime('%Q').to_i
 
-    # Calculates average CPU usage in the time period between older data and this data.
-    # @param older_data [DomainData | nil]
-    # @return [Float] CPU usage in %; 100% means one CPU core was fully utilized. 0 or greater, may be greater than 100.
+    # Average CPU usage over the interval between `older_data` and this snapshot, from the
+    # delta of {#cpu_time} over the delta of {#sampled_at}.
+    #
+    # Unlike {System::CpuUsage}, this is *per-core*: 100% means one virtual CPU core was
+    # fully utilized over the interval, so a busy multi-core VM can exceed 100%.
+    #
+    # @param older_data [DomainData, nil] the earlier snapshot; returns `0.0` when `nil`
+    # @return [Float] CPU usage in percent; `0.0` or greater, may exceed 100
+    # @raise [RuntimeError] if `older_data` is not actually older (its `sampled_at` is not
+    #   before this snapshot's)
     def cpu_usage(older_data)
       return 0.0 if older_data.nil?
       raise 'data is not older' if older_data.sampled_at >= sampled_at
@@ -31,6 +49,7 @@ module Virt
       cpu_used_millis.to_f / time_passed_millis * 100
     end
 
+    # @return [String] human-readable summary; appends memory stats only when running
     def to_s
       result = "#{info}; #{state}"
       result += "; #{mem_stat}" unless mem_stat.nil?
