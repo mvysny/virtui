@@ -1,64 +1,61 @@
 # frozen_string_literal: true
 
 module Virt
-  # Caches all VM runtime info for speedy access.
+  # A thread-safe cache of all VM runtime info, for fast reads from the UI thread.
   #
-  # Thread-safe: the {#update} is guarded by `@write_lock` and reads
-  # return immutable data which may be a bit stale in the worst case: this is okay since
-  # it's only for display purposes.
+  # {#update} runs on the background timer thread (guarded by `@write_lock`, never run it
+  # from the UI thread); readers return immutable, possibly slightly-stale data, which is
+  # fine for display. Each VM's entry is a {VMCache} carrying its {DomainData} plus
+  # derived CPU/memory figures.
   class Cache
-    # @property [System::MemoryStat]
+    # @return [System::MemoryStat] host memory statistics, refreshed by {#update}
     attr_reader :host_mem_stat
-    # @property [CpuInfo]
+    # @return [CpuInfo] static host CPU topology
     attr_reader :cpu_info
-    # @property [Cmd]
+    # @return [Cmd] the libvirt client backing this cache
     attr_reader :virt
 
-    # @property [Map{String => System::DiskUsage}] maps physical disk name to usage information.
+    # @return [Hash{String => System::DiskUsage}] maps physical disk name to its usage
     attr_reader :disks
 
-    # @return [Set<String>] CPU flags such as `npt`, `nx` etc. Not just virtualization-related.
+    # @return [Set<String>] host CPU flags such as `npt`, `nx` etc. — not just virtualization-related
     attr_reader :cpu_flags
 
-    # @param virt [Cmd] virt client
-    # @param sysinfo [System::Info]
+    # Builds the cache and performs an initial {#update}.
+    #
+    # @param virt [Cmd] libvirt client used to read VM data
+    # @param sysinfo [System::Info] host-metrics reader (or {System::Emulator})
     def initialize(virt, sysinfo)
-      # {Cmd}- compatible client.
       @virt = virt
-      # {CpuInfo}
       @cpu_info = virt.hostinfo
-      # {Set<String>}
       @cpu_flags = sysinfo.cpu_flags
-      # {System::Info}
       @sysinfo = sysinfo
-      # {Integer}
       @cpu_count = @cpu_info.cpus
-      # {Hash{String => VMCache}}
       @cache = Concurrent::Map.new
       # So that {#update} won't be run concurrently.
       @write_lock = Thread::Mutex.new
       update
     end
 
-    # @return [Integer] how many VMs are running
+    # @return [Integer] how many VMs are currently running
     def up
       @cache.values.count { it.data.state == :running }
     end
 
-    # Returns the names of all known VMs.
-    # @return [Set<String>]
+    # @return [Array<String>] names of all known VMs
     def domains
       @cache.keys
     end
 
     # @param domain [String] domain name
-    # @return [MemStat | nil] nil if domain isn't running
+    # @return [MemStat, nil] memory stats, or `nil` if the VM isn't running
     def memstat(domain)
       data(domain)&.mem_stat
     end
 
-    # @param domain [String]
-    # @return [VMCache | nil]
+    # @param domain [String] domain name
+    # @return [VMCache, nil] cached entry, or `nil` if no such VM is known
+    # @raise [RuntimeError] if `domain` is not a {String}
     def cache(domain)
       raise "Domain name must be String but was #{domain}" unless domain.is_a? String
 
@@ -66,7 +63,7 @@ module Virt
     end
 
     # @param domain [String] domain name
-    # @return [DomainData | nil]
+    # @return [DomainData, nil] latest snapshot, or `nil` if no such VM is known
     def data(domain)
       cache(domain)&.data
     end
@@ -84,13 +81,17 @@ module Virt
     end
 
     # @param domain [String] domain name
-    # @return [DomainInfo | nil]
+    # @return [DomainInfo, nil] static VM config, or `nil` if no such VM is known
     def info(domain)
       cache(domain)&.info
     end
 
-    # @param domain [String]
-    # @param new_actual [Integer] the new `actual` memory parameter.
+    # Validates the requested size against the VM's limits, then delegates to {Cmd#set_actual}.
+    #
+    # @param domain [String] domain name
+    # @param new_actual [Integer] the new `actual` memory size, in bytes
+    # @raise [RuntimeError] if the VM is unknown, or `new_actual` is below 128 MiB or
+    #   above the VM's `max_memory`
     def set_actual(domain, new_actual)
       info = info(domain)
       raise "#{domain} not existing" if info.nil?
@@ -102,17 +103,24 @@ module Virt
       @virt.set_actual(domain, new_actual)
     end
 
-    # VM cached data.
-    # - `data` {DomainData}
-    # - `cpu_usage` {Float} CPU usage in %; 100% means one CPU core was fully utilized. 0 or greater, may be greater than
-    #    100.
-    # - `mem_data_age_seconds` {Float} memory data age in seconds; `nil` if balloon unavailable or VM is shot down.
+    # One VM's cached snapshot plus the figures derived by diffing it against the previous
+    # snapshot. Immutable and thread-safe (a frozen {Data} value object).
     #
-    # Immutable, thread-safe.
+    # @!attribute [r] data
+    #   @return [DomainData] the latest VM snapshot
+    # @!attribute [r] cpu_usage
+    #   @return [Float] per-core CPU usage in percent; 100% means one core fully utilized,
+    #     so a busy multi-core VM may exceed 100 (see {DomainData#cpu_usage})
+    # @!attribute [r] mem_data_age_seconds
+    #   @return [Integer, nil] age of the guest memory data, in seconds; `nil` if balloon
+    #     data is unavailable or the VM is shut down
     class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds)
-      # @param prev_data [DomainData | nil] previous VM data
-      # @param next_data [DomainData] current VM data
-      # @return [VMCache]
+      # Builds a cache entry by diffing the previous snapshot against the current one
+      # (for CPU usage and memory-data age).
+      #
+      # @param prev_data [DomainData, nil] previous VM snapshot, or `nil` on first sight
+      # @param next_data [DomainData] current VM snapshot
+      # @return [VMCache] the derived cache entry
       def self.diff(prev_data, next_data)
         age = if next_data.mem_stat.nil?
                 nil
@@ -124,49 +132,59 @@ module Virt
         VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age)
       end
 
-      # @return [DomainInfo]
+      # @return [DomainInfo] the VM's static config
       def info
         data.info
       end
 
-      # Returns the CPU usage of a VM, with respect to guest OS.
-      # @param domain [String]
-      # @return [Float] CPU usage 0..100%, 100%=full usage of all guest CPU cores.
+      # CPU usage normalized to the guest's own core count, so 100% means every guest core
+      # is fully utilized (unlike the per-core {#cpu_usage}).
+      #
+      # @return [Float] guest CPU usage, `0..100%`
       def guest_cpu_usage
         cpu_usage / info.cpus
       end
 
+      # Whether the guest memory data is too old to trust (≥ 7s).
+      #
+      # virsh refreshes balloon data only every ~5s regardless of the configured stats
+      # period, so the threshold is 7s rather than the 3s we'd prefer.
+      #
+      # @return [Boolean] true if the memory data is stale
       def stale?
-        # No matter what I do, virsh refreshes data once every 5 seconds.
-        # Even if I use <memballoon ...><stats period="1"/></memballoon>
-        # I wanted to consider data aged 3 seconds stale, but I have to go with 7 seconds instead.
         !mem_data_age_seconds.nil? && mem_data_age_seconds >= 7
       end
     end
 
-    # Updates the cache. Guarded by `@write_lock`. Must not be run from the UI thread.
+    # Refreshes every VM's data plus the host memory/CPU/disk stats, diffing against the
+    # previous snapshot for derived figures.
+    #
+    # Guarded by `@write_lock` so it never runs concurrently with itself. Runs on the
+    # background timer thread — must not be called from the UI thread.
+    #
+    # @return [void]
+    # @raise [RuntimeError] if reading VM or host data fails (e.g. `virsh`/`df` errors)
     def update
       @write_lock.synchronize do
         old_cache = @cache
-        # {Hash<String => DomainData>} domain data, maps VM name to {DomainData}
         domain_data = @virt.domain_data
         cache = Concurrent::Map.new(options: { initial_capacity: domain_data.length })
         domain_data.each { |did, data| cache[did] = VMCache.diff(old_cache[did]&.data, data) }
         @cache = cache
 
-        # {System::MemoryStat} host stats
         @host_mem_stat = @sysinfo.memory_stats
-        # {System::CpuUsage}
         @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
 
         qcow2_files = domain_data.values.flat_map { it.disk_stat }.filter { !it.path.nil? }.map { [it.path, it.physical] }
-        # {Map{String => System::DiskUsage}} maps physical disk name to usage information.
         @disks = @sysinfo.disk_usage(qcow2_files)
       end
     end
 
-    # @param disk_stat [DiskStat]
-    # @return [MemoryUsage | nil] of how much space the qcow2 file takes on the disk.
+    # How much host disk space a VM disk's qcow2 file occupies, against that disk's total.
+    #
+    # @param disk_stat [DiskStat] the VM disk whose backing file to locate
+    # @return [MemoryUsage, nil] `physical` size out of the disk's total, or `nil` if the
+    #   file isn't found on any tracked disk
     def host_disk_usage(disk_stat)
       du = @disks.values.find { it.qcow2_files.include?(disk_stat.path) }
       return nil if du.nil?
@@ -174,18 +192,20 @@ module Virt
       MemoryUsage.of(du.usage.total, disk_stat.physical)
     end
 
-    # @return [Integer] a sum of RSS usage of all running VMs
+    # @return [Integer] sum of the RSS (host memory) of all VMs, in bytes
     def total_vm_rss_usage
       @cache.values.sum { |cache| cache.data.mem_stat&.rss || 0 }
     end
 
-    # Sum of all CPU usages of all VMs.
-    # @return [Float] CPU usage 0..100%, 100%=full usage of all host CPU cores.
+    # Combined CPU usage of all VMs, normalized to the host core count so that 100% means
+    # all host cores are fully utilized.
+    #
+    # @return [Float] total VM CPU usage, `0..100%`
     def total_vm_cpu_usage
       @cache.values.sum { |it| it.cpu_usage / @cpu_count }
     end
 
-    # @return [Float] recent CPU usage, 0..100%
+    # @return [Float] most recent whole-host CPU usage, `0..100%` (see {System::CpuUsage})
     def host_cpu_usage
       @host_cpu_usage.usage_percent
     end
