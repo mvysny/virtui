@@ -1,37 +1,44 @@
 # frozen_string_literal: true
 
 module UI
-  # Shows a quick overview of all VMs
+  # The VM window: a scrollable, cursor-selectable list of all VMs, each with guest-vs-host
+  # CPU/RAM/disk usage bars and a ballooning-status indicator. Per-VM actions are reachable
+  # via key shortcuts: power menu (`p`), launch viewer (`v`), memory menu (`m`), toggle disk
+  # stats (`d`) and search (`/`).
   class VMWindow < Tuile::Component::Window
     include Tuile
 
-    # @param virt_cache [Virt::Cache]
-    # @param ballooning [Virt::Ballooning]
+    # @param virt_cache [Virt::Cache] the runtime cache to read VM data from and act through
+    # @param ballooning [Virt::Ballooning] the ballooning controller toggled from the memory menu
     def initialize(virt_cache, ballooning)
       super('VMs')
       self.content = Component::List.new
       @f = Formatter.new
-      # {Virt::Cache}
       @virt_cache = virt_cache
-      # {Virt::Ballooning}
       @ballooning = ballooning
-      # {Array<String>} VM name for every line.
+      # Array<String>: the VM name backing every rendered line, indexed by line position.
       @line_data = []
-      # {Boolean} show disk stats for shutoff'd VMs
       @show_disk_stat = false
       content.cursor = Component::List::Cursor.new
       content.show_cursor_when_inactive = true
       self.scrollbar = true
     end
 
-    # {Boolean} show disk stats for shutoff'd VMs
+    # @return [Boolean] whether disk stats are shown for shut-off VMs too
     attr_reader :show_disk_stat
 
+    # Toggles showing disk stats for shut-off VMs and re-renders.
+    # @param value [Boolean] true to show disk stats for shut-off VMs
     def show_disk_stat=(value)
       @show_disk_stat = !!value
       update
     end
 
+    # Rebuilds every VM's lines (overview + guest/host CPU, RAM and disk bars) from the
+    # current cache data, and recomputes the allowed cursor positions. Paints nothing if
+    # the window is too narrow.
+    #
+    # @return [void]
     def update
       column_width = (rect.width - 16) / 2
       return if column_width.negative? # paint nothing if window is not big enough
@@ -83,6 +90,11 @@ module UI
       content.cursor = Component::List::Cursor::Limited.new(cursor_positions, position: content.cursor.position)
     end
 
+    # Handles a key press: `/` opens search; `p`/`v`/`m`/`d` act on the VM under the cursor
+    # (power menu, launch viewer, memory menu, toggle disk stats).
+    #
+    # @param key [String] the pressed key
+    # @return [Boolean] true if the key was handled
     def handle_key(key)
       return true if super
       return false if footer&.active?
@@ -113,6 +125,8 @@ module UI
       end
     end
 
+    # @return [String] the footer hint line, listing the available key shortcuts (or the
+    #   search-close hint while searching)
     def keyboard_hint
       t = screen.theme
       return "ESC #{t.hint('close search')}" if footer
@@ -123,16 +137,22 @@ module UI
 
     protected
 
+    # Re-renders when the window width changes (bar widths depend on it).
+    # @return [void]
     def on_width_changed
       super
       update
     end
 
+    # Re-renders when the theme changes, so colors follow the new palette.
+    # @return [void]
     def on_theme_changed
       super
       update
     end
 
+    # Draws the window border plus the "Guest usage"/"Host usage" column captions.
+    # @return [void]
     def repaint_border
       super
       return if rect.empty?
@@ -149,6 +169,9 @@ module UI
 
     private
 
+    # Opens an incremental-search text field in the footer, wiring its events to move the
+    # list cursor to matching VMs.
+    # @return [void]
     def open_search
       return if footer
 
@@ -162,10 +185,15 @@ module UI
       field.focus
     end
 
+    # Closes the search footer.
+    # @return [void]
     def close_search
       self.footer = nil
     end
 
+    # Opens the memory menu for the selected VM: toggle auto-ballooning, or give it max
+    # memory and disable ballooning. No-op (logs an error) if the VM isn't running.
+    # @return [void]
     def show_memory_popup
       current_vm = @line_data[content.cursor.position] || return
       state = @virt_cache.state(current_vm)
@@ -187,6 +215,9 @@ module UI
       end
     end
 
+    # Opens the power menu for the selected VM: start, graceful shutdown, force off, soft
+    # reboot or hard reset. Each action logs an error if the VM is in the wrong state.
+    # @return [void]
     def show_power_popup
       current_vm = @line_data[content.cursor.position] || return
       state = @virt_cache.state(current_vm)
@@ -232,11 +263,13 @@ module UI
       end
     end
 
-    # @param cache [Virt::Cache::VMCache]
-    # @return [String]
+    # Builds a VM's overview line: state glyph, name, and (when running) a balloon emoji
+    # with a ballooning-direction indicator and a "stale data" turtle.
+    #
+    # @param cache [Virt::Cache::VMCache] the VM's cache entry
+    # @return [String] the rendered overview line
     def format_vm_overview_line(cache)
       line = "#{format_domain_state(cache.data.state)} #{screen.theme.vm_name(cache.info.name)}"
-      cache.data.mem_stat
       if cache.data.running?
         if cache.data.balloon?
           line += " \u{1F388}"
@@ -259,20 +292,27 @@ module UI
       header(line)
     end
 
-    # Draws and returns a header.
-    # @param left [String] what to show to the left
+    # Draws a row header: `left` caption followed by a frame rule filling the rest of the
+    # window width.
+    #
+    # @param left [String] the caption (may contain styling)
+    # @return [String] the rendered header line
     def header(left)
       left_size = StyledString.parse(left).display_width
       frame = '─' * (rect.width - left_size - 4).clamp(0, nil)
       left + screen.theme.frame(frame)
     end
 
-    # @param left [String] of size 10
-    # @param right [String] of size 5
-    # @param width [Integer] width of the bar in chars.
-    # @param value [Integer] current value, for drawing of the progress bar
-    # @param max [Integer] max value, for drawing of the progress bar
+    # Renders one labelled progress-bar segment: `left` caption, the bar, then `right`
+    # caption, within `width` characters.
+    #
+    # @param left [String] left caption (padded to 11 chars unless empty)
+    # @param right [String] right caption (padded to 6 chars)
+    # @param width [Integer] total width of the segment, in characters
+    # @param value [Numeric] current value, for drawing the progress bar
+    # @param max [Numeric] max value, for drawing the progress bar
     # @param color [Tuile::Color] progress bar color
+    # @return [String] the rendered segment, including ANSI color codes
     def progress_bar(left, right, width, value, max, color)
       left = left.ljust(11) unless left.empty?
       right = right.rjust(6)
@@ -281,8 +321,13 @@ module UI
       left + pb.to_ansi + right
     end
 
-    # @param width [Integer] the width of the bar in chars.
-    # @param mem_usage [MemoryUsage] resource usage
+    # Renders a {MemoryUsage} as a progress-bar segment captioned with percent used and
+    # the used/total byte sizes; blank space if `mem_usage` is `nil`.
+    #
+    # @param width [Integer] the width of the segment, in characters
+    # @param mem_usage [MemoryUsage, nil] the resource usage to render
+    # @param color [Tuile::Color] progress bar color
+    # @return [String] the rendered segment
     def progress_bar2(width, mem_usage, color)
       return ' ' * width if mem_usage.nil?
 
@@ -290,6 +335,10 @@ module UI
                    format_byte_size(mem_usage.total), width, mem_usage.used, mem_usage.total, color)
     end
 
+    # Maps a VM state to a colored status glyph.
+    #
+    # @param state [Symbol] one of `:running`, `:shut_off`, `:paused`, `:other`
+    # @return [String] the colored glyph for that state
     def format_domain_state(state)
       theme = screen.theme
       case state
@@ -300,9 +349,12 @@ module UI
       end
     end
 
-    # @param width [Integer] the width of the bar in chars.
-    # @param ds [Virt::DiskStat]
-    # @return [String | nil]
+    # Renders the host-side disk bar for a VM disk: the qcow2 file's usage of its host
+    # disk, prefixed by a color-coded storage-overhead percentage.
+    #
+    # @param width [Integer] the width of the bar, in characters
+    # @param ds [Virt::DiskStat] the VM disk to render
+    # @return [String, nil] the rendered bar, or `nil` if the disk isn't tracked by the cache
     def progress_bar_qcow2(width, ds)
       host_du = @virt_cache.host_disk_usage(ds)
       return nil if host_du.nil?
