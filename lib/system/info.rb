@@ -1,10 +1,20 @@
 # frozen_string_literal: true
 
 module System
-  # Obtains system information from host Linux.
+  # Reads host metrics from a Linux system: memory from `/proc/meminfo`, CPU from
+  # `/proc/stat` and `/proc/cpuinfo`, disk from `df`.
   #
-  # Thread-safe, has no state.
+  # Stateless and thread-safe — callers thread the previous sample back in themselves
+  # (see {#cpu_usage}). Runs on the background timer thread. {System::Emulator} is the
+  # test double with the same interface.
+  #
+  # Each reader takes an optional fixture-content parameter used only by specs; in
+  # production they read the real files/commands.
   class Info
+    # Reads physical RAM and swap usage from `/proc/meminfo`.
+    #
+    # @param meminfo_file [String, nil] contents of `/proc/meminfo`; reads the real file
+    #   when `nil`. Pass a fixture string for testing
     # @return [MemoryStat] memory statistics
     def memory_stats(meminfo_file = nil)
       meminfo_file ||= File.read('/proc/meminfo')
@@ -16,10 +26,19 @@ module System
       MemoryStat.new(ram, swap)
     end
 
-    # Obtains CPU usage as a percentage 0..100, since the last call of this function.
-    # @param prev_cpu_usage [CpuUsage | nil] the last sampling or `nil` if this is the first one.
-    # @param proc_stat_file [String | nil] testing purposes only
-    # @return [CpuUsage]
+    # Computes whole-CPU usage over the interval since `prev_cpu_usage` was sampled, by
+    # diffing `/proc/stat` clock counters.
+    #
+    # The result is normalized across all cores (`0.0..100.0`; 8 saturated cores read
+    # `100.0`, not `800.0`) — see {System::CpuUsage}. The first call has no previous
+    # sample to diff against and returns `0.0`.
+    #
+    # @param prev_cpu_usage [System::CpuUsage, nil] the previous sample, or `nil` on the
+    #   first call
+    # @param proc_stat_file [String, nil] contents of `/proc/stat`; reads the real file
+    #   when `nil`. Pass a fixture string for testing
+    # @return [System::CpuUsage] the new sample, carrying the raw {System::CpuStat} for
+    #   the next diff
     def cpu_usage(prev_cpu_usage, proc_stat_file = nil)
       stat = CpuStat.parse(proc_stat_file)
       if prev_cpu_usage.nil?
@@ -33,9 +52,18 @@ module System
       end
     end
 
-    # Calculates disk usage; only takes into account disks with VM qcow2 files on them.
-    # @param qcow2_files [Array<Array<String,Integer>>] a list of qcow2 files and their sizes used by VMs.
-    # @return [Map{String => DiskUsage}] maps physical disk to usage information.
+    # Calculates per-disk usage, but only for the filesystems that hold VM qcow2 files.
+    #
+    # Runs `df` on the given files and groups the results by physical disk, folding each
+    # file's size into that disk's {DiskUsage}. Returns an empty hash when `qcow2_files`
+    # is empty.
+    #
+    # @param qcow2_files [Array<Array(String, Integer)>] `[path, size_in_bytes]` pairs for
+    #   the qcow2 files used by VMs
+    # @param test_df [String, nil] canned `df -P` output for testing; runs the real `df`
+    #   when `nil`
+    # @return [Hash{String => DiskUsage}] physical disk name => its usage
+    # @raise [RuntimeError] if the underlying `df` command fails (via {Run.sync})
     def disk_usage(qcow2_files, test_df = nil)
       return {} if qcow2_files.empty?
 
@@ -63,7 +91,10 @@ module System
       result
     end
 
-    # @return [Set<String>] CPU flags.
+    # Reads the host CPU feature flags from `/proc/cpuinfo` (e.g. `svm`/`vmx` for
+    # virtualization support).
+    #
+    # @return [Set<String>] the CPU flags
     def cpu_flags
       l = File.read('/proc/cpuinfo').lines
       l = l.filter { it.start_with? 'flags' }
