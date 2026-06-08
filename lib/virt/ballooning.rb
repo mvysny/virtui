@@ -1,19 +1,24 @@
 # frozen_string_literal: true
 
 module Virt
-  # Controls memory of all VMs via the ballooning virt support. The VM must
-  # have ballooning support installed and enabled, see README for instructions.
+  # Auto-scales the memory of every VM via libvirt ballooning, delegating per-VM decisions
+  # to one {BallooningVM} each. Each VM must have ballooning support installed and enabled
+  # (see README).
   #
-  # Must be called from UI only.
+  # Reads from {Cache} and issues memory changes through it; must be called from the UI
+  # thread only (never the background timer thread).
   class Ballooning
-    # @param virt_cache [Cache]
+    # @param virt_cache [Cache] the runtime cache to read VM data from and act through
     def initialize(virt_cache)
       @virt_cache = virt_cache
-      # maps {String} to {BallooningVM}
+      # Hash{String => BallooningVM}, keyed by VM name
       @ballooning = {}
     end
 
-    # Polls new data from {Cache} and controls the VMs.
+    # Refreshes the per-VM ballooners from {Cache} (adding any new VMs), runs one control
+    # step on each, then debug-logs the outcome. Call every ~2 seconds.
+    #
+    # @return [void]
     def update
       @ballooning = @virt_cache.domains.map do |domainid|
         [domainid, @ballooning[domainid] || BallooningVM.new(@virt_cache, domainid)]
@@ -22,7 +27,8 @@ module Virt
       log_statuses
     end
 
-    # debug-logs statuses
+    # Debug-logs the status of every running VM's ballooner.
+    # @return [void]
     def log_statuses
       $log.debug do
         statuses = @ballooning.filter do |_vmid, ballooning|
@@ -33,25 +39,32 @@ module Virt
       end
     end
 
-    # @param vm_name [String] vm name
-    # @return [Status | nil] the VM ballooning status
+    # @param vm_name [String] VM name
+    # @return [BallooningVM::Status, nil] the VM's latest ballooning status, or `nil` if
+    #   the VM is unknown
     def status(vm_name)
       @ballooning[vm_name]&.status
     end
 
-    # User can enable/disable ballooning per VM manually.
-    # @param vm_name [String] vm name
-    # @return [Boolean]
+    # @param vm_name [String] VM name
+    # @return [Boolean] whether automatic ballooning is currently enabled for the VM
+    #   (`false` if the VM is unknown)
     def enabled?(vm_name)
       @ballooning[vm_name]&.enabled? || false
     end
 
-    # @param vm_name [String]
-    # @param enabled [Boolean]
+    # Manually enables or disables automatic ballooning for one VM.
+    #
+    # @param vm_name [String] VM name
+    # @param enabled [Boolean] `true` to enable, `false` to disable
+    # @return [void]
     def enabled(vm_name, enabled)
       @ballooning[vm_name].enabled = !!enabled
     end
 
+    # Flips the enabled state of one VM's ballooning.
+    # @param vm_name [String] VM name
+    # @return [void]
     def toggle_enable(vm_name)
       enabled(vm_name, !enabled?(vm_name))
     end
