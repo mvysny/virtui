@@ -72,7 +72,7 @@ module UI
             guest_mem_usage = cache.data.mem_stat.guest_mem
             host_mem_usage = cache.data.mem_stat.host_mem
             memguest = progress_bar2(column_width, guest_mem_usage, theme[:ram_vm])
-            memhost = progress_bar2(column_width, MemoryUsage.of(host_ram.total, host_mem_usage.used), theme[:ram])
+            memhost = progress_bar2(column_width, ResourceUsage.of(host_ram.total, host_mem_usage.used), theme[:ram])
             lines << "    #{theme.ram('RAM')}:#{memguest} | #{memhost}"
             @line_data << domain_name
           end
@@ -321,11 +321,11 @@ module UI
       left + pb.to_ansi + right
     end
 
-    # Renders a {MemoryUsage} as a progress-bar segment captioned with percent used and
+    # Renders a {ResourceUsage} as a progress-bar segment captioned with percent used and
     # the used/total byte sizes; blank space if `mem_usage` is `nil`.
     #
     # @param width [Integer] the width of the segment, in characters
-    # @param mem_usage [MemoryUsage, nil] the resource usage to render
+    # @param mem_usage [ResourceUsage, nil] the resource usage to render
     # @param color [Tuile::Color] progress bar color
     # @return [String] the rendered segment
     def progress_bar2(width, mem_usage, color)

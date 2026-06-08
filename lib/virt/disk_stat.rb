@@ -19,8 +19,8 @@ module Virt
   # @!attribute [r] path
   #   @return [String] path to the qcow2 file on the host
   class DiskStat < Data.define(:name, :allocation, :capacity, :physical, :path)
-    # @return [MemoryUsage] `allocation` used out of `capacity`
-    def guest_usage = MemoryUsage.of(capacity, allocation)
+    # @return [ResourceUsage] `allocation` used out of `capacity`
+    def guest_usage = ResourceUsage.of(capacity, allocation)
 
     # @return [Integer] how much data is allocated vs the max capacity. 0..100
     def percent_used = guest_usage.percent_used

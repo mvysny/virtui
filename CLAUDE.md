@@ -29,7 +29,7 @@ everything else autoloads. Conventions to keep the loader happy:
   domain model + clients), `lib/ui/` → `UI::` (tuile presentation), and
   `lib/system/` → `System::` (host-OS metrics: `System::Info`, `System::CpuStat`,
   `System::MemoryStat`, `System::DiskUsage`, …). The shared byte-usage value object
-  `MemoryUsage` and generic helpers (`Run`, `Interpolator`) stay top-level.
+  `ResourceUsage` and generic helpers (`Run`, `Interpolator`) stay top-level.
   `lib/virt.rb` / `lib/ui.rb` / `lib/system.rb` define+document the modules.
 - **`lib/core_ext/` is ignored** by the loader and required manually: it holds the
   `Numeric` byte-unit monkey-patch and the top-level `format_byte_size` helper —
@@ -58,7 +58,7 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt, organized into th
 ## Conventions
 
 - **Ruby, no Rails.** Plain classes, `Data.define` for value objects
-  (`MemoryUsage`, `System::CpuUsage`, …), Open3 for subprocesses (via
+  (`ResourceUsage`, `System::CpuUsage`, …), Open3 for subprocesses (via
   `Run`), tuile for the TUI.
 - **Composition over inheritance.** When two classes share mechanics,
   extract a concrete helper they construct with explicit keyword

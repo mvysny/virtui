@@ -10,16 +10,16 @@
 #   @return [Integer] total capacity, in bytes
 # @!attribute [r] available
 #   @return [Integer] currently unused capacity, in bytes
-class MemoryUsage < Data.define(:total, :available)
+class ResourceUsage < Data.define(:total, :available)
   # The empty usage (zero total, zero available); a neutral element for {#+}.
-  ZERO = MemoryUsage.new(0, 0)
+  ZERO = ResourceUsage.new(0, 0)
 
   # Builds a usage from `total` capacity and bytes already `used`.
   #
   # @param total [Integer] total capacity, in bytes
   # @param used [Integer] bytes already consumed
-  # @return [MemoryUsage] usage whose `available` is `total - used`
-  def self.of(total, used) = MemoryUsage.new(total: total, available: total - used)
+  # @return [ResourceUsage] usage whose `available` is `total - used`
+  def self.of(total, used) = ResourceUsage.new(total: total, available: total - used)
 
   # @return [Integer] bytes of resource used (`total - available`)
   def used = total - available
@@ -29,9 +29,9 @@ class MemoryUsage < Data.define(:total, :available)
 
   # Adds two usages component-wise, e.g. to sum per-disk usage into a host total.
   #
-  # @param other [MemoryUsage] the usage to add
-  # @return [MemoryUsage] sum of the two `total`s and the two `available`s
-  def +(other) = MemoryUsage.new(total + other.total, available + other.available)
+  # @param other [ResourceUsage] the usage to add
+  # @return [ResourceUsage] sum of the two `total`s and the two `available`s
+  def +(other) = ResourceUsage.new(total + other.total, available + other.available)
 
   # @return [String] human-readable `used/total (percent%)`, e.g. `"4.0 GiB/8.0 GiB (50%)"`
   def to_s

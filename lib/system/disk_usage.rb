@@ -7,7 +7,7 @@ module System
   # instance rather than mutating, so per-VM contributions can be accumulated.
   #
   # @!attribute [r] usage
-  #   @return [MemoryUsage] overall used/total bytes of the filesystem
+  #   @return [ResourceUsage] overall used/total bytes of the filesystem
   # @!attribute [r] vm_usage
   #   @return [Integer] bytes consumed by VM qcow2 files on this disk
   # @!attribute [r] qcow2_files

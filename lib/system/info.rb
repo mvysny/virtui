@@ -19,9 +19,9 @@ module System
     def memory_stats(meminfo_file = nil)
       meminfo_file ||= File.read('/proc/meminfo')
       mem = meminfo_file.lines.map { |it| it.strip.split(':') }.to_h
-      ram = MemoryUsage.new(total: mem['MemTotal'].strip.to_i.KiB,
+      ram = ResourceUsage.new(total: mem['MemTotal'].strip.to_i.KiB,
                             available: mem['MemAvailable'].strip.to_i.KiB)
-      swap = MemoryUsage.new(total: mem['SwapTotal'].strip.to_i.KiB,
+      swap = ResourceUsage.new(total: mem['SwapTotal'].strip.to_i.KiB,
                              available: mem['SwapFree'].strip.to_i.KiB)
       MemoryStat.new(ram, swap)
     end
@@ -83,7 +83,7 @@ module System
         vm_usage = qcow2_files[idx][1]
         qcow2_file = qcow2_files[idx][0]
         result[name] = if result[name].nil?
-                         DiskUsage.new(MemoryUsage.new(total, available), vm_usage, [qcow2_file])
+                         DiskUsage.new(ResourceUsage.new(total, available), vm_usage, [qcow2_file])
                        else
                          result[name].add(vm_usage, qcow2_file)
                        end

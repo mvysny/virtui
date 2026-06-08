@@ -30,13 +30,13 @@ module Virt
   #   @return [Integer] epoch seconds when these values were fetched from the VM; if it
   #     stops advancing, VM refresh needs to be set up
   class MemStat < Data.define(:actual, :unused, :available, :usable, :disk_caches, :rss, :last_updated)
-    # @return [MemoryUsage | nil] the guest memory stats or nil if unavailable.
+    # @return [ResourceUsage | nil] the guest memory stats or nil if unavailable.
     def guest_mem
-      guest_data_available? ? MemoryUsage.new(available, usable) : nil
+      guest_data_available? ? ResourceUsage.new(available, usable) : nil
     end
 
-    # @return [MemoryUsage] the host memory stat: `rss` of `actual`
-    def host_mem = MemoryUsage.new(actual, actual - rss)
+    # @return [ResourceUsage] the host memory stat: `rss` of `actual`
+    def host_mem = ResourceUsage.new(actual, actual - rss)
 
     # Returns true if the guest memory data is available. false if the VM doesn't report guest data,
     # probably because ballooning service isn't running, or virt guest tools aren't installed,

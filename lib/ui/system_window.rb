@@ -43,12 +43,12 @@ module UI
 
         # Disk
         disks = @virt_cache.disks
-        disk_usage = disks.values.inject(MemoryUsage::ZERO) { |sum, obj| sum + obj.usage }
+        disk_usage = disks.values.inject(ResourceUsage::ZERO) { |sum, obj| sum + obj.usage }
         lines << header('Disks', format_byte_size(disk_usage.total), :disk)
         disks.each do |name, usage|
           lines << theme.disk_label("#{name}:")
           lines << progress_bar2('Used', usage.usage, theme[:disk])
-          lines << progress_bar2(' VMs', MemoryUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage),
+          lines << progress_bar2(' VMs', ResourceUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage),
                                  theme[:disk_vm])
         end
       end
@@ -184,11 +184,11 @@ module UI
       left + pb.to_ansi + right
     end
 
-    # Renders a {MemoryUsage} as a progress-bar row, captioning it with `tag`, the percent
+    # Renders a {ResourceUsage} as a progress-bar row, captioning it with `tag`, the percent
     # used and the used/total byte sizes.
     #
     # @param tag [String] short (~4-char) label, e.g. `"Used"`/`"Swap"`
-    # @param mem_usage [MemoryUsage] the resource usage to render
+    # @param mem_usage [ResourceUsage] the resource usage to render
     # @param color [Tuile::Color] progress bar color
     # @return [String] the rendered row
     def progress_bar2(tag, mem_usage, color)

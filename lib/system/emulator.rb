@@ -9,8 +9,8 @@ module System
   class Emulator
     # @return [MemoryStat] fixed memory statistics (32 GiB RAM half-used, 4 GiB swap free)
     def memory_stats
-      ram = MemoryUsage.new(total: 32.GiB, available: 16.GiB)
-      swap = MemoryUsage.new(total: 4.GiB, available: 4.GiB)
+      ram = ResourceUsage.new(total: 32.GiB, available: 16.GiB)
+      swap = ResourceUsage.new(total: 4.GiB, available: 4.GiB)
       MemoryStat.new(ram, swap)
     end
 

@@ -183,13 +183,13 @@ module Virt
     # How much host disk space a VM disk's qcow2 file occupies, against that disk's total.
     #
     # @param disk_stat [DiskStat] the VM disk whose backing file to locate
-    # @return [MemoryUsage, nil] `physical` size out of the disk's total, or `nil` if the
+    # @return [ResourceUsage, nil] `physical` size out of the disk's total, or `nil` if the
     #   file isn't found on any tracked disk
     def host_disk_usage(disk_stat)
       du = @disks.values.find { it.qcow2_files.include?(disk_stat.path) }
       return nil if du.nil?
 
-      MemoryUsage.of(du.usage.total, disk_stat.physical)
+      ResourceUsage.of(du.usage.total, disk_stat.physical)
     end
 
     # @return [Integer] sum of the RSS (host memory) of all VMs, in bytes
