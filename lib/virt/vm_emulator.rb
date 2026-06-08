@@ -1,24 +1,27 @@
 # frozen_string_literal: true
 
 module Virt
-  # Emulates a bunch of VMs. API-compatible with [Cmd].
+  # An in-memory fleet of simulated VMs, API-compatible with {Cmd}, for demo/test mode
+  # without libvirt. Each VM is a {VMEmulator::VM}; see {.demo} for a ready-made fleet.
   class VMEmulator
-    # @param hostinfo [CpuInfo]
+    # @param hostinfo [CpuInfo] the host CPU topology to report
     def initialize(hostinfo: CpuInfo.new('emulator', 1, 4, 2))
       @hostinfo = hostinfo
-      # {Hash{String => VM}}
       @vms = {}
-      # {Boolean} For debugging purposes
       @allow_set_actual = true
     end
 
-    # @return [CpuInfo]
+    # @return [CpuInfo] the simulated host CPU topology
     attr_reader :hostinfo
+    # @return [Boolean] whether {#set_actual} is honored; set `false` to simulate a host
+    #   that rejects memory changes (for debugging)
     attr_accessor :allow_set_actual
 
-    # Adds a new VM.
-    # @param vm [VM]
-    # @return [VM]
+    # Adds a VM to the fleet.
+    #
+    # @param vm [VMEmulator::VM] the VM to add
+    # @return [VMEmulator::VM] the same VM
+    # @raise [RuntimeError] if a VM with the same name already exists
     def add(vm)
       raise "VM with given name already present: #{vm.name}: #{@vms.keys}" if @vms.keys.include? vm.name
 
@@ -26,18 +29,20 @@ module Virt
       vm
     end
 
-    # @return [VM | nil]
+    # @param name [String] VM name
+    # @return [VMEmulator::VM, nil] the VM, or `nil` if no such VM exists
     def vm(name)
       @vms[name]
     end
 
-    # Deletes VM with given name
-    # @param name [String]
+    # Deletes the VM with the given name.
+    # @param name [String] VM name
+    # @return [VMEmulator::VM, nil] the deleted VM, or `nil` if none existed
     def delete(name)
       @vms.delete(name)
     end
 
-    # @return [Hash{String => DomainData}]
+    # @return [Hash{String => DomainData}] a snapshot of every VM, keyed by name
     def domain_data
       @vms.map do |name, vm|
         state = vm.running? ? :running : :shut_off
@@ -47,20 +52,22 @@ module Virt
       end.to_h
     end
 
-    # @param vmid [String]
-    # @param actual [Integer]
+    # Sets a VM's current memory, unless {#allow_set_actual} is `false`.
+    #
+    # @param vmid [String] VM name
+    # @param actual [Integer] new memory size, in bytes
+    # @raise [RuntimeError] if {#allow_set_actual} is `false`, or the size is out of range
+    #   (see {VMEmulator::VM#memory_actual=})
     def set_actual(vmid, actual)
       raise 'set_actual not allowed' unless allow_set_actual
 
       @vms[vmid].memory_actual = actual
     end
 
-    # Creates a bunch of VMs:
-    # - BASE: shut_off
-    # - Ubuntu: running
-    # - win11: running
-    # - Fedora: shut_off
-    # @return A [Cmd] compatible class.
+    # Builds a ready-made demo fleet: BASE (shut off), Ubuntu (running), win11 (running),
+    # Fedora (shut off).
+    #
+    # @return [VMEmulator] a {Cmd}-compatible emulator pre-populated with four VMs
     def self.demo
       e = VMEmulator.new
       e.add(VMEmulator::VM.simple('BASE', actual: 8.GiB, max_actual: 8.GiB))
@@ -72,12 +79,14 @@ module Virt
       e
     end
 
+    # Starts a stopped VM.
+    # @param vm [String] VM name
     def start(vm)
       @vms[vm].start
     end
 
     # Shuts down a VM gracefully - basically asks the VM to shut off.
-    # @param domain_name [String] VM name
+    # @param vm [String] VM name
     def shutdown(vm)
       @vms[vm].shut_down
     end
