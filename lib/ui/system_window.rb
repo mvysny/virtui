@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
 module UI
-  # Shows host OS info, such as CPU info, memory info.
+  # The host window: shows CPU model/flags and usage, RAM and swap usage, and per-disk
+  # usage — each as a labelled progress bar built from {Virt::Cache} data. Pressing `h`
+  # opens a help window explaining the host's virtualization CPU flags.
   class SystemWindow < Tuile::Component::Window
     include Tuile
 
-    # @param virt_cache [Virt::Cache]
+    # @param virt_cache [Virt::Cache] the runtime cache to read host metrics from
     def initialize(virt_cache)
       super('System')
       self.content = Component::List.new
@@ -15,6 +17,8 @@ module UI
       update
     end
 
+    # Rebuilds the window's lines (CPU/RAM/disk bars) from the current cache data.
+    # @return [void]
     def update
       theme = screen.theme
       content.lines do |lines|
@@ -50,10 +54,15 @@ module UI
       end
     end
 
+    # @return [String] the footer hint advertising the `h` (Help) key
     def keyboard_hint
       "h #{screen.theme.hint('Help')}"
     end
 
+    # Handles a key press: `h` opens the CPU-flags help window.
+    #
+    # @param key [String] the pressed key
+    # @return [Boolean] true if the key was handled
     def handle_key(key)
       return if super
 
@@ -67,11 +76,15 @@ module UI
 
     protected
 
+    # Re-renders when the window width changes (bar widths depend on it).
+    # @return [void]
     def on_width_changed
       super
       update
     end
 
+    # Re-renders when the theme changes, so colors follow the new palette.
+    # @return [void]
     def on_theme_changed
       super
       update
@@ -79,6 +92,10 @@ module UI
 
     private
 
+    # Builds the one-line CPU summary: model plus the notable virtualization flags
+    # (`vmx`/`svm`, `ept`/`npt`, and assorted TLB/huge-page accelerators).
+    #
+    # @return [String] the CPU info line
     def format_cpu_info
       r = @virt_cache.cpu_info.model + ', '
       flags = @virt_cache.cpu_flags
@@ -107,6 +124,8 @@ module UI
       r
     end
 
+    # Opens an info window describing each virtualization-related CPU flag the host has.
+    # @return [void]
     def show_help_window
       lines = []
       flags = @virt_cache.cpu_flags
@@ -135,21 +154,28 @@ module UI
       Component::InfoWindow.open('Help', lines.map { it[0] + ': ' + screen.theme.hint(it[1]) })
     end
 
-    # Draws and returns a header.
+    # Draws a section header: `left` and `right` captions in `token`'s color, joined by a
+    # frame rule that fills the remaining width.
+    #
     # @param left [String] what to show to the left
     # @param right [String] what to show to the right
     # @param token [Symbol] the theme token to draw `left` and `right` with
+    # @return [String] the rendered header line
     def header(left, right, token)
       theme = screen.theme
       frame = '─' * (rect.width - left.size - right.size - 4).clamp(0, nil)
       theme.fg(token, left) + theme.frame(frame) + theme.fg(token, right)
     end
 
-    # @param left [String] of size 14
-    # @param right [String] of size 5
-    # @param value [Integer] current value, for drawing of the progress bar
-    # @param max [Integer] max value, for drawing of the progress bar
+    # Renders one labelled progress-bar row: `left` caption, the bar filling the remaining
+    # width, then `right` caption.
+    #
+    # @param left [String] left caption (padded to 16 chars)
+    # @param value [Numeric] current value, for drawing the progress bar
+    # @param max [Numeric] max value, for drawing the progress bar
     # @param color [Tuile::Color] progress bar color
+    # @param right [String] right caption (padded to 6 chars)
+    # @return [String] the rendered row, including ANSI color codes
     def progress_bar(left, value, max, color, right)
       left = left.ljust(16)
       right = right.rjust(6)
@@ -158,8 +184,13 @@ module UI
       left + pb.to_ansi + right
     end
 
-    # @param tag [String] 4-char tag
-    # @param mem_usage [MemoryUsage] resource usage
+    # Renders a {MemoryUsage} as a progress-bar row, captioning it with `tag`, the percent
+    # used and the used/total byte sizes.
+    #
+    # @param tag [String] short (~4-char) label, e.g. `"Used"`/`"Swap"`
+    # @param mem_usage [MemoryUsage] the resource usage to render
+    # @param color [Tuile::Color] progress bar color
+    # @return [String] the rendered row
     def progress_bar2(tag, mem_usage, color)
       progress_bar("#{tag}:#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
                    mem_usage.used, mem_usage.total, color,
