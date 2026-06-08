@@ -1,15 +1,24 @@
 # frozen_string_literal: true
 
 module Virt
-  # A virt client, controls virt via the `virsh` program.
-  # Install the `virsh` program via `sudo apt install libvirt-clients`
+  # A libvirt client that drives libvirt by shelling out to the `virsh` CLI (parsing its
+  # text output). Install it with `sudo apt install libvirt-clients`.
+  #
+  # {Virt::LibVirtClient} is a faster, unused alternative that talks to libvirt directly.
+  # Stateless; the read methods accept fixture parameters for testing.
   class Cmd
+    # Maps the numeric `state.state` from `virsh domstats` to our state symbols; anything
+    # else becomes `:other`.
     @@states = { 3 => :paused, 1 => :running, 5 => :shut_off }
 
-    # Returns all available domain data.
-    # @param domstats_file [String] outcome of `virsh domstats`, for testing only.
-    # @param sampled_at [Integer] millis since epoch, for testing only.
-    # @return [Hash<String => DomainData>] domain data, maps VM name to {DomainData}
+    # Reads runtime stats for every VM via `virsh domstats`.
+    #
+    # @param domstats_file [String, nil] canned `virsh domstats` output for testing; runs
+    #   the real command when `nil`
+    # @param sampled_at [Integer, nil] millis since epoch to stamp the snapshots with;
+    #   defaults to now. For testing
+    # @return [Hash{String => DomainData}] maps VM name to its {DomainData}
+    # @raise [RuntimeError] if `virsh domstats` fails (via {Run.sync})
     def domain_data(domstats_file = nil, sampled_at = nil)
       domstats_file ||= Run.sync('virsh domstats')
       sampled_at ||= DomainData.millis_now
@@ -60,8 +69,11 @@ module Virt
       result
     end
 
-    # @param data [Hash{String => String}] contains info e.g. `block.0.capacity=1231`
-    # @return [Array<DiskStat>] parsed stats
+    # Extracts per-disk stats from the flattened `block.N.*` keys of one VM's domstats.
+    # Disks missing any of name/allocation/capacity/physical are skipped.
+    #
+    # @param data [Hash{String => String}] one VM's domstats, e.g. `block.0.capacity=1231`
+    # @return [Array<DiskStat>] parsed stats, one per fully-described disk
     private def parse_disk_data(data)
       count = data['block.count'].to_i
       result = []
@@ -79,14 +91,19 @@ module Virt
       result
     end
 
-    # @return [Boolean] whether this virt client is available
+    # @return [Boolean] whether `virsh` is installed and on the `PATH`
     def self.available?
       # Don't use Run.sync() since which returns with error code 1 if
       # it can't find virsh.
       !`which virsh`.strip.empty?
     end
 
-    # @return [CpuInfo]
+    # Reads the host CPU topology via `virsh nodeinfo`.
+    #
+    # @param virsh_nodeinfo [String, nil] canned `virsh nodeinfo` output for testing; runs
+    #   the real command when `nil`
+    # @return [CpuInfo] the host CPU topology
+    # @raise [RuntimeError] if `virsh nodeinfo` fails (via {Run.sync})
     def hostinfo(virsh_nodeinfo = nil)
       virsh_nodeinfo ||= Run.sync('virsh nodeinfo')
       values = virsh_nodeinfo.lines.filter { |it| !it.strip.empty? }.map { |it| it.split ':' }.to_h
@@ -95,9 +112,11 @@ module Virt
                   values['Thread(s) per core'].to_i)
     end
 
-    # Sets new memory size to a running VM.
-    # @param domain_name [String]
-    # @param new_actual [Integer]
+    # Sets the current (`actual`) memory size of a running VM via `virsh setmem`.
+    #
+    # @param domain_name [String] VM name
+    # @param new_actual [Integer] new memory size, in bytes
+    # @raise [RuntimeError] if `new_actual` is below 256 MiB, or if `virsh setmem` fails
     def set_actual(domain_name, new_actual)
       raise "#{new_actual} must be at least 256m" if new_actual < 256.MiB
 
@@ -105,34 +124,48 @@ module Virt
       $log.info "#{domain_name}: set new actual memory to #{format_byte_size(new_actual)}"
     end
 
-    # Starts a VM if it was stopped. Undefined for started or paused VM.
+    # Starts a stopped VM. Behaviour is undefined for an already-started or paused VM.
+    #
+    # Runs asynchronously since `virsh start` can take ~800ms, during which the UI would
+    # otherwise appear frozen; failures are logged, not raised.
+    #
     # @param domain_name [String] VM name
+    # @return [Thread] the thread running the command (see {Run.async})
     def start(domain_name)
-      # Async - this can take ~800ms during which the UI appears frozen.
       Run.async("virsh start '#{domain_name}'")
     end
 
-    # Shuts down a VM gracefully - basically asks the VM to shut off.
+    # Asks a VM to shut down gracefully.
+    #
+    # Runs asynchronously since `virsh shutdown` can take 0.5–5s, during which the UI would
+    # otherwise appear frozen; failures are logged, not raised.
+    #
     # @param domain_name [String] VM name
+    # @return [Thread] the thread running the command (see {Run.async})
     def shutdown(domain_name)
-      # Async - this can take 0,5-5s during which the UI appears frozen.
       Run.async("virsh shutdown '#{domain_name}'")
     end
 
     # Asks the VM to reboot itself gracefully.
+    #
     # @param domain_name [String] VM name
+    # @raise [RuntimeError] if `virsh reboot` fails (via {Run.sync})
     def reboot(domain_name)
       Run.sync("virsh reboot '#{domain_name}'")
     end
 
-    # Resets the VM forcefully.
+    # Resets the VM forcefully (a hard power-cycle).
+    #
     # @param domain_name [String] VM name
+    # @raise [RuntimeError] if `virsh reset` fails (via {Run.sync})
     def reset(domain_name)
       Run.sync("virsh reset '#{domain_name}'")
     end
 
-    # Forces the VM off.
+    # Forces the VM off (a hard power-off, via `virsh destroy`).
+    #
     # @param domain_name [String] VM name
+    # @raise [RuntimeError] if `virsh destroy` fails (via {Run.sync})
     def force_off(domain_name)
       Run.sync("virsh destroy '#{domain_name}'")
     end
