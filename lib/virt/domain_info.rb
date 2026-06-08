@@ -1,12 +1,19 @@
 # frozen_string_literal: true
 
 module Virt
-  # VM information that is static and doesn't generally change unless the VM is shut down.
+  # Static VM configuration that doesn't change while the VM is running.
   #
-  # - `name` {String} the VM name, both for display purposes, and also the VM identifier
-  # - `cpus` {Integer} number of CPUs allocated
-  # - `max_memory` {Integer} maximum memory allocated to a VM, in bytes. {MemStat.actual} can never be more than this.
+  # Immutable and thread-safe (a frozen {Data} value object).
+  #
+  # @!attribute [r] name
+  #   @return [String] the VM name — used both for display and as the VM identifier
+  # @!attribute [r] cpus
+  #   @return [Integer] number of virtual CPUs allocated
+  # @!attribute [r] max_memory
+  #   @return [Integer] maximum memory allocated to the VM, in bytes; {MemStat}'s `actual`
+  #     can never exceed this
   class DomainInfo < Data.define(:name, :cpus, :max_memory)
+    # @return [String] human-readable summary, e.g. `"web: CPUs: 4, RAM: 8.0G"`
     def to_s
       "#{name}: CPUs: #{cpus}, RAM: #{format_byte_size(max_memory)}"
     end
