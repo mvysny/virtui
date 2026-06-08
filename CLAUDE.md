@@ -1,6 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file is the pointer-level orientation map for Claude Code
+(claude.ai/code). Rationale and per-file purpose live in YARD headers on
+the classes/modules themselves — when a section here says "see
+`{ClassName}`", that yardoc is the source of truth and this file just
+records the invariant.
 
 ## Commands
 
@@ -50,3 +54,45 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt, organized into th
 - `System::Info`: reads the host's CPU/memory/disk usage from `/proc` and `df` (`System::Emulator` is the test double)
 
 **Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `Virt::Cache#update` → submits a block to tuile's `EventQueue` → UI thread runs `Virt::Ballooning#update` then `layout.update_data` → dirty components repaint.
+
+## Conventions
+
+- **Ruby, no Rails.** Plain classes, `Data.define` for value objects
+  (`MemoryUsage`, `System::CpuUsage`, …), Open3 for subprocesses (via
+  `Run`), tuile for the TUI.
+- **Composition over inheritance.** When two classes share mechanics,
+  extract a concrete helper they construct with explicit keyword
+  parameters — not a base class with template methods.
+- **`# frozen_string_literal: true`** at the top of every Ruby file
+  (`lib/`, `spec/`, `bin/`). Add it to any new file.
+- **YARD docs on every public module, class, and method.** Use concrete
+  types in `@param`/`@return` (`Integer`, `Array<String>`, `String, nil`)
+  — never bare `Object`. One-line summary first, then tags; document
+  expected exceptions with `@raise`. **Rationale belongs in the yardoc,
+  not CLAUDE.md** — reference it from here only if it's a cross-cutting
+  invariant.
+- **Errors are loud.** On unexpected internal state, raise with the
+  offending data included (see `Run.sync`). Don't swallow failures from
+  `virsh` or `/proc` parsing.
+- **Diagnostics go through `$log`** (the `TTY::Logger` set up in
+  `bin/virtui`, the one allowed global). Use it instead of `puts` /
+  `warn` / `$stderr.puts` for log lines.
+- **Tests: rspec-core with minitest-style asserts.** Use `describe` /
+  `it` but write `assert_equal` / `assert` / `refute` rather than RSpec
+  matchers. Parser specs feed recorded fixtures (`spec/**/*.txt` —
+  `/proc` snapshots, `domstats`, `df`) rather than touching the live
+  host. See `spec/system/info_spec.rb`.
+- **Readable, not obfuscated.** Prefer the simplest implementation that
+  does the job. Don't add abstraction layers, plugin systems, or config
+  knobs that aren't needed for the next concrete step.
+
+## Working on this codebase
+
+- **Grow by adding a class under the right namespace, not by widening
+  the loop.** New backend data → `lib/virt/`; new host metric →
+  `lib/system/` (with an `System::Emulator` counterpart for tests); new
+  widget → `lib/ui/`. One constant per file (see Autoloading above).
+- **Threading.** `Virt::Cache#update` and `System::Info` reads run on the
+  background timer thread; everything that touches tuile components
+  (`Virt::Ballooning`, `layout.update_data`) runs on the UI thread via
+  the `EventQueue`. Don't call UI code from the timer thread.
