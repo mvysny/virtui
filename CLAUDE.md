@@ -46,7 +46,7 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt, organized into th
 - `Virt::Ballooning`: auto-scales VM memory (increases by 30% at ≥65% usage, decreases by 10% at ≤55%); runs on the UI thread, must not be called from a background thread
 
 **Libvirt backend (`lib/virt/`, `Virt::`):**
-- `Virt::Cmd`: wraps `virsh` CLI commands (`Virt::LibVirtClient` is an unused, faster alternative)
+- `Virt::Cmd`: wraps `virsh` CLI commands
 - `Virt::Cache`: thread-safe cache of VM runtime data; `update` is called from a background timer thread
 - `Virt::VMEmulator`: demo/test mode that simulates VMs without libvirt
 

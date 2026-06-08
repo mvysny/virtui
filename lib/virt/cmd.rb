@@ -4,7 +4,6 @@ module Virt
   # A libvirt client that drives libvirt by shelling out to the `virsh` CLI (parsing its
   # text output). Install it with `sudo apt install libvirt-clients`.
   #
-  # {Virt::LibVirtClient} is a faster, unused alternative that talks to libvirt directly.
   # Stateless; the read methods accept fixture parameters for testing.
   class Cmd
     # Maps the numeric `state.state` from `virsh domstats` to our state symbols; anything
