@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 source 'https://rubygems.org'
-ruby '>= 4.0'
+ruby '>= 3.4'
 
 gem 'concurrent-ruby'
 gem 'tty-cursor', '~> 0.7.1'
