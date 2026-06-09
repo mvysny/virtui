@@ -120,7 +120,7 @@ module UI
       # 1GB huge pages support (greatly improves memory performance for VMs)
       r += ' pdpe1gb' if flags.include? 'pdpe1gb'
       # Faster saving/restoring of extended CPU state during VM entry/exit
-      r += ' xsave' if flags.any? { it.start_with? 'xsave' }
+      r += ' xsave' if flags.any? { |it| it.start_with? 'xsave' }
       r
     end
 
@@ -147,11 +147,11 @@ module UI
       if flags.include? 'pdpe1gb'
         lines += [['pdpe1gb', '1GB huge pages support (greatly improves memory performance for VMs)']]
       end
-      if flags.any? { it.start_with? 'xsave' }
+      if flags.any? { |it| it.start_with? 'xsave' }
         lines += [['xsave', 'Faster saving/restoring of extended CPU state during VM entry/exit']]
       end
 
-      Component::InfoWindow.open('Help', lines.map { it[0] + ': ' + screen.theme.hint(it[1]) })
+      Component::InfoWindow.open('Help', lines.map { |it| it[0] + ': ' + screen.theme.hint(it[1]) })
     end
 
     # Draws a section header: `left` and `right` captions in `token`'s color, joined by a

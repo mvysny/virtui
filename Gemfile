@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 source 'https://rubygems.org'
-ruby '>= 3.4'
+ruby '>= 3.3'
 
 gem 'concurrent-ruby'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
-gem 'tuile', '~> 0.6.0'
+gem 'tuile', '~> 0.7.0'
 gem 'zeitwerk', '~> 2.7'
 
 group :development do

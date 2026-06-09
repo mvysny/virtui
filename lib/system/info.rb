@@ -67,7 +67,7 @@ module System
     def disk_usage(qcow2_files, test_df = nil)
       return {} if qcow2_files.empty?
 
-      files = qcow2_files.map { "'#{it[0]}'" }.join ' '
+      files = qcow2_files.map { |it| "'#{it[0]}'" }.join ' '
       df = test_df || Run.sync("df -P #{files}")
       df_lines = df.lines.map(&:strip)[1..]
       # each line is an Array: 0=>physical disk name, 1=>total size in kb, 3=>available space in kb.
@@ -97,7 +97,7 @@ module System
     # @return [Set<String>] the CPU flags
     def cpu_flags
       l = File.read('/proc/cpuinfo').lines
-      l = l.filter { it.start_with? 'flags' }
+      l = l.filter { |it| it.start_with? 'flags' }
       l = l.flat_map(&:split).to_set
       l.subtract(['flags', ':'])
       l

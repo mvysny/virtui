@@ -23,19 +23,19 @@ describe UI::Formatter do
     it 'renders all dashes when value is zero' do
       bar = f.progress_bar(8, 0, 100, red, frame)
       assert_equal '--------', bar.to_s
-      assert_equal([frame], bar.spans.map { it.style.fg })
+      assert_equal([frame], bar.spans.map { |it| it.style.fg })
     end
 
     it 'renders all filled chars when value equals max_value' do
       bar = f.progress_bar(8, 100, 100, red, frame)
       assert_equal '########', bar.to_s
-      assert_equal([red], bar.spans.map { it.style.fg })
+      assert_equal([red], bar.spans.map { |it| it.style.fg })
     end
 
     it 'renders correct split at 50%' do
       bar = f.progress_bar(10, 50, 100, red, frame)
       assert_equal '#####-----', bar.to_s
-      assert_equal([red, frame], bar.spans.map { it.style.fg })
+      assert_equal([red, frame], bar.spans.map { |it| it.style.fg })
     end
 
     it 'clamps value above max_value to max' do

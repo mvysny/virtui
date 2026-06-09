@@ -39,7 +39,7 @@ module Virt
 
     # @return [Integer] how many VMs are currently running
     def up
-      @cache.values.count { it.data.state == :running }
+      @cache.values.count { |it| it.data.state == :running }
     end
 
     # @return [Array<String>] names of all known VMs
@@ -175,7 +175,7 @@ module Virt
         @host_mem_stat = @sysinfo.memory_stats
         @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
 
-        qcow2_files = domain_data.values.flat_map { it.disk_stat }.filter { !it.path.nil? }.map { [it.path, it.physical] }
+        qcow2_files = domain_data.values.flat_map { |it| it.disk_stat }.filter { |it| !it.path.nil? }.map { |it| [it.path, it.physical] }
         @disks = @sysinfo.disk_usage(qcow2_files)
       end
     end
@@ -186,7 +186,7 @@ module Virt
     # @return [ResourceUsage, nil] `physical` size out of the disk's total, or `nil` if the
     #   file isn't found on any tracked disk
     def host_disk_usage(disk_stat)
-      du = @disks.values.find { it.qcow2_files.include?(disk_stat.path) }
+      du = @disks.values.find { |it| it.qcow2_files.include?(disk_stat.path) }
       return nil if du.nil?
 
       ResourceUsage.of(du.usage.total, disk_stat.physical)

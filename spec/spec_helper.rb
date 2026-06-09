@@ -15,7 +15,7 @@ module Helpers
   # @return [StringIO] use {StringIO.string} to get logged stuff
   def self.setup_dummy_logger
     result = StringIO.new
-    $log = TTY::Logger.new { it.level = :debug }
+    $log = TTY::Logger.new { |it| it.level = :debug }
     $log.remove_handler :console
     $log.add_handler [:console, { output: result, enable_color: false }]
     result

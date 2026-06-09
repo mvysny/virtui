@@ -23,7 +23,7 @@ describe UI::VMWindow do
   end
 
   it 'has the right content' do
-    content = window.content.lines.map { it.to_s }
+    content = window.content.lines.map { |it| it.to_s }
     assert_equal '⏹ BASE──────────', content[0]
     assert_equal '    vda: 50%   64G   128G |', content[1]
     assert_equal '⏹ Fedora────────', content[2]
@@ -40,13 +40,13 @@ describe UI::VMWindow do
 
   it 'show_power_popup opens picker' do
     window.handle_key('p')
-    assert(Screen.instance.popups.any? { it.content.is_a?(Component::PickerWindow) })
+    assert(Screen.instance.popups.any? { |it| it.content.is_a?(Component::PickerWindow) })
   end
 
   it 'show_memory_popup opens picker for running VM' do
     window.content.cursor.go(4) # Ubuntu is running
     window.handle_key('m')
-    assert(Screen.instance.popups.any? { it.content.is_a?(Component::PickerWindow) })
+    assert(Screen.instance.popups.any? { |it| it.content.is_a?(Component::PickerWindow) })
   end
 
   context('cursor movement') do
