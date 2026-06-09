@@ -1,6 +1,6 @@
 # virtui
 
-A TUI client for libvirt/virsh. Requires Ruby 4.0+.
+A TUI client for libvirt/virsh. Requires Ruby 3.3+.
 Currently only tested on Linux host: probably won't work on Windows nor MacOS.
 
 ![Screenshot](docs/screenshot.png)
@@ -79,7 +79,7 @@ If the memory data doesn't seem to be updated in virtui:
 - in the Virtual Machine Manager (`sudo apt install virt-manager`) preferences, polling, make sure "Poll Memory stats" is checked.
   However, this only works when the Virtual Machine Manager window is open. Therefore, first option is preferred.
 
-**Note:** refresh each 3 seconds may seem excessive, but this way Ballooning will have access to the most fresh data,
+**Note:** refresh each 2 seconds may seem excessive, but this way Ballooning will have access to the most fresh data,
 and can quickly ramp up RAM when it's needed. Actually, regardless of the setting, `virsh` refreshes the data once every 5 seconds anyway.
 
 When ballooning is enabled properly in a VM, 🎈 is shown next to the VM name in virtui. If the balloon data is stale (not being refreshed), 🐢 is shown.
@@ -91,13 +91,13 @@ More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/
 
 ## Automatic Balloon inflate/deflate
 
-A running VM with ballooning support is observed, and a decision is made every 2 seconds. If the memory usage goes above 70%, the VM memory is
+A running VM with ballooning support is observed, and a decision is made every 2 seconds. If the memory usage goes above 65%, the VM memory is
 increased immediately by 30%. This helps if there's a sudden VM memory demand.
-If the memory usage goes below 60%, a memory is decreased by 10%, but this only happens every 10 seconds.
+If the memory usage goes below 55%, a memory is decreased by 10%, but this only happens every 10 seconds.
 
 In other words, if VM needs memory, the memory is given immediately. Afterwards, the memory is slowly decreased as the usage goes down.
 
-At the moment you need to edit virtui sources to configure this: edit `ballooning.rb`: the configuration starts at line 49.
+At the moment you need to edit virtui sources to configure this: edit `lib/virt/ballooning_vm.rb` — the configuration constants (`@trigger_increase_at`, `@trigger_decrease_at`, `@increase_memory_by`, `@decrease_memory_by`, `@back_off_seconds`) are in the constructor.
 
 ## Guest Configuration
 
