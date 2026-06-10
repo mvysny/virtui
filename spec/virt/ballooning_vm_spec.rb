@@ -48,7 +48,7 @@ describe Virt::BallooningVM do
     now = 1_762_378_459_933
     info = Virt::DomainInfo.new('vm0', 2, 16.GiB)
     # 7G of 8G used (87%) would normally trigger an increase, but last-update is an hour old.
-    mem = Virt::MemoryStat.new(8.GiB, 0, 8.GiB, 1.GiB, 0, 4.GiB, now / 1000 - 3600)
+    mem = Virt::MemoryStat.new(8.GiB, 0, 8.GiB, 1.GiB, 0, 4.GiB, (now / 1000) - 3600)
     vmcache = Virt::Cache::VMCache.diff(nil, Virt::DomainData.new(info, :running, now, 0, mem, []))
     assert vmcache.stale?
 

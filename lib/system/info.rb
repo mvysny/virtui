@@ -18,11 +18,11 @@ module System
     # @return [MemoryStat] memory statistics
     def memory_stats(meminfo_file = nil)
       meminfo_file ||= File.read('/proc/meminfo')
-      mem = meminfo_file.lines.map { |it| it.strip.split(':') }.to_h
+      mem = meminfo_file.lines.to_h { |it| it.strip.split(':') }
       ram = ResourceUsage.new(total: mem['MemTotal'].strip.to_i.KiB,
-                            available: mem['MemAvailable'].strip.to_i.KiB)
+                              available: mem['MemAvailable'].strip.to_i.KiB)
       swap = ResourceUsage.new(total: mem['SwapTotal'].strip.to_i.KiB,
-                             available: mem['SwapFree'].strip.to_i.KiB)
+                               available: mem['SwapFree'].strip.to_i.KiB)
       MemoryStat.new(ram, swap)
     end
 
@@ -47,7 +47,7 @@ module System
         prev_stat = prev_cpu_usage.last_cpu_stat
         total_diff = stat.clocks_total - prev_stat.clocks_total
         idle_diff = stat.clocks_idle - prev_stat.clocks_idle
-        cpu_usage = (total_diff.positive? ? 100.0 * (1.0 - idle_diff.to_f / total_diff) : 0.0).round(2)
+        cpu_usage = (total_diff.positive? ? 100.0 * (1.0 - (idle_diff.to_f / total_diff)) : 0.0).round(2)
         CpuUsage.new(cpu_usage, stat)
       end
     end

@@ -33,7 +33,8 @@ module Virt
 
     # @return [String] human-readable summary of guest usage and host overhead
     def to_s
-      "#{name}: #{format_byte_size(allocation)}/#{format_byte_size(capacity)} (#{percent_used}%); physical #{format_byte_size(physical)} (#{overhead_percent}% overhead)"
+      "#{name}: #{format_byte_size(allocation)}/#{format_byte_size(capacity)} (#{percent_used}%); " \
+        "physical #{format_byte_size(physical)} (#{overhead_percent}% overhead)"
     end
   end
 end

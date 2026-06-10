@@ -16,7 +16,7 @@ describe System::Info do
   end
 
   it 'calculates disk usage' do
-    disk_stats = %w['sda', 'sda', 'vda', 'vda'].map do |it|
+    disk_stats = %w[sda sda vda vda].map do |it|
       ["/var/lib/libvirt/images/#{it}.qcow2", 32.GiB]
     end
     usage = System::Info.new.disk_usage(disk_stats, File.read('spec/system/df_p.txt'))

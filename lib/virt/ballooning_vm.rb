@@ -195,13 +195,16 @@ module Virt
       new_actual = mem_stat.actual * (memory_delta + 100) / 100
       new_actual = new_actual.clamp(min_memory..max_memory)
       if new_actual == mem_stat.actual
-        @status = if memory_delta > 0
+        @status = if memory_delta.positive?
                     Status.new(
-                      "I want to increase memory (current usage of #{percent_used}% is over trigger #{@trigger_increase_at}%) but can't go over configured max mem #{format_byte_size(new_actual)}", 0
+                      "I want to increase memory (current usage of #{percent_used}% is over " \
+                      "trigger #{@trigger_increase_at}%) but can't go over configured max mem " \
+                      "#{format_byte_size(new_actual)}", 0
                     )
                   else
                     Status.new(
-                      "New actual #{format_byte_size(new_actual)} is the same as current one #{format_byte_size(mem_stat.actual)}, doing nothing", 0
+                      "New actual #{format_byte_size(new_actual)} is the same as current one " \
+                      "#{format_byte_size(mem_stat.actual)}, doing nothing", 0
                     )
                   end
         return
@@ -210,7 +213,8 @@ module Virt
       back_off
 
       @status = Status.new(
-        "VM reports #{format_byte_size(used_mem)} (#{percent_used}%), updating actual by #{memory_delta}% to #{format_byte_size(new_actual)}", memory_delta
+        "VM reports #{format_byte_size(used_mem)} (#{percent_used}%), updating actual by " \
+        "#{memory_delta}% to #{format_byte_size(new_actual)}", memory_delta
       )
       @last_update_at = mem_stat.last_updated
       @virt_cache.set_actual(@vmid, new_actual)

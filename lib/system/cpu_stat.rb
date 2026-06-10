@@ -48,7 +48,8 @@ module System
 
     # @return [String] all counters on one line, e.g. `"cpu: user=1000 nice=50 …"`
     def to_s
-      "#{name}: user=#{user} nice=#{nice} system=#{system} idle=#{idle} iowait=#{iowait} irq=#{irq} softirq=#{softirq} steal=#{steal} guest=#{guest} guest_nice=#{guest_nice}"
+      "#{name}: user=#{user} nice=#{nice} system=#{system} idle=#{idle} iowait=#{iowait} " \
+        "irq=#{irq} softirq=#{softirq} steal=#{steal} guest=#{guest} guest_nice=#{guest_nice}"
     end
   end
 end

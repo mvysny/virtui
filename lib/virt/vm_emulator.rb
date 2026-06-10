@@ -44,12 +44,12 @@ module Virt
 
     # @return [Hash{String => DomainData}] a snapshot of every VM, keyed by name
     def domain_data
-      @vms.map do |name, vm|
+      @vms.to_h do |name, vm|
         state = vm.running? ? :running : :shut_off
         disk = DiskStat.new('vda', 64.GiB, 128.GiB, 64.GiB, nil)
         data = DomainData.new(vm.info, state, DomainData.millis_now, 0, vm.to_mem_stat, [disk])
         [name, data]
-      end.to_h
+      end
     end
 
     # Sets a VM's current memory, unless {#allow_set_actual} is `false`.

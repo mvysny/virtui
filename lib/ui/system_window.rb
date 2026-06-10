@@ -36,8 +36,10 @@ module UI
         host_ram = @virt_cache.host_mem_stat.ram
         lines << usage_bar('Used', host_ram, theme[:ram])
         total_vm_rss_usage = @virt_cache.total_vm_rss_usage
-        lines << progress_bar(" VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
-                              total_vm_rss_usage, host_ram.total, theme[:ram_vm], format_byte_size(host_ram.total))
+        lines << progress_bar(
+          " VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
+          total_vm_rss_usage, host_ram.total, theme[:ram_vm], format_byte_size(host_ram.total)
+        )
         host_swap = @virt_cache.host_mem_stat.swap
         lines << usage_bar('Swap', host_swap, theme[:ram])
 
@@ -135,18 +137,10 @@ module UI
       lines += [['ept', "Intel's Extended Page Tables memory virtualization"]] if flags.include? 'ept'
       lines += [['npt', "AMD's Nested Page Tables memory virtualization"]] if flags.include? 'npt'
       lines += [['tsc_deadline', 'Faster APIC timer (better timing in guest OS)']] if flags.include? 'tsc_deadline'
-      if flags.include? 'pcid'
-        lines += [['pcid', 'Process-Context Identifiers – speeds up context switches and TLB flushes in guests']]
-      end
-      if flags.include? 'vpid'
-        lines += [['vpid', '(Intel) → tagged TLB (Translation Lookaside Buffer), speeds up guest transitions']]
-      end
-      if flags.include? 'invpcid'
-        lines += [['invpcid', 'Single-instruction invalidation of PCID – further improves TLB performance']]
-      end
-      if flags.include? 'pdpe1gb'
-        lines += [['pdpe1gb', '1GB huge pages support (greatly improves memory performance for VMs)']]
-      end
+      lines += [['pcid', 'Process-Context Identifiers – speeds up context switches and TLB flushes in guests']] if flags.include? 'pcid'
+      lines += [['vpid', '(Intel) → tagged TLB (Translation Lookaside Buffer), speeds up guest transitions']] if flags.include? 'vpid'
+      lines += [['invpcid', 'Single-instruction invalidation of PCID – further improves TLB performance']] if flags.include? 'invpcid'
+      lines += [['pdpe1gb', '1GB huge pages support (greatly improves memory performance for VMs)']] if flags.include? 'pdpe1gb'
       if flags.any? { |it| it.start_with? 'xsave' }
         lines += [['xsave', 'Faster saving/restoring of extended CPU state during VM entry/exit']]
       end

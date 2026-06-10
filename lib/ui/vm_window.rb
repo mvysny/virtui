@@ -163,7 +163,7 @@ module UI
       bg = active? ? theme.active_border_color : theme[:tab_inactive]
       screen.print TTY::Cursor.move_to(rect.left + fourth - 5, y),
                    StyledString.styled(' Guest usage ', fg: :black, bg: bg).to_ansi
-      screen.print TTY::Cursor.move_to(rect.left + 3 * fourth - 5, y),
+      screen.print TTY::Cursor.move_to(rect.left + (3 * fourth) - 5, y),
                    StyledString.styled(' Host usage ', fg: :black, bg: bg).to_ansi
     end
 

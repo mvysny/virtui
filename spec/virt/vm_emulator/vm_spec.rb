@@ -82,7 +82,10 @@ describe Virt::VMEmulator::VM do
   it 'uptime_nil_after_shutdown' do
     vm = Virt::VMEmulator::VM.simple('a')
     now = Time.now
-    Timecop.freeze(now) { vm.start; vm.shut_down }
+    Timecop.freeze(now) do
+      vm.start
+      vm.shut_down
+    end
     Timecop.freeze(now + 5) { assert_nil vm.uptime }
   end
 
@@ -90,7 +93,10 @@ describe Virt::VMEmulator::VM do
     # running? uses strict < so at exactly 5s the VM is no longer running
     vm = Virt::VMEmulator::VM.simple('a')
     now = Time.now
-    Timecop.freeze(now) { vm.start; vm.shut_down }
+    Timecop.freeze(now) do
+      vm.start
+      vm.shut_down
+    end
     Timecop.freeze(now + 4.999) { assert vm.running? }
     Timecop.freeze(now + 5.0) { assert !vm.running? }
   end
@@ -175,7 +181,7 @@ describe Virt::VMEmulator::VM do
     now = Time.now
     Timecop.freeze(now) { vm.start }
     Timecop.freeze(now + 10) do
-      vm.memory_app = 10.GiB  # far exceeds available (1.9G)
+      vm.memory_app = 10.GiB # far exceeds available (1.9G)
       assert_equal 'actual 2G(rss=2G); guest: 1.9G/1.9G (100%) (unused=0, disk_caches=0)', vm.to_mem_stat.to_s
     end
   end

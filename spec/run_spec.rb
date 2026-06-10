@@ -25,8 +25,8 @@ describe Run do
     it 'logs error when command fails' do
       out = Helpers.setup_dummy_logger
       Run.async('cat non-existing-file').join
-      assert out.string.strip.include?("⨯ error   'cat non-existing-file' failed with 1: cat: non-existing-file: No such file or directory"),
-             out.string.strip
+      expected = "⨯ error   'cat non-existing-file' failed with 1: cat: non-existing-file: No such file or directory"
+      assert out.string.strip.include?(expected), out.string.strip
     end
   end
 end

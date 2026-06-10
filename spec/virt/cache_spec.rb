@@ -53,14 +53,14 @@ describe Virt::Cache do
     end
 
     it 'is false within the normal ~5s refresh lag' do
-      vc = Virt::Cache::VMCache.diff(nil, running_data(now_millis / 1000 - 6))
+      vc = Virt::Cache::VMCache.diff(nil, running_data((now_millis / 1000) - 6))
       refute vc.stale?
     end
 
     # Regression: with a frozen last-update (collection period unset), the old delta-based
     # age was always 0 between consecutive polls, so stale? never tripped and no 🐢 showed.
     it 'is true when last-update is frozen far in the past' do
-      vc = Virt::Cache::VMCache.diff(nil, running_data(now_millis / 1000 - 3600))
+      vc = Virt::Cache::VMCache.diff(nil, running_data((now_millis / 1000) - 3600))
       assert vc.stale?
     end
 

@@ -20,9 +20,9 @@ module Virt
     #
     # @return [void]
     def update
-      @ballooning = @virt_cache.domains.map do |domainid|
+      @ballooning = @virt_cache.domains.to_h do |domainid|
         [domainid, @ballooning[domainid] || BallooningVM.new(@virt_cache, domainid)]
-      end.to_h
+      end
       @ballooning.each_value(&:update)
       log_statuses
     end

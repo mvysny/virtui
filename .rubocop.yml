@@ -1,3 +1,73 @@
-GlobalVars:
+# RuboCop configuration for VirTUI.
+#
+# The defaults are mostly kept; the entries below either accept a deliberate project
+# convention (documented inline) or relax a metric to fit this small, expressive codebase.
+
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: enable
+  SuggestExtensions: false
+
+# `$log` is the one sanctioned global (the TTY::Logger set up in bin/virtui).
+Style/GlobalVars:
   AllowedVariables:
     - $log
+
+# Value objects are defined as `class X < Data.define(...)` throughout — the project's
+# canonical idiom (see the "Data.define for value objects" convention in CLAUDE.md).
+Style/DataInheritance:
+  Enabled: false
+
+# Blocks use an explicit `|it|` parameter (chosen for Ruby 3.3, which lacks the implicit
+# `it`); keep that convention rather than the cop's preferred renaming.
+Style/ItAssignment:
+  Enabled: false
+
+# `handle_key` returns a Boolean but overrides a tuile framework method, so it can't be
+# renamed to a `?`-suffixed predicate.
+Style/PredicateMethod:
+  Enabled: false
+
+# This project favours a few longer, expressive methods over many tiny indirections
+# (see the "Readable, not obfuscated" convention in CLAUDE.md). The Metrics department's
+# size/complexity thresholds fight that style, so it's turned off wholesale.
+Metrics:
+  Enabled: false
+
+# The codebase tolerates wider lines than the 120 default (e.g. long YARD lines and status
+# strings); 140 is the working ceiling.
+Layout/LineLength:
+  Max: 140
+
+# `4.GiB` / `512.MiB` byte-unit helpers on Numeric are intentionally CamelCase.
+Naming/MethodName:
+  AllowedPatterns:
+    - '\A[KMGT]iB\z'
+
+# Short, conventional names like `vm` and `ds` are used throughout.
+Naming/MethodParameterName:
+  MinNameLength: 2
+
+# `EOF`/`DESKTOP` heredoc delimiters are conventional here.
+Naming/HeredocDelimiterNaming:
+  Enabled: false
+
+# `!!value` is the deliberate idiom for the boolean-coercing setters (e.g. show_disk_stat=).
+Style/DoubleNegation:
+  Enabled: false
+
+# `@@states` is a small, frozen lookup table on Virsh — a class var is fine.
+Style/ClassVars:
+  Enabled: false
+
+# String concatenation with `+` is used deliberately for building styled UI fragments.
+Style/StringConcatenation:
+  Enabled: false
+
+# The key-dispatch handlers read more clearly as if/elsif chains than as case/when.
+Style/CaseLikeIf:
+  Enabled: false
+
+# Inline `private def name` is used alongside bare `private`; both are accepted.
+Style/AccessModifierDeclarations:
+  Enabled: false

@@ -131,7 +131,7 @@ module Virt
         # minus last_updated (epoch seconds). NOT the delta between two consecutive polls'
         # last_updated — that delta is 0 both when data is perfectly fresh and when it's
         # frozen (collection period unset), so it can never detect a stuck guest.
-        age = next_data.mem_stat.nil? ? nil : (next_data.sampled_at / 1000 - next_data.mem_stat.last_updated)
+        age = next_data.mem_stat.nil? ? nil : ((next_data.sampled_at / 1000) - next_data.mem_stat.last_updated)
         VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age)
       end
 
@@ -187,7 +187,7 @@ module Virt
         @host_mem_stat = @sysinfo.memory_stats
         @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
 
-        qcow2_files = domain_data.values.flat_map { |it| it.disk_stat }.filter { |it| !it.path.nil? }.map { |it| [it.path, it.physical] }
+        qcow2_files = domain_data.values.flat_map(&:disk_stat).filter { |it| !it.path.nil? }.map { |it| [it.path, it.physical] }
         @disks = @sysinfo.disk_usage(qcow2_files)
       end
     end

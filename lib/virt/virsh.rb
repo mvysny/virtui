@@ -105,7 +105,7 @@ module Virt
     # @raise [RuntimeError] if `virsh nodeinfo` fails (via {Run.sync})
     def hostinfo(virsh_nodeinfo = nil)
       virsh_nodeinfo ||= Run.sync('virsh nodeinfo')
-      values = virsh_nodeinfo.lines.filter { |it| !it.strip.empty? }.map { |it| it.split ':' }.to_h
+      values = virsh_nodeinfo.lines.filter { |it| !it.strip.empty? }.to_h { |it| it.split ':' }
       values = values.transform_values(&:strip)
       CpuInfo.new(values['CPU model'], values['CPU socket(s)'].to_i, values['Core(s) per socket'].to_i,
                   values['Thread(s) per core'].to_i)

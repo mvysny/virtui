@@ -23,9 +23,7 @@ module Interpolator
     # @raise [RuntimeError] if `time_from` is later than `time_to`
     def initialize(hash)
       super
-      unless value_from.is_a?(Numeric) && value_to.is_a?(Numeric) && time_from.is_a?(Time) && time_to.is_a?(Time)
-        raise 'invalid value type'
-      end
+      raise 'invalid value type' unless value_from.is_a?(Numeric) && value_to.is_a?(Numeric) && time_from.is_a?(Time) && time_to.is_a?(Time)
       raise "#{time_from} can't be later than #{time_to}" if time_from > time_to
     end
 
@@ -48,7 +46,7 @@ module Interpolator
       return value_from if now < time_from
       return value_to if now > time_to
 
-      value_from + (value_to - value_from) * (now - time_from) / (time_to - time_from)
+      value_from + ((value_to - value_from) * (now - time_from) / (time_to - time_from))
     end
   end
 end

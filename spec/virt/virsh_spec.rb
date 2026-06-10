@@ -32,9 +32,9 @@ describe Virt::Virsh do
   it 'cpu usage' do
     millis_since_epoch = 1_762_378_459_933
     result0 = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats0.txt'), millis_since_epoch)['ubuntu']
-    result1 = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats1.txt'), millis_since_epoch + 10 * 1000)['ubuntu']
+    result1 = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats1.txt'), millis_since_epoch + (10 * 1000))['ubuntu']
     assert_equal 22.51, result1.cpu_usage(result0).round(2)
-    result2 = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats2.txt'), millis_since_epoch + 20 * 1000)['ubuntu']
+    result2 = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats2.txt'), millis_since_epoch + (20 * 1000))['ubuntu']
     assert_equal 181.43, result2.cpu_usage(result1).round(2)
   end
 end
