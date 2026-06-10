@@ -12,6 +12,7 @@ gem 'zeitwerk', '~> 2.7'
 group :development do
   gem 'rake', '~> 13.4'
   gem 'redcarpet' # Markdown formatting for Yard
+  gem 'rubocop', require: false
   gem 'yard', '~> 0.9.43'
 end
 

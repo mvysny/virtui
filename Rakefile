@@ -3,6 +3,9 @@
 require 'rake/testtask'
 require 'yard'
 require 'rspec/core/rake_task'
+require 'rubocop/rake_task'
+
+RuboCop::RakeTask.new
 
 YARD::Rake::YardocTask.new do |t|
   t.options = [

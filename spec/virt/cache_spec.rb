@@ -3,6 +3,12 @@
 require_relative '../spec_helper'
 require 'timecop'
 
+# A VMEmulator that records every set_mem_stats_period call instead of no-op'ing it.
+class RecordingEmulator < Virt::VMEmulator
+  def period_calls = @period_calls ||= []
+  def set_mem_stats_period(vmid, period_seconds) = period_calls << [vmid, period_seconds]
+end
+
 describe Virt::Cache do
   it 'smokes' do
     Virt::Cache.new(Virt::VMEmulator.new, System::Emulator.new)
@@ -31,34 +37,35 @@ describe Virt::Cache do
   end
 
   context 'VMCache#stale?' do
-    NOW_MILLIS = 1_762_378_459_933
+    # Reference sample time (millis since epoch) for the crafted snapshots below.
+    def now_millis = 1_762_378_459_933
 
     # @param last_updated [Integer] guest report time, epoch seconds
     def running_data(last_updated)
       info = Virt::DomainInfo.new('vm', 2, 8.GiB)
       mem = Virt::MemoryStat.new(8.GiB, 1.GiB, 8.GiB, 4.GiB, 0, 4.GiB, last_updated)
-      Virt::DomainData.new(info, :running, NOW_MILLIS, 0, mem, [])
+      Virt::DomainData.new(info, :running, now_millis, 0, mem, [])
     end
 
     it 'is false when the guest just reported' do
-      vc = Virt::Cache::VMCache.diff(nil, running_data(NOW_MILLIS / 1000))
+      vc = Virt::Cache::VMCache.diff(nil, running_data(now_millis / 1000))
       refute vc.stale?
     end
 
     it 'is false within the normal ~5s refresh lag' do
-      vc = Virt::Cache::VMCache.diff(nil, running_data(NOW_MILLIS / 1000 - 6))
+      vc = Virt::Cache::VMCache.diff(nil, running_data(now_millis / 1000 - 6))
       refute vc.stale?
     end
 
     # Regression: with a frozen last-update (collection period unset), the old delta-based
     # age was always 0 between consecutive polls, so stale? never tripped and no 🐢 showed.
     it 'is true when last-update is frozen far in the past' do
-      vc = Virt::Cache::VMCache.diff(nil, running_data(NOW_MILLIS / 1000 - 3600))
+      vc = Virt::Cache::VMCache.diff(nil, running_data(now_millis / 1000 - 3600))
       assert vc.stale?
     end
 
     it 'is false (nil age) for a shut-off VM with no memory data' do
-      data = Virt::DomainData.new(Virt::DomainInfo.new('vm', 2, 8.GiB), :shut_off, NOW_MILLIS, 0, nil, [])
+      data = Virt::DomainData.new(Virt::DomainInfo.new('vm', 2, 8.GiB), :shut_off, now_millis, 0, nil, [])
       vc = Virt::Cache::VMCache.diff(nil, data)
       assert_nil vc.mem_data_age_seconds
       refute vc.stale?
@@ -66,12 +73,6 @@ describe Virt::Cache do
   end
 
   context 'arming guest mem-stat collection' do
-    # A VMEmulator that records every set_mem_stats_period call instead of no-op'ing it.
-    class RecordingEmulator < Virt::VMEmulator
-      def period_calls = @period_calls ||= []
-      def set_mem_stats_period(vmid, period_seconds) = period_calls << [vmid, period_seconds]
-    end
-
     it 'arms a running VM once, on the not-running -> running transition' do
       e = RecordingEmulator.new
       e.add(Virt::VMEmulator::VM.simple('Ubuntu', actual: 8.GiB, max_actual: 16.GiB))
