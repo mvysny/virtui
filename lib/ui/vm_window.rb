@@ -87,7 +87,11 @@ module UI
           end
         end
       end
-      content.cursor = Component::List::Cursor::Limited.new(cursor_positions, position: content.cursor.position)
+      content.cursor = if cursor_positions.empty?
+                         Component::List::Cursor.new
+                       else
+                         Component::List::Cursor::Limited.new(cursor_positions, position: content.cursor.position)
+                       end
     end
 
     # Handles a key press: `/` opens search; `p`/`v`/`m`/`d` act on the VM under the cursor
