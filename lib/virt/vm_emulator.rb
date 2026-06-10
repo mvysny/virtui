@@ -64,6 +64,14 @@ module Virt
       @vms[vmid].memory_actual = actual
     end
 
+    # No-op: the emulator always reports fresh stats, so there's no collection period to
+    # arm. Mirrors {Virsh#set_mem_stats_period} so {Cache} can call it backend-agnostically.
+    #
+    # @param vmid [String] VM name
+    # @param period_seconds [Integer] ignored
+    # @return [void]
+    def set_mem_stats_period(vmid, period_seconds); end
+
     # Builds a ready-made demo fleet: BASE (shut off), Ubuntu (running), win11 (running),
     # Fedora (shut off).
     #

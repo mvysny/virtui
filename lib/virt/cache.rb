@@ -8,6 +8,11 @@ module Virt
   # fine for display. Each VM's entry is a {VMCache} carrying its {DomainData} plus
   # derived CPU/memory figures.
   class Cache
+    # Guest memory-stat collection period armed on each running VM, in seconds. Matches the
+    # ~2s refresh cadence so ballooning always sees near-fresh data (see
+    # {Virsh#set_mem_stats_period}).
+    STATS_PERIOD_SECONDS = 2
+
     # @return [System::MemoryStat] host memory statistics, refreshed by {#update}
     attr_reader :host_mem_stat
     # @return [CpuInfo] static host CPU topology
@@ -122,13 +127,11 @@ module Virt
       # @param next_data [DomainData] current VM snapshot
       # @return [VMCache] the derived cache entry
       def self.diff(prev_data, next_data)
-        age = if next_data.mem_stat.nil?
-                nil
-              elsif prev_data&.mem_stat.nil?
-                0
-              else
-                next_data.mem_stat.last_updated - prev_data.mem_stat.last_updated
-              end
+        # True wall-clock age: how long ago the guest last reported, sampled_at (millis)
+        # minus last_updated (epoch seconds). NOT the delta between two consecutive polls'
+        # last_updated — that delta is 0 both when data is perfectly fresh and when it's
+        # frozen (collection period unset), so it can never detect a stuck guest.
+        age = next_data.mem_stat.nil? ? nil : (next_data.sampled_at / 1000 - next_data.mem_stat.last_updated)
         VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age)
       end
 
@@ -145,14 +148,17 @@ module Virt
         cpu_usage / info.cpus
       end
 
-      # Whether the guest memory data is too old to trust (≥ 7s).
+      # Whether the guest memory data is too old to trust (≥ 12s).
       #
       # virsh refreshes balloon data only every ~5s regardless of the configured stats
-      # period, so the threshold is 7s rather than the 3s we'd prefer.
+      # period, and we poll every ~2s on top, so healthy data is routinely ~5-7s old. The
+      # 12s threshold sits above that normal lag — anything older means the guest has
+      # actually stopped reporting (e.g. collection period unset, see
+      # {Virsh#set_mem_stats_period}).
       #
       # @return [Boolean] true if the memory data is stale
       def stale?
-        !mem_data_age_seconds.nil? && mem_data_age_seconds >= 7
+        !mem_data_age_seconds.nil? && mem_data_age_seconds >= 12
       end
     end
 
@@ -169,7 +175,13 @@ module Virt
         old_cache = @cache
         domain_data = @virt.domain_data
         cache = Concurrent::Map.new(options: { initial_capacity: domain_data.length })
-        domain_data.each { |did, data| cache[did] = VMCache.diff(old_cache[did]&.data, data) }
+        domain_data.each do |did, data|
+          prev_data = old_cache[did]&.data
+          cache[did] = VMCache.diff(prev_data, data)
+          # When a VM (re)starts, arm periodic guest mem-stat collection; otherwise libvirt
+          # leaves the period at 0 and the balloon stats freeze (see Virsh#set_mem_stats_period).
+          @virt.set_mem_stats_period(did, STATS_PERIOD_SECONDS) if data.running? && !prev_data&.running?
+        end
         @cache = cache
 
         @host_mem_stat = @sysinfo.memory_stats

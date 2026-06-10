@@ -123,6 +123,25 @@ module Virt
       $log.info "#{domain_name}: set new actual memory to #{format_byte_size(new_actual)}"
     end
 
+    # Enables periodic guest memory-stat collection on a running VM, so the guest-reported
+    # balloon fields (`balloon.usable`/`available`/`unused`/`last-update`) stay fresh.
+    #
+    # libvirt's stats collection period defaults to 0 (disabled): until something sets it,
+    # those fields freeze at boot-time values while host-sourced fields (`cpu.time`,
+    # `balloon.rss`) keep updating — making RAM look stuck even as CPU moves. Setting the
+    # period is a live property of the running QEMU process; it persists until the VM is
+    # fully powered off. The `--live` flag is a virsh-CLI detail and stays hidden here.
+    #
+    # Runs asynchronously (failures logged, not raised, via {Run.async}): a VM without a
+    # balloon device rejects this command, and that must not abort the refresh loop.
+    #
+    # @param domain_name [String] VM name
+    # @param period_seconds [Integer] how often the guest refreshes its stats, in seconds
+    # @return [Thread] the thread running the command (see {Run.async})
+    def set_mem_stats_period(domain_name, period_seconds)
+      Run.async("virsh dommemstat '#{domain_name}' --period #{period_seconds} --live")
+    end
+
     # Starts a stopped VM. Behaviour is undefined for an already-started or paused VM.
     #
     # Runs asynchronously since `virsh start` can take ~800ms, during which the UI would

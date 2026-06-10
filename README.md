@@ -73,11 +73,14 @@ available to the guest OS. To enable ballooning:
     but it's always active so `modprobe virtio_balloon` isn't necessary.
   - Windows: Download and install `virtio-win-guest-tools.exe` from [windows virtio repo](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/?C=M;O=D).
 
-If the memory data doesn't seem to be updated in virtui:
+virtui enables guest memory-stat collection automatically: whenever it sees a VM running, it
+arms the libvirt collection period (via `virsh dommemstat --period`) so the balloon stats stay
+fresh. You don't need to configure anything for this to work — but if you prefer, you can make
+it persistent across reboots by adding the `<stats period='3' />` child element to your VM's
+`<memballoon>` device in the libvirt xml.
 
-- Either make sure your VM libvirt xml `<memballoon>` device contains the `<stats period='3' /> ` child element, OR
-- in the Virtual Machine Manager (`sudo apt install virt-manager`) preferences, polling, make sure "Poll Memory stats" is checked.
-  However, this only works when the Virtual Machine Manager window is open. Therefore, first option is preferred.
+If the memory data still looks stuck (and 🐢 is shown), the VM most likely lacks a working
+balloon device or guest tools — see the bullet list above.
 
 **Note:** refresh each 2 seconds may seem excessive, but this way Ballooning will have access to the most fresh data,
 and can quickly ramp up RAM when it's needed. Actually, regardless of the setting, `virsh` refreshes the data once every 5 seconds anyway.
