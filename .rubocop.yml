@@ -25,7 +25,7 @@ Style/ItAssignment:
 
 # `handle_key` returns a Boolean but overrides a tuile framework method, so it can't be
 # renamed to a `?`-suffixed predicate.
-Style/PredicateMethod:
+Naming/PredicateMethod:
   Enabled: false
 
 # This project favours a few longer, expressive methods over many tiny indirections
