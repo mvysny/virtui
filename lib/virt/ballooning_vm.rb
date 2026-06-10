@@ -135,6 +135,14 @@ module Virt
         return
       end
 
+      # Don't act on stale guest data — e.g. just after the VM started, before it
+      # completes its first stats collection cycle, the numbers still reflect a nearly-empty
+      # boot-time guest. Resizing on those would wrongly shrink a VM that's actually busy.
+      if @virt_cache.cache(@vmid)&.stale?
+        @status = Status.new('guest memory data is stale, doing nothing', 0)
+        return
+      end
+
       # Check whether we already did some action (mem increase/decrease) on
       # this VM data.
       if @last_update_at == mem_stat.last_updated
