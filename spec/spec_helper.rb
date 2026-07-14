@@ -1,5 +1,17 @@
 # frozen_string_literal: true
 
+# Start coverage before requiring the library, so its load is measured. Set COVERAGE=0
+# to skip (e.g. when running a single file and the sub-100% summary would just be noise).
+unless ENV['COVERAGE'] == '0'
+  require 'simplecov'
+  SimpleCov.start do
+    enable_coverage :branch
+    add_filter '/spec/'
+    # Namespace-only modules and the entry point hold no branches worth covering.
+    add_filter %r{/lib/(virtui|ui|virt|system|interpolator)\.rb$}
+  end
+end
+
 require 'tty-logger'
 require 'virtui'
 

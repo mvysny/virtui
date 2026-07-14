@@ -19,5 +19,6 @@ end
 group :test do
   gem 'minitest', '~> 6.0'
   gem 'rspec-core', '~> 3.13'
+  gem 'simplecov', '~> 0.22', require: false
   gem 'timecop'
 end
