@@ -7,11 +7,15 @@ Currently only tested on Linux host: probably won't work on Windows nor MacOS.
 
 ## Setup
 
-- [Install Ruby via Mise](https://mise.jdx.dev/lang/ruby.html).
-- git clone this project, then run `bundle install` to install project dependencies.
-- To use virtui over `virsh` binary, run `sudo apt install libvirt-clients` (recommended, the default)
-- To use direct connection to `libvirt` (experimental, [broken at the moment](https://github.com/mvysny/virtui/issues/1)),
-  install the libvirt Ruby gem: `sudo apt install ruby-libvirt`
+- Install Ruby 3.3+. On Ubuntu 26.04, `sudo apt install ruby` gives you Ruby 3.3.
+  On other distros or if you need a specific version, [install Ruby via Mise](https://mise.jdx.dev/lang/ruby.html) instead.
+- git clone this project. If you're on a system-wide (apt) Ruby, tell Bundler to install
+  gems into your home directory so `bundle install` doesn't need root:
+  ```
+  bundle config set --local path ~/.gem
+  bundle install
+  ```
+- Install the `virsh` binary via `sudo apt install libvirt-clients` — virtui shells out to `virsh` to talk to the libvirt daemon.
 - To give your user control over virtual machines, add your user to `libvirt` group:
   `sudo usermod -aG libvirt $USER` and log out/log in.
 - Virt-Manager provides a nice UI which sets up VMs and provides a local fast VM viewer: install `sudo apt install virt-manager`
@@ -115,6 +119,13 @@ and you should prevent swapping unless absolutely necessary. The best way is to:
 2. Still have a swap file, to deal with sudden memory usage spikes.
 
 # Developing
+
+If you're on a system-wide (apt) Ruby, first point Bundler at your home directory
+so `bundle install` doesn't need root (see [Setup](#setup)):
+```
+$ bundle config set --local path ~/.gem
+$ bundle install
+```
 
 Run tests via:
 ```
