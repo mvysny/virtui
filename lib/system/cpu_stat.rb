@@ -13,8 +13,7 @@ module System
   # Because the counters only ever grow, an instantaneous reading is meaningless on its
   # own; CPU usage is the *delta* between two snapshots — `busy_delta / total_delta` over
   # the interval (see {System::CpuUsage}). `name` is the literal `"cpu"` label; every
-  # other field is an {Integer} tick count. Immutable and thread-safe (a frozen {Data}
-  # value object).
+  # other field is an {Integer} tick count.
   class CpuStat < Data.define(:name, :user, :nice, :system, :idle, :iowait, :irq, :softirq, :steal, :guest, :guest_nice)
     # @return [Integer] ticks spent idle (`idle + iowait`)
     def clocks_idle

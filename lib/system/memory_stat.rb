@@ -3,8 +3,6 @@
 module System
   # Host memory statistics: physical `ram` and `swap` usage.
   #
-  # Immutable and thread-safe (a frozen {Data} value object).
-  #
   # @!attribute [r] ram
   #   @return [ResourceUsage] physical RAM usage
   # @!attribute [r] swap

@@ -5,7 +5,6 @@ module Interpolator
   #
   # Used as the degenerate case when there is nothing to animate (see
   # {Interpolator::Linear.from_now}, which returns a `Const` when start equals end).
-  # Immutable and thread-safe (a frozen {Data} value object).
   #
   # @!attribute [r] value
   #   @return [Numeric] the constant value returned for any "now"

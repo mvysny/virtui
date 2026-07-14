@@ -5,8 +5,7 @@ module System
   # {System::CpuStat} it was derived from.
   #
   # `last_cpu_stat` is retained so the next sample can diff against it (CPU usage is the
-  # delta of busy clocks between two `/proc/stat` readings). Immutable and thread-safe
-  # (a frozen {Data} value object).
+  # delta of busy clocks between two `/proc/stat` readings).
   #
   # @!attribute [r] usage_percent
   #   @return [Float] busy percentage of the *whole* CPU over the last sampling interval,

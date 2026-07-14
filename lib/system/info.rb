@@ -73,9 +73,8 @@ module System
       # each line is an Array: 0=>physical disk name, 1=>total size in kb, 3=>available space in kb.
       df_lines = df_lines.map(&:split)
 
-      # {Map{String => DiskUsage}}
       result = {}
-      # Array<Array<String,DiskUsage>>: String physical disk name to DiskUsage. One Physical disk name may have repeated entries.
+      # A physical disk may appear on several lines (one qcow2 file each); fold them together.
       df_lines.map.with_index do |line, idx|
         name = line[0].split('/').last
         total = line[1].to_i * 1024

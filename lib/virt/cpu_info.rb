@@ -3,8 +3,6 @@
 module Virt
   # Static topology of the host CPU, as reported by libvirt.
   #
-  # Immutable and thread-safe (a frozen {Data} value object).
-  #
   # @!attribute [r] model
   #   @return [String] CPU model/architecture, e.g. `"x86_64"`
   # @!attribute [r] sockets

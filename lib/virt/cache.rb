@@ -1,12 +1,14 @@
 # frozen_string_literal: true
 
 module Virt
-  # A thread-safe cache of all VM runtime info, for fast reads from the UI thread.
+  # A cache of all VM runtime info, for fast reads from the UI thread. Each VM's entry is a
+  # {VMCache} carrying its {DomainData} plus derived CPU/memory figures.
   #
-  # {#update} runs on the background timer thread (guarded by `@write_lock`, never run it
-  # from the UI thread); readers return immutable, possibly slightly-stale data, which is
-  # fine for display. Each VM's entry is a {VMCache} carrying its {DomainData} plus
-  # derived CPU/memory figures.
+  # == Thread-safety
+  #
+  # Thread-safe. {#update} runs on the background timer thread, guarded by `@write_lock` so
+  # it never overlaps itself — don't call it from the UI thread. Readers return immutable,
+  # possibly slightly-stale data, which is fine for display.
   class Cache
     # Guest memory-stat collection period armed on each running VM, in seconds. Matches the
     # ~2s refresh cadence so ballooning always sees near-fresh data (see
@@ -109,7 +111,7 @@ module Virt
     end
 
     # One VM's cached snapshot plus the figures derived by diffing it against the previous
-    # snapshot. Immutable and thread-safe (a frozen {Data} value object).
+    # snapshot.
     #
     # @!attribute [r] data
     #   @return [DomainData] the latest VM snapshot

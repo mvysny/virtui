@@ -22,7 +22,6 @@ module Virt
       domstats_file ||= Run.sync('virsh domstats')
       sampled_at ||= DomainData.millis_now
 
-      # grab data. Hash{String => current_values}
       data = {}
       current_domain = ''
       # Hash{String => String}
@@ -41,7 +40,6 @@ module Virt
         current_values[key.strip] = value.strip
       end
 
-      # parse the data
       result = {}
       data.each do |domain, values|
         state = @@states[values['state.state'].to_i] || :other

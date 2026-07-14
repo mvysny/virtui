@@ -5,7 +5,7 @@ module Interpolator
   # window `time_from..time_to`.
   #
   # {#value} returns `value_from` before the window, `value_to` after it, and a linear
-  # blend in between. Immutable and thread-safe (a frozen {Data} value object).
+  # blend in between.
   #
   # @!attribute [r] value_from
   #   @return [Numeric] value returned at or before `time_from`

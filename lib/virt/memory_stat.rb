@@ -5,8 +5,7 @@ module Virt
   # the guest's own view (`available`, `usable`, `unused`, `disk_caches`).
   #
   # The guest-reported fields require a working balloon device plus guest tools; they are
-  # `nil` when that data isn't available (see {#guest_data_available?}). Immutable and
-  # thread-safe (a frozen {Data} value object). More info:
+  # `nil` when that data isn't available (see {#guest_data_available?}). More info:
   # https://pmhahn.github.io/virtio-balloon
   #
   # @!attribute [r] actual

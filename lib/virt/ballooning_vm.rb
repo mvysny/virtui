@@ -10,7 +10,7 @@ module Virt
   # drops below {#min_actual} nor rises above the VM's configured maximum. The thresholds
   # and rates are set in the constructor.
   #
-  # Owned and driven by {Ballooning}; runs on the UI thread only.
+  # UI-thread-confined.
   class BallooningVM
     # @param virt_cache [Cache] the runtime cache to read VM data from and act through
     # @param vmid [String] the VM name
@@ -34,7 +34,7 @@ module Virt
       # It takes ~15 seconds for a VM to start.
       @boot_back_off_seconds = 20
 
-      # When the guest mem usage (ommitting cache) is above this value, increase guest memory.
+      # When the guest mem usage (omitting cache) is above this value, increase guest memory.
       # To prevent client swapping, set this lower than `100 - guest vm.swappiness`
       @trigger_increase_at = 65
 
@@ -42,7 +42,7 @@ module Virt
       # A percentage value; 30 means that the actual will be increased to 130%.
       @increase_memory_by = 30
 
-      # When the guest mem usage (ommitting cache) is below this, start decreasing guest memory
+      # When the guest mem usage (omitting cache) is below this, start decreasing guest memory
       @trigger_decrease_at = 55
 
       # When decreasing memory, decrease by how much.
@@ -67,12 +67,12 @@ module Virt
       @status = Status.new('', 0)
     end
 
-    # @return [Integer] Don't let the VM fall below this value. Note that QEMU needs some memory for itself, so the amount
-    # of memory available to the guest OS will be smaller.
+    # @return [Integer] floor for the VM's `actual` memory, in bytes; QEMU's own overhead
+    #   means the guest OS sees somewhat less
     attr_accessor :min_actual
 
     # The outcome of one ballooning {#update} for a VM: a human-readable explanation and
-    # the percentage change applied. Immutable and thread-safe (a frozen {Data} value object).
+    # the percentage change applied.
     #
     # @!attribute [r] text
     #   @return [String] human-readable description of the decision, for debug logging
@@ -162,7 +162,7 @@ module Virt
         # VM needs memory. Increase memory immediately: sometimes there's an instant
         # memory demand spike in the VM, and since the data sampling occurs once every
         # 2 seconds at best, we may be already late and SWAP is ramping up already.
-        # Increaase the memory immediately, and by a bigger number.
+        # Increase the memory immediately, and by a bigger number.
         memory_delta = @increase_memory_by
       elsif percent_used <= @trigger_decrease_at
         # decrease memory slowly. We use back_off period to slow down memory decrease.
@@ -187,7 +187,7 @@ module Virt
       # calculate min/max memory
       max_memory = info.max_memory
       if @min_actual > max_memory
-        @status = Status.new("VM max memory #{max_memory} is below min_active #{@min_actual}, doing nothing", 0)
+        @status = Status.new("VM max memory #{max_memory} is below min_actual #{@min_actual}, doing nothing", 0)
         return
       end
 

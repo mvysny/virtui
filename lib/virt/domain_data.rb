@@ -4,8 +4,7 @@ module Virt
   # A point-in-time snapshot of one VM: its static {DomainInfo} plus the runtime state and
   # metrics sampled at {#sampled_at}.
   #
-  # Two snapshots are diffed to derive CPU usage (see {#cpu_usage}). Immutable and
-  # thread-safe (a frozen {Data} value object).
+  # Two snapshots are diffed to derive CPU usage (see {#cpu_usage}).
   #
   # @!attribute [r] info
   #   @return [DomainInfo] static VM configuration

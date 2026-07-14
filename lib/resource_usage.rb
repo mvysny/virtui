@@ -2,9 +2,9 @@
 
 # A byte-usage value object pairing `total` capacity with currently `available` bytes.
 #
-# Used across the codebase for any total/available resource — RAM, disk, VM memory.
-# Immutable and thread-safe (a frozen {Data} value object), so instances can be shared
-# freely between the background timer thread and the UI thread.
+# Used across the codebase for any total/available resource — RAM, disk, VM memory; being
+# a frozen value object, instances are shared freely between the background timer thread
+# and the UI thread.
 #
 # @!attribute [r] total
 #   @return [Integer] total capacity, in bytes

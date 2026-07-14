@@ -5,8 +5,7 @@ module Virt
   # to one {BallooningVM} each. Each VM must have ballooning support installed and enabled
   # (see README).
   #
-  # Reads from {Cache} and issues memory changes through it; must be called from the UI
-  # thread only (never the background timer thread).
+  # Reads from {Cache} and issues memory changes through it. UI-thread-confined.
   class Ballooning
     # @param virt_cache [Cache] the runtime cache to read VM data from and act through
     def initialize(virt_cache)

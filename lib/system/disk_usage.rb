@@ -3,8 +3,8 @@
 module System
   # Disk usage for one filesystem, tracking how much of it VM disk images account for.
   #
-  # Immutable and thread-safe (a frozen {Data} value object); {#add} returns a new
-  # instance rather than mutating, so per-VM contributions can be accumulated.
+  # {#add} returns a new instance rather than mutating, so per-VM contributions can be
+  # accumulated.
   #
   # @!attribute [r] usage
   #   @return [ResourceUsage] overall used/total bytes of the filesystem

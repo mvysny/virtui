@@ -3,8 +3,6 @@
 module Virt
   # Static VM configuration that doesn't change while the VM is running.
   #
-  # Immutable and thread-safe (a frozen {Data} value object).
-  #
   # @!attribute [r] name
   #   @return [String] the VM name — used both for display and as the VM identifier
   # @!attribute [r] cpus

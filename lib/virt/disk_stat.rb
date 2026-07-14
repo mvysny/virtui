@@ -5,8 +5,7 @@ module Virt
   #
   # Distinguishes three sizes that are easy to confuse: how much data the guest has
   # written (`allocation`), the guest disk's nominal size (`capacity`), and how many bytes
-  # the backing qcow2 file currently occupies on the host (`physical`). Immutable and
-  # thread-safe (a frozen {Data} value object).
+  # the backing qcow2 file currently occupies on the host (`physical`).
   #
   # @!attribute [r] name
   #   @return [String] the device name, e.g. `"vda"` or `"sda"`
