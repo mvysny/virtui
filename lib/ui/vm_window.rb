@@ -15,7 +15,6 @@ module UI
     def initialize(virt_cache, ballooning)
       super('VMs')
       self.content = Component::List.new
-      @f = Formatter.new
       @virt_cache = virt_cache
       @ballooning = ballooning
       # Array<String>: the VM name backing every rendered line, indexed by line position.
@@ -321,7 +320,7 @@ module UI
     # @param color [Tuile::Color] progress bar color
     # @return [String] the rendered segment, including ANSI color codes
     def progress_bar(left, right, width, value, max, color)
-      @f.labelled_bar(width, left, right, value, max, color, screen.theme[:frame], label_width: 11)
+      Formatter.labelled_bar(width, left, right, value, max, color, screen.theme[:frame], label_width: 11)
     end
 
     # Renders a {ResourceUsage} as a progress-bar segment captioned with percent used and

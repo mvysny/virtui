@@ -3,7 +3,7 @@
 require_relative '../spec_helper'
 
 describe UI::Formatter do
-  let(:f) { UI::Formatter.new }
+  let(:f) { UI::Formatter }
   let(:red) { Tuile::Color::RED }
   let(:frame) { Tuile::Color.hex('#333333') }
 

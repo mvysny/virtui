@@ -13,7 +13,6 @@ module UI
     def initialize(virt_cache)
       super('System')
       self.content = Component::List.new
-      @f = Formatter.new
       @virt_cache = virt_cache
       @cpu_info = format_cpu_info
       update
@@ -173,7 +172,7 @@ module UI
     # @param right [String] right caption (padded to 6 chars)
     # @return [String] the rendered row, including ANSI color codes
     def progress_bar(left, value, max, color, right)
-      @f.labelled_bar(rect.width - 4, left, right, value, max, color, screen.theme[:frame], label_width: 16)
+      Formatter.labelled_bar(rect.width - 4, left, right, value, max, color, screen.theme[:frame], label_width: 16)
     end
 
     # Renders a {ResourceUsage} as a progress-bar row, captioning it with `tag`, the percent

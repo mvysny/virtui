@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 module UI
-  # Builds reusable styled-string fragments for the UI widgets.
-  class Formatter
+  # Stateless helpers building reusable styled-string fragments for the UI widgets; call
+  # them on the module (`UI::Formatter.labelled_bar(…)`).
+  module Formatter
+    module_function
+
     # Renders a single-row progress bar as a styled string: the filled portion in `color`,
     # the remainder as dashes in `rest_color`. `value` is clamped to `0..max_value`.
     #
