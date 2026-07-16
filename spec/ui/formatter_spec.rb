@@ -59,4 +59,29 @@ describe UI::Formatter do
       assert_equal 13, f.progress_bar(13, 7, 20, Tuile::Color::BLUE, frame).display_width
     end
   end
+
+  describe '#labelled_bar' do
+    # display_width strips ANSI, so it measures the rendered column count.
+    def width_of(str) = Tuile::StyledString.parse(str).display_width
+
+    it 'pads the left caption to label_width and the right caption to 6' do
+      bar = f.labelled_bar(30, '50%', '128G', 50, 100, red, frame, label_width: 11)
+      assert bar.start_with?('50%'.ljust(11)), bar
+      assert bar.end_with?('128G'.rjust(6)), bar
+    end
+
+    it 'total rendered width equals the given width' do
+      assert_equal 30, width_of(f.labelled_bar(30, '50%', '128G', 50, 100, red, frame, label_width: 11))
+    end
+
+    it 'skips left padding when the left caption is empty' do
+      bar = f.labelled_bar(20, '', '9G', 3, 10, red, frame, label_width: 11)
+      refute bar.start_with?(' '), bar # first char is the filled bar, not padding
+    end
+
+    it 'collapses the bar to empty when captions leave no room' do
+      bar = f.labelled_bar(10, '50%', '128G', 50, 100, red, frame, label_width: 11)
+      assert_equal '50%'.ljust(11) + '128G'.rjust(6), bar # bar width clamped to 0
+    end
+  end
 end

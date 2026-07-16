@@ -319,11 +319,7 @@ module UI
     # @param color [Tuile::Color] progress bar color
     # @return [String] the rendered segment, including ANSI color codes
     def progress_bar(left, right, width, value, max, color)
-      left = left.ljust(11) unless left.empty?
-      right = right.rjust(6)
-      pb_width = (width - left.size - right.size).clamp(0, nil)
-      pb = @f.progress_bar(pb_width, value, max, color, screen.theme[:frame])
-      left + pb.to_ansi + right
+      @f.labelled_bar(width, left, right, value, max, color, screen.theme[:frame], label_width: 11)
     end
 
     # Renders a {ResourceUsage} as a progress-bar segment captioned with percent used and
