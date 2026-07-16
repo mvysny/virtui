@@ -5,6 +5,8 @@ module UI
   # CPU/RAM/disk usage bars and a ballooning-status indicator. Per-VM actions are reachable
   # via key shortcuts: power menu (`p`), launch viewer (`v`), memory menu (`m`), toggle disk
   # stats (`d`) and search (`/`).
+  #
+  # UI-thread-confined.
   class VMWindow < Tuile::Component::Window
     include Tuile
 

@@ -4,6 +4,8 @@ module UI
   # The host window: shows CPU model/flags and usage, RAM and swap usage, and per-disk
   # usage — each as a labelled progress bar built from {Virt::Cache} data. Pressing `h`
   # opens a help window explaining the host's virtualization CPU flags.
+  #
+  # UI-thread-confined.
   class SystemWindow < Tuile::Component::Window
     include Tuile
 

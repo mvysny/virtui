@@ -5,6 +5,8 @@ module UI
   # list/controls), {SystemWindow} (host CPU/RAM/disk) and a log window. Also redirects
   # `$log`'s console output into the log window and assigns the `1`/`2`/`3` focus
   # shortcuts.
+  #
+  # UI-thread-confined.
   class AppLayout < Tuile::Component::Layout::Absolute
     include Tuile
 
