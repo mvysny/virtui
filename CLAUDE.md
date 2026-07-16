@@ -6,6 +6,12 @@ the classes/modules themselves — when a section here says "see
 `{ClassName}`", that yardoc is the source of truth and this file just
 records the invariant.
 
+- **Read the `cop` and `tuile` skills before designing components or app
+  architecture.** VirTUI is a component-oriented Tuile TUI; those skills carry
+  the architecture (self-sufficient components, the composition-over-inheritance
+  UI carve-out, the model/view seam, and Tuile's UI-thread rendering rule). Not
+  conditional — nearly every task here is component/UI work.
+
 ## Commands
 
 ```bash
