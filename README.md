@@ -7,12 +7,12 @@ Currently only tested on Linux host: probably won't work on Windows nor MacOS.
 
 ## Setup
 
-- Install Ruby 3.3+. On Ubuntu 26.04, `sudo apt install ruby` gives you Ruby 3.3.
+- Install Ruby 3.3+. On Ubuntu 26.04, `sudo apt install ruby ruby-dev` gives you Ruby 3.3.
   On other distros or if you need a specific version, [install Ruby via Mise](https://mise.jdx.dev/lang/ruby.html) instead.
 - git clone this project. If you're on a system-wide (apt) Ruby, tell Bundler to install
   gems into your home directory so `bundle install` doesn't need root:
   ```
-  bundle config set --local path ~/.gem
+  bundle config set --global path ~/.gem
   bundle install
   ```
 - Install the `virsh` binary via `sudo apt install libvirt-clients` — virtui shells out to `virsh` to talk to the libvirt daemon.
