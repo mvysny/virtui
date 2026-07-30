@@ -22,10 +22,26 @@ module Tuile
       layout
     end
 
-    it 'assigns the 1/2/3 focus shortcuts to the three windows' do
-      assert_equal '1', layout.vms.key_shortcut
-      assert_equal '2', layout.system.key_shortcut
-      assert_equal '3', layout.log.key_shortcut
+    it 'advertises the 1/2/3 focus keys in the window captions' do
+      assert_equal '[1]-VMs', layout.vms.caption.to_s
+      assert_equal '[2]-System', layout.system.caption.to_s
+      assert_equal '[3]-Log', layout.log.caption.to_s
+    end
+
+    context('handle_key') do
+      it 'focuses the window bound to the pressed digit' do
+        assert layout.handle_key('2')
+        assert layout.system.active?
+        refute layout.vms.active?
+
+        assert layout.handle_key('3')
+        assert layout.log.active?
+        refute layout.system.active?
+      end
+
+      it 'declines a key it has no window for' do
+        refute layout.handle_key('z')
+      end
     end
 
     it 'rect= tiles VMs on top, system + log along the bottom' do
