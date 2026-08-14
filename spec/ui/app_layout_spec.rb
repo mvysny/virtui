@@ -60,7 +60,7 @@ module Tuile
 
     it 'update_data refreshes the windows without raising' do
       layout.update_data
-      refute_empty layout.vms.content.lines
+      refute_empty layout.vms.content.items
     end
 
     def rect_of(component)

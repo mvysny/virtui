@@ -45,7 +45,7 @@ module Tuile
     def win11 = 8
 
     it 'has the right content' do
-      content = window.content.lines.map(&:to_s)
+      content = window.content.items.map(&:to_s)
       assert_equal '⏹ BASE──────────', content[0]
       assert_equal '    vda: 50%   64G   128G |', content[1]
       assert_equal '⏹ Fedora────────', content[2]
@@ -259,7 +259,7 @@ module Tuile
       it 'shows the ballooning direction indicator once ballooners exist' do
         ballooning.update
         window.update
-        line = window.content.lines.map(&:to_s)[ubuntu]
+        line = window.content.items.map(&:to_s)[ubuntu]
         assert line.include?("\u{1F388}-"), line # balloon + "steady" (delta 0)
       end
 
@@ -267,7 +267,7 @@ module Tuile
         ballooning.update
         ballooning.enabled('Ubuntu', false)
         window.update
-        line = window.content.lines.map(&:to_s)[ubuntu]
+        line = window.content.items.map(&:to_s)[ubuntu]
         assert line.include?("\u{1F388}x"), line
       end
 

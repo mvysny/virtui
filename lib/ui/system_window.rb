@@ -22,7 +22,7 @@ module UI
     # @return [void]
     def update
       theme = screen.theme
-      content.lines do |lines|
+      content.build_lines do |lines|
         # CPU
         lines << header('CPU', @cpu_info, :cpu)
         host_cpu_usage = @virt_cache.host_cpu_usage.to_i

@@ -49,7 +49,7 @@ module UI
       cursor_positions = [] # allowed cursor positions
       cpus = @virt_cache.cpu_info.cpus
       host_ram = @virt_cache.host_mem_stat.ram
-      content.lines do |lines|
+      content.build_lines do |lines|
         @line_data.clear
         domains.each do |domain_name|
           cursor_positions << lines.size

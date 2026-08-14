@@ -33,7 +33,7 @@ module Tuile
     # The lines of the currently-open help InfoWindow, joined into one string.
     def help_text
       info = Screen.instance.popups[0].content
-      info.content.lines.join("\n")
+      info.content.items.join("\n")
     end
 
     it 'smokes' do
@@ -93,7 +93,7 @@ module Tuile
 
     it 'renders a row per disk' do
       disks = { 'sda' => System::DiskUsage.new(ResourceUsage.new(100.GiB, 40.GiB), 12.GiB, ['/x.qcow2']) }
-      lines = window_for(disks: disks).content.lines.map(&:to_s)
+      lines = window_for(disks: disks).content.items.map(&:to_s)
       assert(lines.any? { |l| l.include?('sda') }, lines.join("\n"))
     end
   end
