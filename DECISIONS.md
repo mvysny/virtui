@@ -15,11 +15,29 @@ It is the *why-we-chose* record. It is not the *how-it-works* reference
 than restating — see `CLAUDE.md` § *Documentation kinds* for the full
 split.
 
+**Length is affordable here — this is the file that may be long.** A
+yardoc must stay punchy (see the `writing-rdoc` skill): it is read at the
+point of *use*, where a wall of grey means the reader bounces off and
+never reaches the nugget. This file is read *on demand*, by someone who
+came asking why, so an entry may carry the measurement table, the analysis
+and the full argument. The division of labour that follows: the yardoc
+keeps the contract plus at most a **one-line** why-not-the-obvious note
+ending in `see DECISIONS.md D-<slug>`, and the argument lives here. That
+makes yardoc smaller, not bigger — a citation earns its line where a
+convincing paragraph would have to fight for five.
+
 **No entry without a real fork.** If nothing was seriously considered and
 rejected, it isn't a decision — it's how the thing works, and that's
 yardoc. This is the guard against a diary. A tuning constant whose value
 was simply picked is likewise yardoc (with its reasoning next to it); it
 earns an entry here only once a *rejected* alternative exists.
+
+What *does* clear that bar, and is easy to mistake for a bare
+characterization: **a measurement that rules out the obvious approach is a
+rejected alternative.** "Tuning this threshold cannot work, and here is
+the kernel behaviour that proves it" is a fork — the evidence is the
+entry's `Context`, the ruled-out approach is a bullet under *Alternatives
+rejected*, named as the trap it is so nobody re-derives it.
 
 **Format.** One entry per decision, headed
 `## D-<slug> — <one-line what-was-chosen> (YYYY-MM-DD)` and made of these

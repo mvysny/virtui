@@ -89,10 +89,20 @@ Rules:
   they will observe (`virsh` prerequisites, the balloon thresholds as
   behaviour); *why* a threshold is 65 and not 50 is yardoc + a
   DECISIONS.md entry, not README prose.
+- **The contract lives in the yardoc; the *argument* lives where length is
+  affordable.** The `writing-rdoc` skill keeps a doc comment punchy on
+  purpose — a wall of grey at the point of *use* is worse than no doc,
+  because the reader bounces off it and never reaches the nugget. So a
+  yardoc carries the contract, the gotcha, and at most a **one-line**
+  why-not-the-obvious note ending in `see DECISIONS.md D-<slug>`; the
+  measurement, the analysis and the rejected options go in the entry,
+  which is read on demand by someone who came asking. This makes yardoc
+  *smaller*, not bigger: a citation passes the regression-guard gate that
+  a convincing paragraph would have to fight for.
 - **Numbers carry their provenance.** A tuning constant (a threshold, a
-  poll interval, a staleness tolerance) gets its measurement or its
-  reasoning in the yardoc next to it — never a bare literal, and never a
-  formula that no longer holds.
+  poll interval, a staleness tolerance) never sits bare: the yardoc next
+  to it says what it is defending against, in a line, or cites the entry
+  that argues it. Never a formula that no longer holds.
 
 ### Ideas & their graduation
 
@@ -127,9 +137,12 @@ subject); `grep '^## D-' DECISIONS.md` is the index, so no ToC. Entries are
 mutable — a refined decision is edited in place, a *shipped-then-reversed*
 one gets a tombstone + a fresh entry. **No entry without a real fork:** if
 nothing was seriously considered and rejected, it isn't a decision, it's
-how the thing works → yardoc. Grep tripwire: every `D-<slug>` cited in the
-repo exists as a `^## D-` heading in `DECISIONS.md`. Full format rules
-live in that file's preamble.
+how the thing works → yardoc. But note what *does* clear that bar: **a
+measurement that rules out the obvious approach is a rejected
+alternative** — "tuning this threshold cannot work, here is the proof" is
+a fork, and its evidence is the entry's `Context`. Grep tripwire: every
+`D-<slug>` cited in the repo exists as a `^## D-` heading in
+`DECISIONS.md`. Full format rules live in that file's preamble.
 
 ## Conventions
 
