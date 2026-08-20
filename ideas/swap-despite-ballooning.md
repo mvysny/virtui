@@ -9,9 +9,47 @@ A guest with `vm.swappiness=1`, 9.8 GiB of a 32 GiB balloon address space, and a
 while reporting a comfortable 61% to virtui.
 
 This doc records the measurement, the three independent reasons the current design
-can't prevent it, and candidate fixes. The `@trigger_increase_at` comment in
-`BallooningVM` encodes one of the misconceptions, so it is a code-level finding,
-not just an ops curiosity.
+can't prevent it, candidate fixes, and one candidate *guideline* ("no disk cache in
+the VM") that the same analysis turns out to bear on. The `@trigger_increase_at`
+comment in `BallooningVM` encodes one of the misconceptions, so it is a code-level
+finding, not just an ops curiosity.
+
+Read the next section first: three questions about how swapping and guest caching
+actually work gate everything else here.
+
+## Blocked on three fundamentals
+
+Nothing below should be turned into a code change or a `DECISIONS.md` entry until
+these are answered. They are deliberately **not** brainstormed here — each is a
+"how does the machinery actually work" question, and guessing at them is how the
+`100 - swappiness` comment got written in the first place. Every open item further
+down resolves differently depending on the answers.
+
+1. **How does swapping actually work across guest + qemu + host, and how can it be
+   configured?** The whole stack, as one picture: guest swap device, guest reclaim
+   entry points, what the balloon does to a guest that is already swapping, how
+   qemu's memory backing (`<memoryBacking>`, THP, `memfd` vs anonymous,
+   `shared`/`locked`) affects it, whether the *host* swaps qemu's RSS, and which of
+   these virtui can see or set. Needed because the controller currently reasons
+   about guest reclaim through a single number and one folk formula.
+2. **What are the fundamental pros/cons of having swap *in the guest* at all?**
+   Candidate framing: a guest swap-out on a host with plenty of free RAM is pure
+   waste — real host disk I/O to evict a page that host RAM could have held, plus
+   a page that now returns only on demand. Against that: swap is what keeps a
+   guest alive through a burst instead of invoking the OOM killer, and it is the
+   only reclaim target once the page cache is gone. Includes: is `swapoff` in the
+   guest a legitimate configuration for a ballooned VM, or does it just convert
+   swap events into OOM kills?
+3. **What are the pros/cons of guest disk caches?** Both directions of the
+   candidate guideline below: what the guest's page cache buys (readahead, hot
+   text, the balloon's shock absorber) versus what it costs (host RAM held in
+   qemu's RSS, duplicated against the host's own copy of the image). This is the
+   one that decides the guideline.
+
+Where the answers land, per the doc rules: the guideline itself → a
+`DECISIONS.md` entry (it has a real fork and a real road not taken); why a
+threshold has its specific value → the yardoc next to that constant; anything a
+user must configure in the guest → README.
 
 ## Measurement
 
@@ -31,6 +69,7 @@ Guest: Ubuntu, kernel 7.0.0-30-generic, 76 min uptime, swap on `/swap.img`
 | `workingset_refault_file` | 3 040 842 — page cache actively thrashing |
 | Balloon geometry | 256 × 128 MiB blocks = 32 GiB address space, deflated to 9.8 GiB |
 | `vm.min_free_kbytes` / `watermark_boost_factor` | 67584 (66 MB) / 15000 |
+| Guest page cache (`Cached`) / `balloon.disk_caches` | **not recorded** — gap; see the guideline section below |
 
 Top swap holders were ordinary long-lived desktop processes (IDE, browser helpers,
 node, JVMs) at 15–100 MB each — no single runaway. Consistent with a burst that
@@ -108,6 +147,52 @@ Corollary for reading the number at all: swap-used is a **high-water scar**, not
 pressure gauge. Half of the measured 1.99 GiB (`SwapCached` = 1.00 GiB) is already
 resident in RAM again, still holding its swap slot as a free backing copy.
 
+## Consequence: the threshold must be low, and there are only three exits
+
+Cause 2 is not a bug to be fixed, it is a floor. virsh refreshes balloon data
+every ~5 s, virtui polls every ~2 s, and the guest kernel reclaims in
+microseconds; no amount of host-side engineering closes a gap of that shape. So
+the controller can never be a fast loop — it can only run with a **standing
+reserve** large enough that a plausible burst is survivable *without reclaim*
+until the next sample lands.
+
+This is the killer argument against the intuitive design ("act at 90%, why waste
+RAM"). At 90% of 9.8 GiB the reserve is ~1 GiB — one JVM fork, gone inside a
+single sampling window. The reserve has to be sized against *bursts*, not against
+steady state, and the burst is what the controller is structurally unable to see.
+
+And the reserve is not abstract free memory: in practice the part of it that
+absorbs a burst without I/O is **clean page cache the kernel can drop for free**
+(hence "the page cache is the balloon's shock absorber", below — it is the same
+statement viewed from the other side).
+
+The measurement says the current 65 / 55 pair is not enough: the guest sat at
+**61%**, inside the deadband with the controller idle, while holding 2 GiB of
+swap. So 65 is above the real safe line for that workload. Three exits, and only
+three:
+
+1. **Lower `@trigger_increase_at`** (and `@trigger_decrease_at` with it, to keep a
+   deadband). Costs density: every VM holds more RAM than it needs, so fewer VMs
+   fit on the host. Cheapest change; the value has to come from observation, not
+   from a formula.
+2. **Accept swapping, but make it cheap, reversible and visible** instead of
+   trying to make it impossible. That is fix 1 (swap feeds the trigger, shrink is
+   blocked while swapping) plus fix 5 (zram, so a swap-out is a compression rather
+   than a disk write). Reframes the goal from *no swap* to *no harmful swap* —
+   which, given cause 1, is the only goal actually achievable.
+3. **Raise `@min_actual` above 8 GiB.** Disfavoured: `min_actual` is global, and
+   some VMs are genuinely small ones for which 8 GiB is already generous — raising
+   the floor wastes RAM on every one of them to protect one big workload. If this
+   is ever taken it should be *per-VM*, not a new global default.
+
+Worth noting about the shape of the knob, independent of its value: the trigger is
+a **percentage**, so the absolute reserve scales with `actual` — 35% of 9.8 GiB is
+3.4 GiB, but 35% of 2 GiB is 0.7 GiB. Bursts are absolute, not proportional; a
+Maven build allocates the same GB in a small VM as in a big one. That argues the
+reserve wants an absolute floor (`reserve = max(35%, ~2 GiB)`) rather than being
+purely proportional — which would also let exit 1 be taken *without* penalising
+large VMs, and is a strictly better lever than exit 3 for the same problem.
+
 ## Candidate fixes
 
 Roughly in order of value. Not decided; 1 is the one that closes the inversion.
@@ -122,16 +207,162 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    the shrink-after-swap inversion. Open: which field(s) libvirt actually surfaces
    in `domstats` on this setup, and whether swap-used is derivable or needs
    `stat-swap-*` deltas accumulated locally.
-2. **Buy headroom for the 5–7 s blind spot.** Either drop `@trigger_increase_at` to
-   ~50–55 (moving `@trigger_decrease_at` down to keep a deadband), or raise
-   `@min_actual` above 8 GiB. The invariant to aim for: *a plausible burst must be
-   survivable within one sampling window without reclaim.* At 65% of 9.8 GiB there
-   are only 3.4 GiB of slack, which one parallel Maven build eats.
+2. **Buy headroom for the 5–7 s blind spot.** Drop `@trigger_increase_at` to
+   ~50–55 (moving `@trigger_decrease_at` down to keep a deadband), and/or give the
+   reserve an absolute floor instead of a purely proportional one. The invariant to
+   aim for: *a plausible burst must be survivable within one sampling window without
+   reclaim.* At 65% of 9.8 GiB there are only 3.4 GiB of slack, which one parallel
+   Maven build eats. See "the threshold must be low" above for why this is
+   structural and for why raising `@min_actual` is the disfavoured exit.
 3. **Guest-side: raise `vm.min_free_kbytes`** (66 MB on the measured host). A bigger
    free reserve buys the allocator time to wait for the balloon instead of entering
    direct reclaim. Costs a little RAM; no controller change.
 4. **Ops recovery:** `swapoff -a && swapon -a` clears the scar for a clean baseline.
    Safe when only-in-swap is small (~1.0 GiB here) and `MemAvailable` covers it.
+5. **Guest-side: `zram` swap with priority above the disk swap.** Not just a
+   performance trick — it changes what root cause 3 does to the metric. A page
+   compressed into zram *stays resident* (zsmalloc pages, which `MemAvailable`
+   excludes), so a 1 GiB swap-out at 3:1 frees ~0.66 GiB rather than 1 GiB: the
+   evidence-erasure is damped by the compression ratio instead of being total.
+   And the scar heals — a zram `pswpin` is a decompression, not a disk read, so
+   the guest naturally faults pages back in as it touches them, whereas a
+   `/swap.img` page can sit out for hours. Deserves a slot above its number here;
+   it is the cheapest thing on this list that touches the actual defect. Costs:
+   RAM for the compressed pool, CPU per fault. Open: does it interact badly with
+   the balloon (the pool is unreclaimable, so inflating against a full zram is
+   worse than inflating against page cache)?
+6. **Host-side: stop caching the disk image (`cache=none`).** See the candidate guideline below
+   — the "don't cache the same bytes twice" instinct is right, but the layer to
+   drop is the host's, not the guest's. Costs nothing on the controller, and
+   removes a chunk of host RAM that virtui's host view currently attributes to
+   nobody.
+
+## Candidate guideline: "no disk cache in the VM — the host caches the image anyway"
+
+Stated as a general rule to live by, not a one-off tweak, because it would guide
+other decisions (past ones too): *don't cache the same bytes twice — the guest's
+disk cache occupies host memory as well, so it is host RAM spent on a copy the
+host already has.* Bound for `DECISIONS.md` once fundamental 3 is answered; the
+verdict below is **provisional** and section 5 is the reason it can't be signed
+off yet.
+
+**Provisional verdict: the premise is right, the remedy is inverted — drop the
+*host's* copy, not the guest's.** Five points, the first four against the
+guideline in order of how decisive they are, the fifth for it:
+
+### 1. It buys the controller nothing — the metric already excludes cache
+
+`MemoryStat#guest_mem` is `(available, usable)` = `(MemTotal, MemAvailable)`, and
+`MemAvailable` is *free + reclaimable file/slab − watermarks*. So
+`percent_used = (MemTotal − MemAvailable) / MemTotal` is already ≈ *anon +
+unreclaimable kernel*, with the page cache subtracted out. The
+`@trigger_increase_at` comment's "(omitting cache)" is literally true. The
+measured 61% was **not** inflated by cache, and a guest with zero page cache
+would have reported the same 61%. Removing the cache moves the number by ~0.
+
+Note the corollary: `disk_caches` (`balloon.disk_caches`) *is* already parsed by
+`Virsh` and carried in `MemoryStat`, and is used by **nothing** — not the
+controller, not the UI. It is free information about the guest's second-largest
+memory consumer, currently discarded.
+
+### 2. It makes root cause 1 *worse*: it removes the cheap reclaim victim
+
+Cause 1 says the kernel falls back to evicting anon "whenever the file LRU is too
+small or is thrashing", and the measurement shows exactly that
+(`workingset_refault_file` = 3.04 M, anon:file scan 1 : 3.6 instead of the ~1 : 200
+that `swappiness=1` nominally implies). A shrunken, thrashing file LRU is *the*
+mechanism that produced the swap. Shrink it to zero and every reclaim event has
+only one victim class left — anon — so *all* reclaim becomes swap. The direction
+of travel indicated by the measurement is **more** guest cache, not less: it is
+evidence supporting fix 2 (headroom), not an argument for starving the guest.
+
+Same point from the balloon's side: **clean page cache is the balloon's shock
+absorber.** Inflating a balloon is only free when the guest has droppable clean
+pages to hand back. A guest with no page cache has nothing to give but anon, so
+every inflation forces a swap-out. "No guest disk cache" and "ballooning" are
+directly at odds.
+
+Third angle, already in the data: `vm.swappiness=1` *is* "prefer to evict page
+cache over anon" — the measured guest is already configured maximally against
+keeping a page cache, and it swapped anyway.
+
+### 3. It isn't implementable
+
+Linux has no page-cache-off switch; buffered I/O goes through the page cache,
+period. Everything that looks like a knob isn't:
+
+- `vm.vfs_cache_pressure` — dentry/inode *slab*, not the page cache.
+- `drop_caches` — a debug facility, global, and it evicts hot executable text and
+  mmap'd pages too, so it buys a re-read storm.
+- cgroup v2 — `memory.max`/`memory.high` cap *total* charge; there is no
+  file-only limit.
+- `swappiness` — see above, already at the extreme.
+- `O_DIRECT` / `fadvise(DONTNEED)` — per-application, and the measured workload
+  (IDE, JVMs, node, Maven) is all buffered I/O. Not imposable from outside.
+
+Also, "no disk cache" would take the guest's *executable* pages with it: program
+text and mmap'd libraries live in the file LRU and must be **resident in guest
+RAM to run**. The host cannot lend the guest a page; it can only serve a fault.
+
+### 4. Host cache hits aren't free, and the premise may not even hold
+
+Terminology trap: the `cache=` attribute on `<disk><driver>` controls whether the
+**host** caches the image — it has no effect on the guest's own page cache. And
+whether the host caches at all depends on it: with `cache=writeback` /
+`writethrough` / `unsafe` it does; with `cache=none` / `directsync` (O_DIRECT)
+it does not. libvirt with no `cache=` attribute inherits QEMU's default
+(`writeback`, host cache on), but `virt-manager` / `virt-install` commonly write
+`cache='none'` — in which case there is no double caching to eliminate and the
+premise is simply false for that VM. **Check the XML before reasoning about it.**
+(Also: on ZFS the relevant cache is the ARC, not the page cache, and O_DIRECT
+semantics differ.)
+
+Even where the host does cache, the two hits are not interchangeable: a guest
+cache hit is a memory read; a host cache hit costs a virtio-blk exit plus the
+guest block layer (tens of µs) and *stalls the faulting thread*. The guest's
+cache is also the semantically better-placed one — it knows file boundaries,
+readahead windows and hot inodes, where the host sees opaque image offsets.
+
+So the correct expression of the instinct is the opposite assignment: **one cache
+layer, and put it in the guest** — `cache=none` on the disk, and give the guest
+enough RAM (via the balloon) that its file LRU sits above the thrash point.
+Exception where host caching genuinely wins: many VMs sharing a read-mostly base
+image, where the host's copy dedups across guests.
+
+Worth flagging for virtui specifically: host page cache holding a VM's image is
+charged to the *host*, not to the VM, so `System::Info` shows it as host RAM
+consumption belonging to nobody, and a large dirty image working set feeds host
+`dirty_ratio` latency spikes. That is a small argument for `cache=none` that is
+about virtui's own host view rather than about the guest.
+
+### 5. The strongest form of the guideline — the reclaimability asymmetry
+
+The point that keeps this open, and that the four objections above do not touch:
+**the two caches differ in who can take them back.**
+
+- The **host's** page cache for the image is, from the host kernel's view, clean
+  reclaimable file pages. Under pressure they evaporate at zero cost, and they are
+  shared across every VM booting the same base image.
+- The **guest's** page cache is, from the host kernel's view, anonymous memory
+  inside qemu's RSS. The host cannot reclaim it at all — not cheaply, not
+  expensively-but-correctly. The only mechanism that gets it back is *inflating the
+  balloon*, i.e. virtui itself, on a 5–12 s lag. Until then it is sticky host RAM.
+
+So on pure host-RAM efficiency the guideline is **right**, and more strongly than
+the original phrasing claims: caching in the guest doesn't merely duplicate, it
+converts flexible host memory into inflexible host memory. That is a real cost,
+and it is the cost the maintainer's instinct was pointing at.
+
+The collision is with the shock-absorber argument: that same inflexible memory is
+the only thing standing between a burst and a swap-out, precisely *because* the
+host can't take it away mid-burst. Stickiness is the cost and the feature.
+
+Which means this is a genuine trade-off, not a misconception to be corrected — and
+it is exactly what fundamentals 2 and 3 have to settle before a decision gets
+written. Possible shapes of the answer, for whoever picks it up: it may split by
+VM role (a build/desktop VM wants the guest cache; a read-mostly server VM on a
+shared base image wants the host's), or it may reduce to "keep the guest cache but
+size it via `min_actual`/the reserve rather than by leaving it unbounded".
 
 ## Open questions
 
@@ -149,3 +380,17 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
   "balloon device + stats period", nothing installed in the guest.
 - Do these findings hold on a guest with a normal `swappiness=60`? The analysis
   predicts the inversion is *worse* there, not better.
+- How big *is* the guest's page cache when the controller reads 61%? `disk_caches`
+  is already in `MemoryStat` and thrown away. If it is tiny (the recorded
+  `domstats` fixture shows 37 MB of 11 GiB), the guest is already running
+  cache-starved and fix 2 is the whole story; if it is large, the file LRU has
+  room and cause 1's fallback needs a different explanation. Cheap to answer —
+  log it, or show it in `UI::VMWindow`.
+- Should `disk_caches` be a *second* input to the controller — e.g. refuse to
+  shrink a VM whose page cache is already below some floor, on the grounds that
+  there is no cheap reclaim victim left? Same shape as gating shrink on swap
+  (fix 1), and it needs no new data channel.
+- What `cache=` mode do the managed VMs actually use? Determines whether the
+  double-caching in the guideline section is real or hypothetical, and it is one `virsh
+  dumpxml` away. Does virtui want to *show* it (a per-VM column) so the question
+  stops recurring?
