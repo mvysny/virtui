@@ -1,14 +1,15 @@
 # frozen_string_literal: true
 
 module Virt
-  # Auto-scales the memory of a single VM based on its guest memory usage.
+  # Auto-scales the memory of a single VM based on its guest memory usage. Asymmetric on
+  # purpose: {#update} grows the VM at once when the guest is running short, and shrinks it
+  # slowly and rate-limited when the guest is comfortable — a VM that needs RAM needs it
+  # now, a VM that has spare RAM can give it back at leisure.
   #
-  # On each {#update}: memory is increased immediately (by 30%) when guest usage rises to
-  # 65% or above, and decreased gently (by 10%) when it falls to 55% or below — the latter
-  # rate-limited by a back-off period so the guest has time to settle. Does nothing if the
-  # VM lacks ballooning support, is shut off, or the user has disabled it. Memory never
-  # drops below {#min_actual} nor rises above the VM's configured maximum. The thresholds
-  # and rates are set in the constructor.
+  # Does nothing if the VM lacks ballooning support, is shut off, reports stale data, or
+  # the user has disabled it. Memory never drops below {#min_actual} nor rises above the
+  # VM's configured maximum. Every threshold and rate is an ivar set in the constructor,
+  # documented next to its value; `README.md` states the resulting behaviour for users.
   #
   # UI-thread-confined.
   class BallooningVM
@@ -17,21 +18,16 @@ module Virt
     def initialize(virt_cache, vmid)
       @virt_cache = virt_cache
       @vmid = vmid
-      # {Integer} Don't let the VM fall below this value. Note that QEMU needs some memory for itself, so the amount
-      # of memory available to the guest OS will be smaller.
-      #
-      # 8 GiB is a healthy minimum for guests.
+      # 8 GiB: a healthy minimum for a desktop guest. See {#min_actual}.
       @min_actual = 8.GiB
-      # After Ballooning decreases active memory, it will back off for 20 seconds
-      # before trying to decrease the memory again. Observation shows that
-      # the effects of the memory decrease command in Linux guest isn't instant: instead it is gradual, and takes
-      # some time (5..15 seconds, depending on the difference in memory) to fully be applied. Let's not bother the VM with
-      # further memory decrease commands until the VM fully settles in.
-      #
-      # 20 seconds is a safe bet, but we can use 10 seconds since we decrease memory gently, by 10% tops, which is fast.
+      # How long to leave a VM alone after decreasing its memory, in seconds. A Linux guest
+      # applies a decrease gradually, over 5..15 seconds depending on how big it is;
+      # stacking another decrease on top before it settles would compound blindly. 10s is
+      # enough because we only ever decrease by 10%, which lands at the fast end.
       @back_off_seconds = 10
 
-      # It takes ~15 seconds for a VM to start.
+      # Grace period after a VM starts, in seconds — booting takes ~15s, and the guest's
+      # memory figures mean nothing until it's up.
       @boot_back_off_seconds = 20
 
       # When the guest mem usage (omitting cache) is above this value, increase guest memory.
@@ -56,8 +52,8 @@ module Virt
       # {Boolean} if the VM was running during the last ballooning update
       @was_running = false
 
-      # {Integer | nil} the value of {MemoryStat.last_updated} or nil.
-      # This is the last date of the data upon which a decision was made.
+      # {Integer | nil} {MemoryStat#last_updated} of the data the last decision was made
+      # on; guards against acting twice on the same guest sample.
       @last_update_at = nil
 
       # {Boolean} the user can manually disable ballooning for a VM.
@@ -159,10 +155,8 @@ module Virt
       memory_delta = 0
 
       if percent_used >= @trigger_increase_at
-        # VM needs memory. Increase memory immediately: sometimes there's an instant
-        # memory demand spike in the VM, and since the data sampling occurs once every
-        # 2 seconds at best, we may be already late and SWAP is ramping up already.
-        # Increase the memory immediately, and by a bigger number.
+        # No back-off on the way up: we sample every 2s at best, so by the time a demand
+        # spike shows up here the guest may already be swapping.
         memory_delta = @increase_memory_by
       elsif percent_used <= @trigger_decrease_at
         # decrease memory slowly. We use back_off period to slow down memory decrease.
@@ -222,7 +216,11 @@ module Virt
 
     private
 
-    # Back off from this VM - don't downgrade the memory for at least 10 seconds
+    # Suppresses memory *decreases* until `duration_seconds` from now; extends an active
+    # back-off, never shortens it.
+    #
+    # @param duration_seconds [Integer] how long to stay off this VM
+    # @return [void]
     def back_off(duration_seconds: @back_off_seconds)
       back_off_until = Time.now + duration_seconds
       @back_off_until = back_off_until if @back_off_until.nil? || @back_off_until < back_off_until

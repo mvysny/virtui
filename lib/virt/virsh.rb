@@ -4,6 +4,8 @@ module Virt
   # A libvirt client that drives libvirt by shelling out to the `virsh` CLI (parsing its
   # text output). Install it with `sudo apt install libvirt-clients`.
   #
+  # Not the ruby-libvirt binding — see DECISIONS.md D-virsh-cli.
+  #
   # Stateless; the read methods accept fixture parameters for testing.
   class Virsh
     # Maps the numeric `state.state` from `virsh domstats` to our state symbols; anything
@@ -124,11 +126,12 @@ module Virt
     # Enables periodic guest memory-stat collection on a running VM, so the guest-reported
     # balloon fields (`balloon.usable`/`available`/`unused`/`last-update`) stay fresh.
     #
-    # libvirt's stats collection period defaults to 0 (disabled): until something sets it,
-    # those fields freeze at boot-time values while host-sourced fields (`cpu.time`,
-    # `balloon.rss`) keep updating — making RAM look stuck even as CPU moves. Setting the
-    # period is a live property of the running QEMU process; it persists until the VM is
-    # fully powered off. The `--live` flag is a virsh-CLI detail and stays hidden here.
+    # libvirt's collection period defaults to 0 (disabled): until something sets it, those
+    # fields freeze at boot-time values while host-sourced fields (`cpu.time`,
+    # `balloon.rss`) keep updating — making RAM look stuck even as CPU moves. The period is
+    # a live property of the running QEMU process, so it must be re-armed after every full
+    # power-off; {Cache#update} does that. Why virtui arms it at all instead of asking the
+    # user to configure the domain XML: DECISIONS.md D-mem-stats-self-armed.
     #
     # Runs asynchronously (failures logged, not raised, via {Run.async}): a VM without a
     # balloon device rejects this command, and that must not abort the refresh loop.
@@ -142,8 +145,7 @@ module Virt
 
     # Starts a stopped VM. Behaviour is undefined for an already-started or paused VM.
     #
-    # Runs asynchronously since `virsh start` can take ~800ms, during which the UI would
-    # otherwise appear frozen; failures are logged, not raised.
+    # Asynchronous: `virsh start` takes ~800ms, and the UI thread must not wait on it.
     #
     # @param domain_name [String] VM name
     # @return [Thread] the thread running the command (see {Run.async})
@@ -153,8 +155,7 @@ module Virt
 
     # Asks a VM to shut down gracefully.
     #
-    # Runs asynchronously since `virsh shutdown` can take 0.5–5s, during which the UI would
-    # otherwise appear frozen; failures are logged, not raised.
+    # Asynchronous: `virsh shutdown` takes 0.5–5s, and the UI thread must not wait on it.
     #
     # @param domain_name [String] VM name
     # @return [Thread] the thread running the command (see {Run.async})

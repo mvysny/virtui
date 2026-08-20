@@ -32,7 +32,7 @@ module UI
     # (right-padded to 6), all within `width` characters:
     #
     #   labelled_bar(24, "50%", "128G", 50, 100, cpu, frame, label_width: 11)
-    #   # => "50%        ####----     128G"  (ANSI-colored bar in the middle)
+    #   # => "50%        ###----  128G"  (ANSI-colored bar in the middle)
     #
     # The bar shrinks to fit the captions and collapses to empty when there's no room.
     #

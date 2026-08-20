@@ -1,10 +1,9 @@
 # frozen_string_literal: true
 
-# A byte-usage value object pairing `total` capacity with currently `available` bytes.
+# A byte-usage value object pairing `total` capacity with currently `available` bytes —
+# host RAM, a filesystem, a VM's memory:
 #
-# Used across the codebase for any total/available resource — RAM, disk, VM memory; being
-# a frozen value object, instances are shared freely between the background timer thread
-# and the UI thread.
+#   ResourceUsage.of(8.GiB, 4.GiB).to_s   # => "4G/8G (50%)"
 #
 # @!attribute [r] total
 #   @return [Integer] total capacity, in bytes
@@ -33,7 +32,7 @@ class ResourceUsage < Data.define(:total, :available)
   # @return [ResourceUsage] sum of the two `total`s and the two `available`s
   def +(other) = ResourceUsage.new(total + other.total, available + other.available)
 
-  # @return [String] human-readable `used/total (percent%)`, e.g. `"4.0 GiB/8.0 GiB (50%)"`
+  # @return [String] human-readable `used/total (percent%)`, e.g. `"4G/8G (50%)"`
   def to_s
     "#{format_byte_size(used)}/#{format_byte_size(total)} (#{percent_used}%)"
   end

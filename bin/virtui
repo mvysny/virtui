@@ -15,8 +15,8 @@ Tuile.logger = $log
 # Update terminal title to show "VirTUI"
 print "\e]0;VirTUI\a"
 
-# Don't use Virt::LibVirtClient for now: it doesn't provide all necessary data
-# virt = Virt::LibVirtClient.new
+# The virsh CLI is the only real backend — see DECISIONS.md D-virsh-cli. With no virsh
+# installed there is nothing to manage, so fall back to the demo fleet.
 virt = Virt::Virsh.new if Virt::Virsh.available?
 virt ||= Virt::VMEmulator.demo
 virt_cache = Virt::Cache.new(virt, System::Info.new)
@@ -29,6 +29,10 @@ layout = UI::AppLayout.new(virt_cache, ballooning)
 screen.content = layout
 screen.focused = layout.vms
 
+# 2s: fast enough that ballooning can ramp a VM up before it starts swapping. Polling
+# harder buys nothing — libvirt refreshes guest balloon data only every ~5s anyway
+# (see Virt::Cache::VMCache#stale?). Reads happen here, on the timer thread; everything
+# that touches a component is handed to the UI thread through the event queue.
 scheduler = Concurrent::TimerTask.new(execution_interval: 2, interval_type: :fixed_rate) do
   virt_cache.update
   screen.event_queue.submit do

@@ -95,8 +95,12 @@ module UI
 
     private
 
-    # Builds the one-line CPU summary: model plus the notable virtualization flags
-    # (`vmx`/`svm`, `ept`/`npt`, and assorted TLB/huge-page accelerators).
+    # Builds the one-line CPU summary — model, then whichever of the notable
+    # virtualization flags the host has:
+    #
+    #   x86_64, svm npt tsc_deadline pcid invpcid pdpe1gb xsave
+    #
+    # {#show_help_window} explains what each flag buys.
     #
     # @return [String] the CPU info line
     def format_cpu_info
@@ -127,7 +131,8 @@ module UI
       r
     end
 
-    # Opens an info window describing each virtualization-related CPU flag the host has.
+    # Opens an info window describing each virtualization-related CPU flag the host has —
+    # the glossary for the summary line {#format_cpu_info} builds.
     # @return [void]
     def show_help_window
       lines = []

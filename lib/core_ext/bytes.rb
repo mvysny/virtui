@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
-# Binary (power-of-1024) byte-size helpers: constructors on {Numeric} (`4.GiB`) and the
-# inverse renderer {#format_byte_size} (bytes → human string). Both are loaded manually
-# from {Virtui} (see `lib/core_ext/`) since neither defines a matching constant, so the
-# Zeitwerk loader ignores them.
+# Binary (power-of-1024) byte-size helpers, an inverse pair:
+#
+#   format_byte_size(4.GiB)   # => "4G"
 
 # Adds binary (power-of-1024) byte-size unit helpers to every number, so large byte
 # counts read as `4.GiB` instead of `4 * 1024 * 1024 * 1024`.
@@ -29,7 +28,7 @@ end
 # zero renders as `"0"`. Magnitudes above petabytes are capped at `P`.
 #
 # @param bytes [Integer] size in bytes
-# @return [String] e.g. `"0"`, `"1.0K"`, `"23.8M"`, `"8.0G"`, `"-512K"`
+# @return [String] e.g. `"0"`, `"1K"`, `"1.5K"`, `"24M"`, `"-512K"`
 def format_byte_size(bytes)
   return '0' if bytes.zero?
   return "-#{format_byte_size(-bytes)}" if bytes.negative?

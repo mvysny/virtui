@@ -8,7 +8,7 @@ module System
   # @!attribute [r] swap
   #   @return [ResourceUsage] swap usage
   class MemoryStat < Data.define(:ram, :swap)
-    # @return [String] human-readable summary, e.g. `"RAM: 4.0G/8.0G (50%), SWAP: 0/2.0G (0%)"`
+    # @return [String] human-readable summary, e.g. `"RAM: 4G/8G (50%), SWAP: 0/2G (0%)"`
     def to_s
       "RAM: #{ram}, SWAP: #{swap}"
     end

@@ -9,7 +9,7 @@ RuboCop::RakeTask.new
 
 YARD::Rake::YardocTask.new do |t|
   t.options = [
-    '--title', 'LazyVirt: TUI client for libvirt',
+    '--title', 'VirTUI: TUI client for libvirt',
     '--main', 'README.md',
     '--markup', 'markdown'
   ]

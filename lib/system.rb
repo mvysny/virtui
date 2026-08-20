@@ -4,8 +4,5 @@
 # disk usage (via `/proc` and `df`), producing the {System::CpuStat},
 # {System::CpuUsage}, {System::MemoryStat} and {System::DiskUsage} value objects.
 # {System::Emulator} is an {System::Info}-compatible test double.
-#
-# The generic byte-usage value object {ResourceUsage} stays top-level — it is shared
-# with the {Virt} guest backend.
 module System
 end

@@ -4,12 +4,11 @@ module System
   # Reads host metrics from a Linux system: memory from `/proc/meminfo`, CPU from
   # `/proc/stat` and `/proc/cpuinfo`, disk from `df`.
   #
-  # Stateless and thread-safe — callers thread the previous sample back in themselves
-  # (see {#cpu_usage}). Runs on the background timer thread. {System::Emulator} is the
-  # test double with the same interface.
-  #
   # Each reader takes an optional fixture-content parameter used only by specs; in
   # production they read the real files/commands.
+  #
+  # Holds no state of its own — a CPU sample is derived by threading the previous one back
+  # in (see {#cpu_usage}). Thread-safe.
   class Info
     # Reads physical RAM and swap usage from `/proc/meminfo`.
     #

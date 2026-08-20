@@ -26,6 +26,9 @@ Currently only tested on Linux host: probably won't work on Windows nor MacOS.
 bin/virtui
 ```
 
+With no `virsh` on the `PATH`, virtui starts in demo mode instead: a fleet of four
+simulated VMs you can start, stop and balloon, to try the UI out.
+
 Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
 
 - `ps` - starts a VM
@@ -48,6 +51,8 @@ $ bundle exec rake install_desktop
 This creates a `.desktop` file for VirTUI and places it to
 `~/.local/share/applications/`, as per the XDG spec.
 The file is then picked by your Linux Desktop automatically.
+The entry launches virtui in [Alacritty](https://alacritty.org/); install it, or edit
+the `Exec=` line of the generated file for another terminal.
 
 # Ballooning
 
@@ -86,9 +91,6 @@ it persistent across reboots by adding the `<stats period='3' />` child element 
 If the memory data still looks stuck (and 🐢 is shown), the VM most likely lacks a working
 balloon device or guest tools — see the bullet list above.
 
-**Note:** refresh each 2 seconds may seem excessive, but this way Ballooning will have access to the most fresh data,
-and can quickly ramp up RAM when it's needed. Actually, regardless of the setting, `virsh` refreshes the data once every 5 seconds anyway.
-
 When ballooning is enabled properly in a VM, 🎈 is shown next to the VM name in virtui. If the balloon data is stale (not being refreshed), 🐢 is shown.
 
 When virtui controls the app memory, an arrow is shown next to 🎈: up arrow indicates a memory increase,
@@ -104,7 +106,9 @@ If the memory usage goes below 55%, a memory is decreased by 10%, but this only 
 
 In other words, if VM needs memory, the memory is given immediately. Afterwards, the memory is slowly decreased as the usage goes down.
 
-At the moment you need to edit virtui sources to configure this: edit `lib/virt/ballooning_vm.rb` — the configuration constants (`@trigger_increase_at`, `@trigger_decrease_at`, `@increase_memory_by`, `@decrease_memory_by`, `@back_off_seconds`) are in the constructor.
+At the moment you need to edit virtui sources to configure this: the thresholds and rates are
+instance variables set in the `Virt::BallooningVM` constructor (`lib/virt/ballooning_vm.rb`),
+each documented next to its value.
 
 ## Guest Configuration
 
@@ -135,5 +139,6 @@ $ bundle exec rake spec
 # Future plans
 
 - `+-` increases/shrinks active memory by 10% and disables automatic ballooning
-- Add [libvirt](https://ruby.libvirt.org/) client: blocked by [bug #1](https://github.com/mvysny/virtui/issues/1)
+- Add [libvirt](https://ruby.libvirt.org/) client instead of shelling out to `virsh`: blocked by
+  [bug #1](https://github.com/mvysny/virtui/issues/1). See `DECISIONS.md` `D-virsh-cli`.
 

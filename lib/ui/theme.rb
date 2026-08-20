@@ -46,8 +46,8 @@ module UI
 
     # @!endgroup
 
-    # The colors VirTUI has always used (Rainbow X11 names quantized to the
-    # 256-color palette), tuned for dark terminal backgrounds.
+    # Tuned for dark terminal backgrounds: Rainbow's X11 color names, quantized
+    # to the 256-color palette.
     # @return [Theme]
     DARK = new(**Tuile::Theme::DARK.to_h,
                custom: {

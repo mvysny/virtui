@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
 # VirTUI entry point: requires external gems, loads the core extensions, and configures
-# the Zeitwerk loader over `lib/`. Both `bin/virtui` and the specs just `require 'virtui'`;
-# everything else autoloads. This file itself defines no autoloadable constant.
+# the Zeitwerk loader over `lib/`. `require 'virtui'` and everything else autoloads.
 
 require 'zeitwerk'
 

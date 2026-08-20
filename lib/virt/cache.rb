@@ -6,13 +6,13 @@ module Virt
   #
   # == Thread-safety
   #
-  # Thread-safe. {#update} runs on the background timer thread, guarded by `@write_lock` so
-  # it never overlaps itself — don't call it from the UI thread. Readers return immutable,
-  # possibly slightly-stale data, which is fine for display.
+  # Thread-safe: every reader may be called from any thread and returns immutable, possibly
+  # slightly-stale data, which is fine for display. The lone writer, {#update}, is the
+  # exception and carries its own contract.
   class Cache
-    # Guest memory-stat collection period armed on each running VM, in seconds. Matches the
-    # ~2s refresh cadence so ballooning always sees near-fresh data (see
-    # {Virsh#set_mem_stats_period}).
+    # Guest memory-stat collection period armed on each running VM, in seconds. Matches our
+    # ~2s poll so ballooning always sees the freshest data libvirt has; libvirt itself
+    # refreshes only every ~5s regardless (see {VMCache#stale?}).
     STATS_PERIOD_SECONDS = 2
 
     # @return [System::MemoryStat] host memory statistics, refreshed by {#update}
@@ -129,10 +129,8 @@ module Virt
       # @param next_data [DomainData] current VM snapshot
       # @return [VMCache] the derived cache entry
       def self.diff(prev_data, next_data)
-        # True wall-clock age: how long ago the guest last reported, sampled_at (millis)
-        # minus last_updated (epoch seconds). NOT the delta between two consecutive polls'
-        # last_updated — that delta is 0 both when data is perfectly fresh and when it's
-        # frozen (collection period unset), so it can never detect a stuck guest.
+        # Age is wall-clock (sampled_at minus last_updated), never the delta between two
+        # polls' last_updated — see DECISIONS.md D-wall-clock-mem-age.
         age = next_data.mem_stat.nil? ? nil : ((next_data.sampled_at / 1000) - next_data.mem_stat.last_updated)
         VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age)
       end
@@ -152,11 +150,9 @@ module Virt
 
       # Whether the guest memory data is too old to trust (≥ 12s).
       #
-      # virsh refreshes balloon data only every ~5s regardless of the configured stats
-      # period, and we poll every ~2s on top, so healthy data is routinely ~5-7s old. The
-      # 12s threshold sits above that normal lag — anything older means the guest has
-      # actually stopped reporting (e.g. collection period unset, see
-      # {Virsh#set_mem_stats_period}).
+      # 12s clears the normal lag — libvirt refreshes balloon data only every ~5s, and we
+      # poll every ~2s on top, so healthy data is routinely 5–7s old; see DECISIONS.md
+      # D-wall-clock-mem-age. Anything older means the guest stopped reporting.
       #
       # @return [Boolean] true if the memory data is stale
       def stale?
@@ -165,10 +161,9 @@ module Virt
     end
 
     # Refreshes every VM's data plus the host memory/CPU/disk stats, diffing against the
-    # previous snapshot for derived figures.
-    #
-    # Guarded by `@write_lock` so it never runs concurrently with itself. Runs on the
-    # background timer thread — must not be called from the UI thread.
+    # previous snapshot for derived figures. Unlike every other method here, this one must
+    # run on the background timer thread, never the UI thread; `@write_lock` keeps it from
+    # overlapping itself.
     #
     # @return [void]
     # @raise [RuntimeError] if reading VM or host data fails (e.g. `virsh`/`df` errors)
@@ -180,8 +175,8 @@ module Virt
         domain_data.each do |did, data|
           prev_data = old_cache[did]&.data
           cache[did] = VMCache.diff(prev_data, data)
-          # When a VM (re)starts, arm periodic guest mem-stat collection; otherwise libvirt
-          # leaves the period at 0 and the balloon stats freeze (see Virsh#set_mem_stats_period).
+          # A VM just (re)started: arm its guest mem-stat collection, or the balloon stats
+          # stay frozen (see {Virsh#set_mem_stats_period}).
           @virt.set_mem_stats_period(did, STATS_PERIOD_SECONDS) if data.running? && !prev_data&.running?
         end
         @cache = cache

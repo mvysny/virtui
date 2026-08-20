@@ -45,21 +45,46 @@ everything else autoloads. Conventions to keep the loader happy:
 
 ## Architecture
 
-VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt, organized into three namespaces:
-
-**UI layer (`lib/ui/`, `UI::`):** built on the [tuile](https://github.com/mvysny/tuile) TUI gem.
-- `UI::AppLayout`: orchestrates three windows — `UI::VMWindow` (VM list/controls), `UI::SystemWindow` (host CPU/RAM/disk), and a log window
-- `Virt::Ballooning`: auto-scales VM memory (increases by 30% at ≥65% usage, decreases by 10% at ≤55%); runs on the UI thread, must not be called from a background thread
-
-**Libvirt backend (`lib/virt/`, `Virt::`):**
-- `Virt::Virsh`: wraps `virsh` CLI commands
-- `Virt::Cache`: thread-safe cache of VM runtime data; `update` is called from a background timer thread
-- `Virt::VMEmulator`: demo/test mode that simulates VMs without libvirt
-
-**Host metrics (`lib/system/`, `System::`):**
-- `System::Info`: reads the host's CPU/memory/disk usage from `/proc` and `df` (`System::Emulator` is the test double)
+VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt, built on the
+[tuile](https://github.com/mvysny/tuile) TUI gem and organized into three
+namespaces plus a handful of shared top-level classes.
 
 **Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `Virt::Cache#update` → submits a block to tuile's `EventQueue` → UI thread runs `Virt::Ballooning#update` then `layout.update_data` → dirty components repaint.
+
+### Class index
+
+Pointers only — each entry's yardoc is the source of truth for what it does and
+why. Keep entries to a line; an entry that grows into prose has drifted.
+
+**`lib/virt/` → `Virt::`** — the libvirt backend: domain model and clients.
+
+- `Virt::Virsh` — the real backend: shells out to `virsh`, parses its text output
+- `Virt::Cache` — thread-safe cache of every VM's runtime data; the UI reads only this
+- `Virt::Ballooning` — fans one `BallooningVM` out per VM, once per update
+- `Virt::BallooningVM` — one VM's grow/shrink decision; owns every threshold and rate
+- `Virt::DomainData`, `DomainInfo`, `MemoryStat`, `DiskStat`, `CpuInfo` — VM value objects
+- `Virt::VMEmulator` (+ `VMEmulator::VM`) — simulated fleet: demo mode and most specs
+
+**`lib/system/` → `System::`** — host-OS metrics.
+
+- `System::Info` — reads host CPU/RAM/disk from `/proc` and `df`
+- `System::Emulator` — the `Info`-shaped test double, with fixed numbers
+- `System::CpuStat`, `CpuUsage`, `MemoryStat`, `DiskUsage` — host value objects
+
+**`lib/ui/` → `UI::`** — the tuile presentation layer.
+
+- `UI::AppLayout` — the three-window screen; owns the `1`/`2`/`3` focus keys and the `$log` redirect
+- `UI::VMWindow` — the VM list, its usage bars, and the power/memory/search keys
+- `UI::SystemWindow` — host CPU/RAM/disk bars plus the CPU-flag help window
+- `UI::Formatter` — the progress-bar string builders both windows render through
+- `UI::Theme` — the dark/light token pair; `THEME_DEF` goes to `screen.theme_def=`
+
+**Top-level** — shared, deliberately namespace-free.
+
+- `ResourceUsage` — a total/available byte pair; the currency of both `Virt::` and `System::`
+- `Run` — the only sanctioned way to spawn a subprocess (`sync` raises, `async` logs)
+- `Interpolator::Const`, `Interpolator::Linear` — time-varying values; the emulator's ramps
+- `format_byte_size`, `Numeric#KiB/MiB/GiB` — `lib/core_ext/bytes.rb`
 
 ## Documentation kinds
 
@@ -90,15 +115,12 @@ Rules:
   behaviour); *why* a threshold is 65 and not 50 is yardoc + a
   DECISIONS.md entry, not README prose.
 - **The contract lives in the yardoc; the *argument* lives where length is
-  affordable.** The `writing-rdoc` skill keeps a doc comment punchy on
-  purpose — a wall of grey at the point of *use* is worse than no doc,
-  because the reader bounces off it and never reaches the nugget. So a
-  yardoc carries the contract, the gotcha, and at most a **one-line**
-  why-not-the-obvious note ending in `see DECISIONS.md D-<slug>`; the
-  measurement, the analysis and the rejected options go in the entry,
-  which is read on demand by someone who came asking. This makes yardoc
-  *smaller*, not bigger: a citation passes the regression-guard gate that
-  a convincing paragraph would have to fight for.
+  affordable.** A yardoc carries the contract, the gotcha, and at most a
+  **one-line** why-not-the-obvious note ending in `see DECISIONS.md
+  D-<slug>`; the measurement, the analysis and the rejected options go in
+  the entry. Keeps yardoc *smaller* — a citation passes the
+  regression-guard gate that a convincing paragraph would have to fight
+  for. (Why the split falls this way: DECISIONS.md's preamble.)
 - **Numbers carry their provenance.** A tuning constant (a threshold, a
   poll interval, a staleness tolerance) never sits bare: the yardoc next
   to it says what it is defending against, in a line, or cites the entry
@@ -128,21 +150,20 @@ that case: a measurement plus candidate fixes, nothing decided).
 
 ### DECISIONS.md
 
-The home for **roads not taken**, and the only doc that is never
-context-loaded — that's why rejection rationale goes there instead of
-into a yardoc (read by someone at the API, who gains nothing from an
-argument against a design that never shipped) or here (loaded every
-session). Cite entries by slug (`D-` plus a 1–4-word kebab hint at the
-subject); `grep '^## D-' DECISIONS.md` is the index, so no ToC. Entries are
-mutable — a refined decision is edited in place, a *shipped-then-reversed*
-one gets a tombstone + a fresh entry. **No entry without a real fork:** if
-nothing was seriously considered and rejected, it isn't a decision, it's
-how the thing works → yardoc. But note what *does* clear that bar: **a
-measurement that rules out the obvious approach is a rejected
-alternative** — "tuning this threshold cannot work, here is the proof" is
-a fork, and its evidence is the entry's `Context`. Grep tripwire: every
-`D-<slug>` cited in the repo exists as a `^## D-` heading in
-`DECISIONS.md`. Full format rules live in that file's preamble.
+The home for **roads not taken**, and the only doc never context-loaded —
+which is why rejection rationale goes there rather than into a yardoc or
+into this file. Three things to hold to while coding; everything else (the
+entry format, mutability, the tombstone rule, backfill policy) is in that
+file's preamble, read when you're about to write an entry.
+
+- **Cite by slug**, never by position: `see DECISIONS.md D-<slug>`.
+  `grep '^## D-' DECISIONS.md` is the index, so there is no ToC.
+- **No entry without a real fork.** Nothing seriously considered and
+  rejected → it isn't a decision, it's how the thing works → yardoc. (One
+  trap: a *measurement that rules out the obvious approach* is a rejected
+  alternative and does earn an entry.)
+- **Grep tripwire:** every `D-<slug>` cited anywhere in the repo exists as
+  a `^## D-` heading in `DECISIONS.md`.
 
 ## Conventions
 

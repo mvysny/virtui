@@ -26,8 +26,8 @@ module Virt
   #   @return [Integer] resident set size of the QEMU process on the host, in bytes — pages
   #     actually touched so far (QEMU allocates on demand, so this grows over the VM's life)
   # @!attribute [r] last_updated
-  #   @return [Integer] epoch seconds when these values were fetched from the VM; if it
-  #     stops advancing, VM refresh needs to be set up
+  #   @return [Integer] epoch seconds when these values were fetched from the VM; stops
+  #     advancing unless collection is armed (see {Virsh#set_mem_stats_period})
   class MemoryStat < Data.define(:actual, :unused, :available, :usable, :disk_caches, :rss, :last_updated)
     # @return [ResourceUsage | nil] the guest memory stats or nil if unavailable.
     def guest_mem

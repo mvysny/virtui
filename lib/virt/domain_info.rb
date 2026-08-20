@@ -11,7 +11,7 @@ module Virt
   #   @return [Integer] maximum memory allocated to the VM, in bytes; {MemoryStat}'s `actual`
   #     can never exceed this
   class DomainInfo < Data.define(:name, :cpus, :max_memory)
-    # @return [String] human-readable summary, e.g. `"web: CPUs: 4, RAM: 8.0G"`
+    # @return [String] human-readable summary, e.g. `"web: CPUs: 4, RAM: 8G"`
     def to_s
       "#{name}: CPUs: #{cpus}, RAM: #{format_byte_size(max_memory)}"
     end
