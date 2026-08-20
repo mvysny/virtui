@@ -201,12 +201,47 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    `stat-swap-out` alongside the fields `MemoryStat` parses today. Proposal:
    - treat any advance in `swap_out` since the last sample as an **immediate growth
      trigger**, independent of `percent_used`;
-   - **block the decrease branch entirely** while swap-used > 0 or `swap_out` is
-     advancing.
+   - **block the decrease branch entirely** while `swap_out` is advancing.
+
    This is what makes a swapping VM visible to the controller at all, and it kills
-   the shrink-after-swap inversion. Open: which field(s) libvirt actually surfaces
-   in `domstats` on this setup, and whether swap-used is derivable or needs
-   `stat-swap-*` deltas accumulated locally.
+   the shrink-after-swap inversion. **`swap_out` flat is what "at rest" looks
+   like** — and it is exactly the distinction `MemAvailable` cannot make: the
+   measured guest, 853 MiB parked in swap with `swap_out` motionless, is
+   indistinguishable from a healthy one under today's metric and trivially
+   distinguishable under this one.
+
+   The signal was verified on 2026-08-20 and is sound. What we know now:
+
+   - **The fields are surfaced, in KiB, and faithful.** `virsh domstats --balloon`
+     carries `balloon.swap_in` / `balloon.swap_out`. Cross-checked against the
+     guest's own `/proc/vmstat` in the same minute, they match **to the digit**:
+     `swap_in` 2 195 252 KiB = `pswpin` 548 813 × 4096, `swap_out` 3 205 344 KiB =
+     `pswpout` 801 336 × 4096. No libvirt-side smoothing, no unit surprise — the
+     host number is an unmangled copy of the guest kernel counter.
+   - **Swap-used is *not* derivable from them.** Slots are also freed by write
+     faults and by process exit, with no corresponding `swap_in`, so the level can
+     fall while both counters sit still. Rate and level are separate reads; the
+     level needs `/proc/meminfo`, i.e. the guest agent — see
+     `swap-via-qemu-guest-agent.md`. **Hence the "swap-used > 0" half of the
+     shrink guard above is dropped**: it is unobtainable from `domstats`, and
+     `swap_out` advancing is the part that matters anyway.
+   - **Use `swap_out` only. `swap_in` is not a harm signal — it is inverted.**
+     `swap_in` advancing means pages are being faulted *back*, i.e. the
+     demand-driven drain working; on a desktop-ish guest it ticks constantly and
+     every tick is a small good thing. A controller watching "swap activity" in
+     general would grow the VM in response to the guest *healing*. At most,
+     `swap_in` is a UI indicator ("draining") or a later input to *un*-blocking the
+     shrink guard.
+   - **Both counters are cumulative and monotonic within a boot.** A decrease is
+     therefore only possible across a guest restart, where they reset to zero.
+     Treat any decrease as a reset, not a negative delta, or the first sample after
+     a power-cycle produces a large bogus swing. virtui already tracks that
+     boundary — `Virsh#set_mem_stats_period` has to be re-armed after every full
+     power-off.
+
+   Still open: where the previous sample lives (`Cache`'s per-VM state is the
+   natural home, since it needs the same lifecycle as the staleness tracking), and
+   how the latch composes with `BallooningVM`'s existing grow/shrink branches.
 2. **Buy headroom for the 5–7 s blind spot.** Drop `@trigger_increase_at` to
    ~50–55 (moving `@trigger_decrease_at` down to keep a deadband), and/or give the
    reserve an absolute floor instead of a purely proportional one. The invariant to
@@ -368,8 +403,10 @@ size it via `min_actual`/the reserve rather than by leaving it unbounded".
 
 - Is PSI the better controlled variable than `MemAvailable`? `/proc/pressure/memory`
   `some avg10` rises *before* reclaim does damage and, unlike the MemAvailable
-  metric, does not get erased by the swap-out. Needs a guest-side reporting channel
-  virtui can read — the balloon doesn't carry it. Worth designing?
+  metric, does not get erased by the swap-out. ~~Needs a guest-side reporting
+  channel virtui can read — the balloon doesn't carry it.~~ **No longer blocked:**
+  the balloon still doesn't carry it, but `qemu-guest-agent` reads it for free —
+  see `swap-via-qemu-guest-agent.md`. Worth designing?
 - Should shrink be gated on *any* evidence of recent reclaim (`pgsteal_*` deltas),
   not just swap? A VM whose page cache is being churned is also under pressure.
 - Is the increase step (+30% of current `actual`) fast enough from the 8 GiB floor?
@@ -380,12 +417,13 @@ size it via `min_actual`/the reserve rather than by leaving it unbounded".
   "balloon device + stats period", nothing installed in the guest.
 - Do these findings hold on a guest with a normal `swappiness=60`? The analysis
   predicts the inversion is *worse* there, not better.
-- How big *is* the guest's page cache when the controller reads 61%? `disk_caches`
-  is already in `MemoryStat` and thrown away. If it is tiny (the recorded
-  `domstats` fixture shows 37 MB of 11 GiB), the guest is already running
-  cache-starved and fix 2 is the whole story; if it is large, the file LRU has
-  room and cause 1's fallback needs a different explanation. Cheap to answer —
-  log it, or show it in `UI::VMWindow`.
+- ~~How big *is* the guest's page cache when the controller reads 61%?~~
+  **Answered: 4.3 GiB** — not the 37 MB the `domstats` fixture braced us for. So
+  the guest is *not* cache-starved, and since `workingset_refault_file` keeps
+  climbing *with* 4.3 GiB of cache, **the thrash is not a size problem** and cause
+  1's fallback needs a different explanation. Measurement and consequences:
+  `swap-via-qemu-guest-agent.md`. Still worth surfacing `disk_caches` (already in
+  `MemoryStat`, still thrown away) in `UI::VMWindow`.
 - Should `disk_caches` be a *second* input to the controller — e.g. refuse to
   shrink a VM whose page cache is already below some floor, on the grounds that
   there is no cheap reclaim victim left? Same shape as gating shrink on swap
