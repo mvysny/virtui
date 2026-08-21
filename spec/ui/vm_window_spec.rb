@@ -57,12 +57,12 @@ module Tuile
       assert_equal '▶ Ubuntu 🎈─────', content[4]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[5]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[6]
-      assert_equal '   SWAP: out    3M/s  total out 15M in 0 │', content[7] # demo Ubuntu swaps
+      assert_equal '   SWAP:   3M/s     ↑  15M ↓    0 │', content[7] # demo Ubuntu swaps
       assert_equal '    vda: 50%   64G   128G │', content[8]
       assert_equal '▶ win11 🎈──────', content[9]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[10]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[11]
-      assert_equal '   SWAP: out     0/s  total out 0 in 0 │', content[12] # win11 is at rest, line stays
+      assert_equal '   SWAP:    0/s     ↑    0 ↓    0 │', content[12] # win11 is at rest, line stays
       assert_equal '    vda: 50%   64G   128G │', content[13]
     end
 
@@ -291,7 +291,7 @@ module Tuile
         Timecop.freeze(now + 15) { cache.update } # first interval with a flat counter
         window.update
         # the totals keep the scar, only the rate goes quiet
-        assert_equal '   SWAP: out     0/s  total out 30M in 0 │', swap_lines[0]
+        assert_equal '   SWAP:    0/s     ↑  30M ↓    0 │', swap_lines[0]
       end
 
       it 'reports a zero rate when a reboot resets the guest counter' do
@@ -301,7 +301,7 @@ module Tuile
           cache.update
         end
         window.update
-        assert_includes swap_lines[0], 'out     0/s'
+        assert_includes swap_lines[0], '    0/s'
       end
 
       it 'drops the swap line entirely when the guest reports no swap counters' do

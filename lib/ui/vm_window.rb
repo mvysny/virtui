@@ -14,6 +14,20 @@ module UI
     # window border with, so the two columns read as framed rather than piped apart.
     COLUMN_SEPARATOR = '│'
 
+    # Width of the caption cell every row opens its column with, bar rows and the swap row
+    # alike — what keeps their figures in one column.
+    LABEL_WIDTH = 11
+
+    # The rate that fills the swap-out gauge. A rate has no natural 100%, so this is a chosen
+    # alarm scale and not a ratio: at 10 MiB/s full-scale a 1 MiB/s trickle already shows as a
+    # visible tenth of the bar, and a thrashing guest pins it. See DECISIONS.md
+    # D-swap-rate-full-scale for the self-scaling alternatives this rejects.
+    SWAP_RATE_FULL_SCALE = 10.MiB
+
+    # Width of the swap row's `↑written ↓read-back` tail. Fixed, so every VM's gauge is the
+    # same length and the bars stay comparable down the list.
+    SWAP_TOTALS_WIDTH = 13
+
     # @param virt_cache [Virt::Cache] the runtime cache to read VM data from and act through
     # @param ballooning [Virt::Ballooning] the ballooning controller toggled from the memory menu
     def initialize(virt_cache, ballooning)
@@ -308,14 +322,18 @@ module UI
       header(line)
     end
 
-    # The guest's swap-out line, one per running VM that reports swap counters:
+    # The guest's swap-out line, one per running VM that reports swap counters — shaped like
+    # the CPU/RAM rows above it: rate caption, a gauge, then the two since-boot totals
+    # (`↑` written out, `↓` read back in) that give the rate its context:
     #
-    #      SWAP: out    3M/s  total out 15M in 0     │     <- swapping right now (label in warn)
-    #      SWAP: out     0/s  total out 15M in 0     │     <- at rest, 15M written earlier
-    #      SWAP: out     -/s  total out 15M in 0     │     <- first sample: no interval to diff yet
+    #      SWAP:   3M/s    #####------------ ↑  15M ↓    0 │   <- swapping now (label in warn)
+    #      SWAP:    0/s    ----------------- ↑  30M ↓   4M │   <- at rest, 30M written earlier
+    #      SWAP:    -/s    ----------------- ↑    0 ↓    0 │   <- first sample: nothing to diff yet
     #
-    # Padded out to the {COLUMN_SEPARATOR} the CPU/RAM/disk rows carry, with nothing on its
-    # host side: swap is a guest-only counter, and the bar keeps the row inside the grid.
+    # The gauge reads against {SWAP_RATE_FULL_SCALE} rather than a per-VM maximum, so two VMs'
+    # bars mean the same thing. Padded out to the {COLUMN_SEPARATOR} the other rows carry,
+    # with nothing on its host side: swap is a guest-only counter, and the host's own swap
+    # bar already lives in the System window, identical for every VM.
     #
     # A rate rather than a level, because the level is a since-boot high-water scar that says
     # nothing about now — see {Virt::Cache::VMCache#swap_out_rate}; the totals are here only
@@ -332,18 +350,21 @@ module UI
       mem_stat = cache.data.mem_stat
       return nil unless mem_stat&.swap_data_available?
 
+      theme = screen.theme
       rate = cache.swap_out_rate
       # nil is a VM we have only sampled once: the counters are there, but there is no
       # interval to diff them over yet, so the rate is unknown rather than zero.
       rate_text = rate.nil? ? '-' : format_byte_size(rate.round)
-      label = rate&.positive? ? screen.theme.warn('SWAP') : 'SWAP'
-      # Unstyled, so its size is its display width and `ljust` pads to where the guest bars
-      # end; the styled label stays outside it.
-      text = " out #{rate_text.rjust(5)}/s  " \
-             "total out #{format_byte_size(mem_stat.swap_out)} in #{format_byte_size(mem_stat.swap_in)}"
+      label = rate&.positive? ? theme.warn('SWAP') : theme.swap('SWAP')
+      # Unstyled, so `ljust` pads it to the same cell the bar rows caption their column with.
+      caption = "#{rate_text.rjust(5)}/s".ljust(LABEL_WIDTH)
+      totals = "#{theme.frame('↑')}#{format_byte_size(mem_stat.swap_out).rjust(5)} " \
+               "#{theme.frame('↓')}#{format_byte_size(mem_stat.swap_in).rjust(5)}"
+      bar = Formatter.progress_bar((column_width - LABEL_WIDTH - SWAP_TOTALS_WIDTH - 1).clamp(0, nil),
+                                   rate || 0, SWAP_RATE_FULL_SCALE, theme[:swap], theme[:frame])
       # 3 spaces, not 4: 'SWAP' is a character wider than 'CPU'/'RAM', and this lines its
       # colon up with theirs — same trick as the 4-char disk labels above.
-      "   #{label}:#{text.ljust(column_width)} #{COLUMN_SEPARATOR}"
+      "   #{label}:#{caption}#{bar.to_ansi} #{totals} #{COLUMN_SEPARATOR}"
     end
 
     # Draws a row header: `left` caption followed by a frame rule filling the rest of the
@@ -360,7 +381,7 @@ module UI
     # Renders one labelled progress-bar segment: `left` caption, the bar, then `right`
     # caption, within `width` characters.
     #
-    # @param left [String] left caption (padded to 11 chars unless empty)
+    # @param left [String] left caption (padded to {LABEL_WIDTH} chars unless empty)
     # @param right [String] right caption (padded to 6 chars)
     # @param width [Integer] total width of the segment, in characters
     # @param value [Numeric] current value, for drawing the progress bar
@@ -368,7 +389,8 @@ module UI
     # @param color [Tuile::Color] progress bar color
     # @return [String] the rendered segment, including ANSI color codes
     def progress_bar(left, right, width, value, max, color)
-      Formatter.labelled_bar(width, left, right, value, max, color, screen.theme[:frame], label_width: 11)
+      Formatter.labelled_bar(width, left, right, value, max, color, screen.theme[:frame],
+                             label_width: LABEL_WIDTH)
     end
 
     # Renders a {ResourceUsage} as a progress-bar segment captioned with percent used and

@@ -17,6 +17,10 @@ module UI
     def ram(text) = fg(:ram, text)
 
     # @param text [String]
+    # @return [String] `text` in the swap accent color.
+    def swap(text) = fg(:swap, text)
+
+    # @param text [String]
     # @return [String] `text` in the disk-device-name accent color.
     def disk_label(text) = fg(:disk_label, text)
 
@@ -55,6 +59,10 @@ module UI
                  cpu_vm: Tuile::Color::CORNFLOWER_BLUE, # 69 — Rainbow's :royalblue
                  ram: Tuile::Color.palette(168), # Rainbow's :maroon (X11 #B03060; dup-named cell, no constant)
                  ram_vm: Tuile::Color::MAGENTA,
+                 # A lifted tint of the #9141AC base: the base itself is only 3.6:1 against
+                 # black, under the 4.5:1 needed to read as text; this is 6.3:1 at the same
+                 # hue. Its light counterpart darkens instead of lifting.
+                 swap: Tuile::Color.hex('#b673ce'),
                  disk: Tuile::Color::ORANGE1, # 214 — Rainbow's :goldenrod
                  disk_vm: Tuile::Color::ORANGE3, # 172 — Rainbow's :chocolate
                  disk_label: Tuile::Color::YELLOW1, # 226 — Rainbow's :gold
@@ -77,6 +85,7 @@ module UI
                   cpu_vm: Tuile::Color::ROYAL_BLUE1, # 63
                   ram: Tuile::Color::MEDIUM_VIOLET_RED, # 126
                   ram_vm: Tuile::Color::MAGENTA,
+                  swap: Tuile::Color.hex('#7c3494'), # 7.6:1 on white; the base is 5.9:1
                   disk: Tuile::Color::DARK_ORANGE3, # 130
                   disk_vm: Tuile::Color.palette(94), # xterm Orange4 (dup-named cell, no constant)
                   disk_label: Tuile::Color::DARK_GOLDENROD, # 136

@@ -42,7 +42,7 @@ module UI
           total_vm_rss_usage, host_ram.total, theme[:ram_vm], format_byte_size(host_ram.total)
         )
         host_swap = @virt_cache.host_mem_stat.swap
-        lines << usage_bar('Swap', host_swap, theme[:ram])
+        lines << usage_bar('Swap', host_swap, theme[:swap])
 
         # Disk
         disks = @virt_cache.disks

@@ -92,6 +92,57 @@ rejection is crowding out the live design.
 
 ---
 
+## D-swap-rate-full-scale — the swap gauge reads against a fixed 10 MiB/s, not a per-VM maximum (2026-08-21)
+
+**Status:** Accepted; implemented as `UI::VMWindow::SWAP_RATE_FULL_SCALE`, read
+by {UI::VMWindow#format_swap_line}.
+
+**Context.** The SWAP row started as plain text and was reshaped to match the
+CPU and RAM rows above it — caption cell, bar, figures — so the guest column
+reads as one grid rather than one bar row and one sentence. A bar needs a
+full-scale value, and this is the one metric in the window that has none:
+CPU tops out at 100%, RAM at the guest's total, but a swap-out rate is bounded
+only by the guest's swap device, which virtui cannot see and which differs per
+host and per guest.
+
+**Decision.** Full-scale is a fixed 10 MiB/s, clamped: an *alarm gauge*, not a
+utilization ratio. The value is picked so the interesting range is the visible
+range — any sustained swap-out already means the guest's working set no longer
+fits, so ~1 MiB/s must register (it draws a tenth of the bar) and a genuinely
+thrashing guest pins it. The bar answers "how bad, roughly"; the `↑`/`↓`
+since-boot totals beside it carry the exact figures.
+
+**Alternatives rejected.**
+
+- *Self-scale to the VM's own observed peak rate.* No constant to justify, and
+  every VM gets a full bar at its worst moment — but the bar then means
+  something different per row *and per minute*. A guest that once burst to
+  200 MiB/s renders a steady 5 MiB/s as a stub, while an idle guest's first
+  100 KiB/s twitch fills the bar. Comparing two VMs down the list is most of
+  what the column is for, so a per-VM denominator defeats it.
+- *Scale to guest RAM per second* (full bar = 1% of the guest's RAM/s).
+  Dimensionally tidy and self-adjusting, but it draws the same absolute rate
+  differently on a 2 GiB and a 32 GiB guest, when the cost being shown — swap
+  device I/O — is identical. And it is un-guessable: nobody reads a bar as
+  "percent of RAM per second".
+- *A log scale over a wide range* (64 KiB/s … 1 GiB/s). Never pins and keeps
+  everything on-scale, but a log bar reads as linear to anyone who doesn't
+  know it isn't, so a harmless trickle renders as an alarming half-full bar.
+  Rejected as a lie the reader can't see.
+- *No bar — keep the row textual.* What shipped first, and it was perfectly
+  legible; the totals were even more precise than a gauge. Dropped because the
+  row then sits outside the grid every other row obeys, and the one thing a
+  reader wants at a glance — is this guest hurting *now* — was a number to
+  parse rather than a shape to notice.
+
+**Consequences.** Everything from 10 MiB/s upward looks identical (pinned), so
+the rate caption and the `↑` total are what separate "bad" from "much worse".
+The constant is not derived from anything measured on the host, so it must keep
+its reasoning next to its value (`CLAUDE.md` § *Numbers carry their
+provenance*) if it is ever retuned — and nothing else needs to change with it.
+
+---
+
 ## D-swap-row-always-on — every running VM keeps its SWAP row, even at rest (2026-08-21)
 
 **Status:** Accepted; implemented in {UI::VMWindow#format_swap_line}.
