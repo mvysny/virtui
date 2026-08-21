@@ -12,7 +12,8 @@ This doc records the measurement, the three independent reasons the current desi
 can't prevent it, candidate fixes, one candidate *guideline* ("no disk cache in
 the VM") that the same analysis turns out to bear on, and — folded in on
 2026-08-21 — the shape of the **grow rule** itself, since "is +30% the right hop?"
-turned out to answer itself. The `@trigger_increase_at`
+turned out to answer itself, plus the shape of the **response** to a non-zero
+`swap_out`, now that the signal has been watched long enough to be trusted. The `@trigger_increase_at`
 comment in `BallooningVM` encodes one of the misconceptions, so it is a code-level
 finding, not just an ops curiosity.
 
@@ -364,9 +365,10 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    into `MemoryStat`, and `Cache::VMCache#swap_out_rate` differences them into
    bytes/s — the same seam that already derives `cpu_usage` and
    `mem_data_age_seconds`, so it inherits their lifecycle. `UI::VMWindow` renders a
-   `SWAP` row per swapping VM. Nothing acts on it yet: **that is deliberate**, the
-   threshold below has to be observed before it can be chosen. Two mechanics worth
-   keeping if this note is trimmed:
+   `SWAP` row per swapping VM. Nothing acts on it yet: **that was deliberate** — the
+   trigger threshold had to be observed before it could be chosen, and the
+   observation below is that measurement. Two mechanics worth keeping if this note
+   is trimmed:
 
    - the rate is `Δswap_out / Δlast_updated`, i.e. per *guest-reported* interval, not
      per poll. That sidesteps libvirt's ~5 s refresh: when `last_updated` hasn't
@@ -375,16 +377,43 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    - a decrease in the counter is read as a reboot (fresh baseline, rate 0), never as
      a negative delta.
 
+   **Watched in operation, 2026-08-21: the signal is quiet at rest.** With the row on
+   screen across the fleet, the rate sits at exactly `0` unless something is genuinely
+   happening to that VM. No baseline trickle, no idle drift, nothing that has to be
+   thresholded away — **non-zero *is* the event.** That was the one number blocking
+   the trigger (correction 1 below), and it landed on the good side. Two consequences:
+
+   - the threshold stops being a tuned constant and becomes a **noise floor**: a few
+     pages per interval is one aging pass, not pressure. It no longer has to separate
+     "pressure" from "idle trickle", because on these guests there is no idle trickle
+     to separate it from. Any value between "a handful of pages" and "a fraction of a
+     balloon block per second" behaves identically, so the constant stops being
+     load-bearing;
+   - the ratchet pathologies correction 1 was defending against (cgroup-local reclaim,
+     MGLRU aging) are **not what this fleet does**, so the threshold was never going to
+     be what caught them: on a guest that *does* trickle, a threshold high enough to
+     filter it is high enough to blind the trigger to a real burst. The defence has to
+     move from filtering the **input** to bounding the **response**.
+
+   Caveat to keep: "quiet at rest" is an observation about *these* guests (Ubuntu
+   desktop-ish, `vm.swappiness=1`, disk swap, no zram). A guest with zram, MGLRU or a
+   systemd `MemoryHigh=` slice may well trickle — which is why the noise floor stays
+   in the design rather than being dropped for "any advance".
+
    **Two corrections to the proposal above, from designing it.**
 
-   1. **The trigger must be a rate over a threshold, not "any advance".** A bare
-      delta plus a shrink veto is a two-sided ratchet: cgroup-limited reclaim inside
-      the guest (systemd `MemoryHigh=`, a container — where more VM memory relieves
-      nothing) and MGLRU-style proactive aging of cold anon both tick `swap_out`
-      benignly, and a VM grown 30% per tick and never allowed to shrink walks to
-      `max_memory` and stays there. The rate threshold is the whole defence, and its
-      value has to come from watching an *idle* guest's trickle — a number nobody has
-      measured yet. Hence the visualization landing first.
+   1. **The trigger must be a rate over a threshold, not "any advance"** — but the
+      threshold is a noise floor, not the defence. A bare delta plus a shrink veto is
+      a two-sided ratchet: cgroup-limited reclaim inside the guest (systemd
+      `MemoryHigh=`, a container — where more VM memory relieves nothing) and
+      MGLRU-style proactive aging of cold anon both tick `swap_out` benignly, and a VM
+      grown 30% per tick and never allowed to shrink walks to `max_memory` and stays
+      there. ~~The rate threshold is the whole defence, and its value has to come from
+      watching an *idle* guest's trickle — a number nobody has measured yet.~~
+      **Measured (above): at rest it is zero.** So the threshold is cheap and
+      uncritical — and it cannot be the defence: the ratchet has to be stopped on the
+      output side instead, with a bound on how far the swap signal alone may grow a VM
+      plus a check that the growth actually helped.
    2. **The shrink veto needs a cooldown, not per-sample "advancing".** Literal
       per-sample unblocks on the first quiet tick, which is precisely the case
       `swap-via-qemu-guest-agent.md` observed: a shrink fired with 853 MiB in swap and
@@ -401,8 +430,11 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    trickles to disk, `percent_used` sits mid-deadband, no shrink is attempted so the
    veto never fires, trickle continues. Only a grow trigger fixes what was observed.
 
-   Still open: the threshold value (observation), the cooldown length, and how the
-   latch composes with `BallooningVM`'s existing grow/shrink branches.
+   Still open: the **shape of the response** — what actually happens when the rate is
+   non-zero, now that non-zero reliably means something — which is brainstormed in
+   its own section below ("The response shape"), the cooldown length, and how it
+   composes with `BallooningVM`'s existing grow/shrink branches. The threshold value
+   is no longer open: the observation above settles it as a noise floor.
 2. **Buy headroom for the 5–7 s blind spot.** Drop `@trigger_increase_at` to
    ~50–55 (moving `@trigger_decrease_at` down to keep a deadband), and/or give the
    reserve an absolute floor instead of a purely proportional one. The invariant to
@@ -495,6 +527,129 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    loop while starting IDEA and see whether the former leads. If it does, it
    supersedes fix 7 and most of the grow-rule discussion; if it doesn't, fix 7 is
    the fallback.
+
+## The response shape: what happens when `swap_out` is non-zero
+
+Brainstormed 2026-08-21, on the back of the quiet-at-rest observation in fix 1 —
+which is the whole premise: *non-zero means something*, so a response is worth
+designing. **Nothing is decided here.** The section records one candidate in enough
+detail to argue with, the three alternatives it has to be argued *against*, and the
+forks that have to be settled before any of it is written. It sits next to fix 1
+(the signal) and fix 7 (the grow rule) because it is the missing middle: fix 1 says
+what we can see, fix 7 says how much to move, this says what seeing it should mean.
+
+### Candidate: reconstruct the erased metric, don't add a second trigger
+
+Root cause 3 is that swapping erases its own evidence — evicting N bytes raises
+`MemAvailable` by ~N, so `used` falls by exactly the amount of harm done. A signal
+that is reliably 0 at rest is enough to *reconstruct* what was erased, which is a
+different move from bolting a trigger onto the side of the metric. One derived
+number, no new branch in `BallooningVM`, no state machine: the existing 65/55
+thresholds start working because they finally see a number that isn't lying.
+
+```ruby
+# Cache::VMCache.diff — the seam that already derives cpu_usage / swap_out_rate
+debt = prev.swap_debt * 0.5**(Δt / HALF_LIFE) + Δswap_out - Δswap_in
+debt = debt.clamp(0, nil)                       # 0 on a counter reset (reboot)
+effective_used = mem_stat.guest_mem.used + debt
+```
+
+The invariant that makes it more than a fudge factor: **swapping is a transfer
+between `used` and `debt`; only real allocation moves the sum.**
+
+| event | `used` | `debt` | `used + debt` |
+|---|---|---|---|
+| guest allocates 3 GiB | ↑ | – | **↑ 3 GiB** — the thing the controller must see |
+| kernel swaps 2 GiB out | ↓ 2 GiB | ↑ 2 GiB | flat |
+| guest faults those pages back in | ↑ | ↓ | flat |
+| a process holding swapped pages exits | – | ↑ phantom | ↑ phantom — the only error, and it errs safe |
+
+So `debt` estimates *bytes currently parked in swap* — the level `domstats` cannot
+give us (fix 1: slots are freed without a `swap_in`). Netting `swap_in` is what
+makes it a level rather than an integral of activity, and it also disposes of fix
+1's "`swap_in` is inverted" worry: a healing guest drains debt and raises `used` by
+the same amount, so it is neither grown nor shrunk. The one bias — slots freed with
+no fault-in — is the *only* reason `HALF_LIFE` exists, which is worth stating
+because it makes the constant's provenance a bias correction rather than a tuning
+opinion.
+
+**Against the measurement** (`MemTotal` 9.8 GiB, `used` 6.01 = 61 %, ~2 GiB parked,
+controller idle):
+
+| | today | with debt |
+|---|---|---|
+| at rest, 2 GiB parked | 61 % → sweet spot, **idle forever** | (6.01+2)/9.8 = **82 %** → grow |
+| after one +30 % hop (→ 12.7 GiB) | — | 47 % raw, **63 % effective** → deadband, settles |
+| a further 200 MiB swap-out | 60 % → still idle | 65 % → nudged, proportionally |
+
+One hop, landing inside the deadband, no hunting — and note this is the *same*
++30 % hop property 2 of the grow-rule section calls guaranteed overshoot, rescued
+only because the debt term lands the VM back in the band. That coupling is a fork,
+not a feature: it means the debt design and fix 7 have to be sized together.
+
+**Two properties that distinguish it from the bare trigger.** First, it responds in
+proportion to the harm — 200 MiB of swap moves the metric 2 points, 2 GiB moves it
+20. Second, it is self-limiting: debt is bounded by the guest's swap device (4 GiB
+on the measured guest) and every grow raises the denominator, so the loop converges
+on `actual ≈ real demand + reserve`. The cgroup/`MemoryHigh=` pathology (fix 1
+correction 1) therefore costs one hop plus one decay period of parked RAM instead
+of a walk to `max_memory` — which would make the response cap and the "did growing
+even help?" check optional safety rather than load-bearing. Fewer knobs than the
+alternative, if it holds.
+
+**Staging, display-first, because the estimate is falsifiable.** `debt` is the
+number an operator actually wants on the SWAP row (*how much is parked*), and it can
+be eyeballed against `free -h` inside the guest. Showing it validates or kills the
+whole design before any control code exists — the same discipline that produced the
+quiet-at-rest observation in the first place. Then the shrink veto (fix 1 correction
+2), which cannot make anything worse and which debt makes mostly emergent anyway
+(853 MiB parked lifts a 50 % VM to 59 %, out of shrink range). Then, and only then,
+`effective_used` feeding the thresholds. One mechanical trap for that last step:
+`ResourceUsage#percent_used` clamps to `0..100`, which is harmless for a threshold
+comparison and wrong for fix 7's target rule, which needs the un-clamped demand.
+
+### The three alternatives it has to beat
+
+| shape | what happens when the rate is non-zero | the case against |
+|---|---|---|
+| **Bare second trigger** (fix 1 as first written) | `rate > floor` ⇒ grow `+30 %`, veto shrink | Swapping continues for seconds *after* the grow (queued writes, deflate latency), so the healthy case fires 2–3 times: 9.8 → 12.7 → 16.6 → 21.5 GiB, and the veto parks it there. **It ratchets on success, not just on pathology.** Response size is also unrelated to harm size |
+| **Explicit latch** (`calm` → `swapping` → `recovering`) | state change; `recovering` forbids shrink and lowers the grow trigger | Readable, and it shows well in the UI. But it is a mode: it has to compose with `back_off`, the boot back-off and the user's disable, and its lowered trigger is a second copy of the 65/55 pair — two threshold sets to keep consistent |
+| **Operator-only — no control action at all** | log the episode, mark the VM, let the human act | The honest conservative fork for a small app: the signal is good, and a feedback loop we cannot test on demand may be worse than a human reading a row that is now trustworthy. Costs nothing and forecloses nothing |
+
+### Forks, none of them settled
+
+1. **`HALF_LIFE` — forget the scar, or remember the lesson?** The widest axis, and
+   it changes what the feature *is*: **seconds** → debt is just a rate integrator,
+   barely better than the bare trigger; **~60 s** → a recovery window covering the
+   burst plus the fault-back period; **hours** → the VM stays sized for the worst
+   thing it did today; **∞, no decay** → the phantom bias becomes permanent and
+   `used + debt` becomes a **high-water mark learned from evidence** — i.e. per-VM
+   `min_actual` (exit 3, the note's own candidate for the real fix) arriving
+   automatically with an audit trail instead of as a hand-set knob, and with one
+   constant fewer. That last variant deserves weighing against the grow-rule
+   section's *per-VM learned high-water mark* rejection, which called the shape
+   "sticky without a decay rule" — here the decay rule is the whole question.
+2. **Does a fleet-level host budget have to land first?** `BallooningVM` has no view
+   of host RAM. Today's metric is so blind that simultaneous fleet-wide growth is
+   unlikely; any working swap response makes "every VM swaps at once, every VM grows
+   at once, the host over-commits and swaps qemu's RSS" a reachable state — strictly
+   worse than the guest swapping, and the one failure mode none of the four shapes
+   above defends against. Possibly a precondition rather than a follow-up.
+3. **The at-`max_memory` case wants its own answer.** A VM swapping at its ceiling
+   is the one state where virtui *cannot* help; today the status text says only "I
+   want to increase memory … but can't go over configured max mem". With the signal
+   we can say it is actively harming — which argues for a loud `$log.warn` and a UI
+   state, once per **episode** rather than once per poll. That needs an episode
+   object (opens on the first over-floor rate, closes after N seconds quiet,
+   carrying peak rate and total bytes) — also the right unit for a sticky "swapped
+   4 min ago" marker, since today's warn colouring only shows while the rate is
+   live, so a burst between two glances leaves nothing behind but the lifetime
+   totals.
+4. **Does `disk_caches` join as a second input?** Same shape, no new data channel,
+   and it is parsed-but-discarded today: refuse to shrink a guest whose page cache
+   is already below a floor, because there is no cheap reclaim victim left. Already
+   an open question below; listed here because it would share whatever seam `debt`
+   lands in.
 
 ## Candidate guideline: "no disk cache in the VM — the host caches the image anyway"
 
@@ -677,6 +832,12 @@ size it via `min_actual`/the reserve rather than by leaving it unbounded".
 The intro to "Blocked on three fundamentals" covers the guideline's targets; this
 is the rest, per the CLAUDE.md graduation map.
 
+- the response to a non-zero `swap_out` finally chosen, with the three rejected
+  shapes and the `HALF_LIFE` fork → **DECISIONS.md**; whatever constant survives
+  (noise floor, half-life, cooldown) carries its provenance in the yardoc next to
+  it — the noise floor's being "the rate is 0 at rest on these guests", the
+  half-life's being "corrects the phantom debt from slots freed without a
+  fault-in", not a tuning opinion.
 - the grow rule finally chosen, **with the prior-art table as its provenance**, and
   the rejected shapes under fix 7 → **DECISIONS.md**. There is no entry covering
   the grow rule yet, so whichever shape wins earns the first one; the table is the
