@@ -38,14 +38,14 @@ module Tuile
       @log.string
     end
 
-    # @return [Boolean] whether any rendered line carries the guest swap-out indicator
-    def swap_shown? = window.content.items.map(&:to_s).any? { |l| l.include?('SWAP') }
+    # @return [Array<String>] every rendered guest swap-out line, top to bottom
+    def swap_lines = window.content.items.map(&:to_s).grep(/SWAP/)
 
     # Cursor positions of each demo VM (see the 'has the right content' test for the layout).
     # base + Fedora are shut off; Ubuntu + win11 are running.
     def base = 0
     def ubuntu = 4
-    # 9, not 8: Ubuntu is 5 lines because it swaps, so it gets a SWAP line too.
+    # 9, not 8: every running VM carries a SWAP line, so Ubuntu is 5 lines.
     def win11 = 9
 
     it 'has the right content' do
@@ -62,7 +62,8 @@ module Tuile
       assert_equal '▶ win11 🎈──────', content[9]
       assert_equal '    CPU:  0%          1 t |   0%          8 t', content[10]
       assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[11]
-      assert_equal '    vda: 50%   64G   128G |', content[12] # no SWAP line: win11 isn't swapping
+      assert_equal '   SWAP: out     0/s  total out 0 in 0', content[12] # win11 is at rest, line stays
+      assert_equal '    vda: 50%   64G   128G |', content[13]
     end
 
     it 'show_power_popup opens picker' do
@@ -85,7 +86,7 @@ module Tuile
         # second VM is running and takes 3 lines
         window.content.handle_key(Keys::DOWN_ARROW)
         assert_equal 4, window.content.cursor.position
-        # third VM is running and swapping, so it takes 4 lines
+        # third VM is running, so it takes 5 lines (header, CPU, RAM, SWAP, disk)
         window.content.handle_key(Keys::DOWN_ARROW)
         assert_equal 9, window.content.cursor.position
         # no more VMs
@@ -281,25 +282,32 @@ module Tuile
         assert window.send(:format_domain_state, :other).include?('?')
       end
 
-      it 'hides the swap line once the guest stops swapping' do
-        assert swap_shown? # forces the window to be built before the clock moves
+      it 'keeps the swap line but drops the rate to zero once the guest stops swapping' do
+        assert_includes swap_lines[0], '3M/s' # forces the window to be built before the clock moves
         Timecop.freeze(now + 10) do
           cache.virt.vm('Ubuntu').swap_out_rate = 0 # counter plateaus, it does not reset
           cache.update # still reports the 15M genuinely written over the interval just ended
         end
         Timecop.freeze(now + 15) { cache.update } # first interval with a flat counter
         window.update
-        refute swap_shown?
+        # the totals keep the scar, only the rate goes quiet
+        assert_equal '   SWAP: out     0/s  total out 30M in 0', swap_lines[0]
       end
 
-      it 'hides the swap line when a reboot resets the guest counter' do
-        assert swap_shown?
+      it 'reports a zero rate when a reboot resets the guest counter' do
+        assert_includes swap_lines[0], '3M/s'
         Timecop.freeze(now + 10) do
           cache.virt.vm('Ubuntu').force_reboot
           cache.update
         end
         window.update
-        refute swap_shown?
+        assert_includes swap_lines[0], 'out     0/s'
+      end
+
+      it 'drops the swap line entirely when the guest reports no swap counters' do
+        entry = cache.cache('Ubuntu') # the emulator always reports them, so blank them out here
+        entry = entry.with(data: entry.data.with(mem_stat: entry.data.mem_stat.with(swap_in: nil, swap_out: nil)))
+        assert_nil window.send(:format_swap_line, entry)
       end
 
       it 'renders nothing when the window is too narrow' do

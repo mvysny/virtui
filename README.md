@@ -96,10 +96,12 @@ When ballooning is enabled properly in a VM, 🎈 is shown next to the VM name i
 When virtui controls the app memory, an arrow is shown next to 🎈: up arrow indicates a memory increase,
 down arrow indicates memory decrease, and a flat dash `-` indicates no change.
 
-When a guest starts writing pages out to its swap device, a `SWAP` row appears under that VM's
-RAM bar, showing how fast it is swapping out plus the totals since the guest booted. The row
-disappears again once the guest stops: the balloon reports swap *I/O*, not how much swap is in
-use, so a VM still holding swap it isn't actively writing to shows no row.
+A running VM whose balloon reports swap counters has a `SWAP` row under its RAM bar, showing
+how fast the guest is writing pages out to its swap device plus the totals since it booted.
+The rate drops back to `0/s` once the guest stops swapping — the row itself stays, so the VMs
+below it don't shift around. Note that this is swap *I/O*, not how much swap is in use: a VM
+still holding swap it isn't actively writing to reads `0/s`, and the totals never fall when
+swap slots are freed. A guest that reports no swap counters at all gets no row.
 
 More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/).
 

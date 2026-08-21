@@ -92,6 +92,55 @@ rejection is crowding out the live design.
 
 ---
 
+## D-swap-row-always-on — every running VM keeps its SWAP row, even at rest (2026-08-21)
+
+**Status:** Accepted; implemented in {UI::VMWindow#format_swap_line}.
+
+**Context.** The guest swap-out indicator shipped as a row that appeared
+under a VM's RAM bar only while the rate was positive, on the reasoning that
+a healthy fleet should not pay vertical space for a metric that is zero. In
+use that inverted: swapping is bursty (the balloon refreshes its counters
+every ~5 s, and a guest under pressure swaps in bursts), so rows kept
+appearing and vanishing, and every VM *below* the one swapping shifted down
+a row and back — while the reader was trying to read exactly those rows. The
+list jitters worst precisely when something is going wrong.
+
+**Decision.** A running VM gets its SWAP row whether or not it is swapping;
+at rest the row reads `out 0/s` with the since-boot totals. What draws the
+eye is the warn coloring on the `SWAP` label, applied only while the rate is
+positive — the row's *presence* carries no signal, so nothing moves.
+
+The one state that still hides the row is a guest whose balloon reports no
+swap counters at all. The reason the criterion is different: "not swapping
+right now" flips on every burst, while "cannot report swap" is fixed for the
+life of the VM — hiding on a constant costs no stability, so the row is
+spent only where it can say something.
+
+**Alternatives rejected.**
+
+- *Keep it hidden at rest.* The row-jumping above. The trigger to hide on
+  has to be one that doesn't change while the user is reading.
+- *Hide at rest, but reserve the row's height.* A blank line under every
+  RAM bar costs the same space as the populated row and tells the reader
+  less; there is nothing to buy with it.
+- *Show the row only for VMs that have ever swapped this boot.* Stable per
+  boot, but the flicker returns at the boundary (the first burst still
+  inserts a row), and the interesting VM is often the one at `0/s` next to a
+  neighbour that is swapping — being able to compare the two is the point.
+- *Render `not reported by guest` in the row instead of hiding it.* Tried;
+  it distinguishes "not swapping" from "can't tell", but it spends a line
+  per such VM forever to say something that will never change, and on a
+  fleet of guests without counters that is the whole screen.
+
+**Consequences.** A running VM is 5 list lines where its guest reports swap
+counters and 4 where it doesn't — which is what the cursor-position
+expectations in `spec/ui/vm_window_spec.rb` encode. "No row" therefore means
+"this guest doesn't report swap", not "this guest isn't swapping"; nothing on
+screen says which, so the absence has to be read from the balloon indicators
+already next to the VM name.
+
+---
+
 ## D-mem-stats-self-armed — virtui arms guest mem-stat collection itself, on every VM start (2026-06-10)
 
 **Status:** Accepted; shipped in 536b566.

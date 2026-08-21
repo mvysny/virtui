@@ -303,25 +303,34 @@ module UI
       header(line)
     end
 
-    # The guest's swap-out line, shown only while the guest is actually writing to swap:
+    # The guest's swap-out line, one per running VM that reports swap counters:
     #
-    #      SWAP: out    3M/s  total out 15M in 0
+    #      SWAP: out    3M/s  total out 15M in 0     <- swapping right now (label in warn)
+    #      SWAP: out     0/s  total out 15M in 0     <- at rest, 15M written earlier
+    #      SWAP: out     -/s  total out 15M in 0     <- first sample: no interval to diff yet
     #
-    # A rate rather than a level, because the level is a since-boot high-water scar that
-    # says nothing about now — see {Virt::Cache::VMCache#swap_out_rate}. Hidden at rest so
-    # a healthy fleet costs no vertical space, which also means "no line" and "guest doesn't
-    # report swap" look the same; the totals are here to give the visible rate its context.
+    # A rate rather than a level, because the level is a since-boot high-water scar that says
+    # nothing about now — see {Virt::Cache::VMCache#swap_out_rate}; the totals are here only
+    # to give the rate its context. Rendered whether or not the guest is swapping, so the warn
+    # coloring on the label rather than the row's presence is what draws the eye: hiding the
+    # row at rest made every VM below it jump a row on each swap burst. Absent counters are
+    # the one case that still hides the row, because that state never flips back — see
+    # DECISIONS.md D-swap-row-always-on.
     #
     # @param cache [Virt::Cache::VMCache] the VM's cache entry
-    # @return [String, nil] the rendered line, or `nil` if the guest isn't swapping out
+    # @return [String, nil] the rendered line, or `nil` if the guest reports no swap counters
     def format_swap_line(cache)
-      rate = cache.swap_out_rate
-      return nil if rate.nil? || !rate.positive?
-
       mem_stat = cache.data.mem_stat
+      return nil unless mem_stat&.swap_data_available?
+
+      rate = cache.swap_out_rate
+      # nil is a VM we have only sampled once: the counters are there, but there is no
+      # interval to diff them over yet, so the rate is unknown rather than zero.
+      rate_text = rate.nil? ? '-' : format_byte_size(rate.round)
+      label = rate&.positive? ? screen.theme.warn('SWAP') : 'SWAP'
       # 3 spaces, not 4: 'SWAP' is a character wider than 'CPU'/'RAM', and this lines its
       # colon up with theirs — same trick as the 4-char disk labels above.
-      "   #{screen.theme.warn('SWAP')}: out #{format_byte_size(rate.round).rjust(5)}/s  " \
+      "   #{label}: out #{rate_text.rjust(5)}/s  " \
         "total out #{format_byte_size(mem_stat.swap_out)} in #{format_byte_size(mem_stat.swap_in)}"
     end
 
