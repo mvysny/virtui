@@ -71,11 +71,76 @@ spawn-free **and** GVL-safe, with no new dependency and no Ruby child to write:
 
 **Be honest about the size of the prize.** The existing 2 s poll is O(1) — one
 `virsh domstats` for the whole fleet — so this saves it ~8–18 ms of 2000 ms,
-about 1 %. Not worth doing for the current loop. It only pays on an
-**O(running-VMs)** workload, which today means exactly one hypothetical
-consumer: per-VM guest-agent reads. At N=10 that is 312 ms/tick, of which
-~180 ms is pure per-call overhead. Since that consumer is itself on hold, so is
-this.
+about 1 % *of latency*. It pays much better on an **O(running-VMs)** workload,
+which today means exactly one hypothetical consumer: per-VM guest-agent reads.
+At N=10 that is 312 ms/tick, of which ~180 ms is pure per-call overhead.
+
+**But latency is the wrong metric for the existing poll**, and the first draft
+of this page judged it on latency alone. See the next section.
+
+## Is it worth it for the *existing* O(1) poll?
+
+The first draft said no. That verdict was reached on the wrong axis — 8 ms out
+of a 2000 ms tick is invisible as *latency*, but the question that matters on a
+hypervisor host is *load*, and VirTUI re-pays the spawn every 2 s for as long as
+the TUI is open. Measured 2026-08-21, 200 iterations of `domstats` each way:
+
+| per call | CPU (user+sys) | minor page faults |
+|---|---|---|
+| one-shot `virsh` | **7.8 ms** | **1065** |
+| in-session | **0.100 ms** | **0.015** |
+
+**78× less CPU, and ~70000× fewer minor faults.** The fault count is the more
+interesting number: 1065 per spawn is the kernel mapping 61 shared objects,
+applying relocations and churning page tables, all of it thrown away
+milliseconds later. Holding a session open instead costs **0.0 ms of CPU over
+5 s idle** — it blocks in `read()` — for 8.3 MB PSS resident.
+
+At the real 2 s tick that is:
+
+- **today:** 7.8 ms CPU per 2000 ms = **0.39 % of one core**, continuously,
+  plus ~530 minor faults per second;
+- **with a session:** 0.005 % of a core, plus 8.3 MB held.
+
+**Two corrections to the first draft's reasoning.**
+
+1. **The page-fault and CPU churn is real, and the mechanism argument is
+   right:** a long-lived child with pipe comms is unambiguously less taxing on
+   the host than re-execing a 61-library binary every two seconds. The first
+   draft never measured this because it was only looking at wall-clock.
+2. **This page conflated two different proposals.** All the per-VM sharding
+   machinery — the circuit breaker, the fault-isolation argument, the RSS
+   table — exists only to serve the O(N) guest-agent workload. Replacing the
+   *existing fleet-wide `domstats` poll* needs **one** child, one command type,
+   and no sharding at all. "Not worth it" was argued against the big version and
+   silently inherited by the small one.
+
+**What still argues against it, and it is not resources.** 0.39 % of one core is
+noise on any box that runs VMs, and so is 8.3 MB — both sides of the resource
+ledger are rounding errors, so resources do not decide this. What decides it is
+that `domstats` is the one call feeding *every number on screen*, and today it
+runs through `Run.sync`, where a broken `virsh` is a non-zero exit status and a
+raised exception. Routing it through a session swaps that for `error:`-prefix
+matching on a text stream (gotcha 4) — trading the loudest failure detection in
+the app, on its most load-bearing path, for a fraction of a percent of a core.
+CLAUDE.md's *Errors are loud* points the other way.
+
+**The measurement that would actually flip this is missing, and it is
+daemon-side.** Everything above is *client* CPU, against a driver that does no
+I/O. The current path also makes libvirtd, every 2 s, accept a unix socket, run
+authentication, negotiate an RPC version, allocate a client object and a worker
+thread, then tear it all down. That cost lands on the host too, competing with
+real VM management, and it is plausibly the larger half — a persistent session
+pays it once. `test:///default` cannot measure it. **Measure total system CPU
+(client + libvirtd) for connect+domstats+disconnect versus an in-session
+`domstats` on the real host**; if the daemon side is substantial, the verdict for
+the existing poll flips on load grounds alone, independent of the guest-agent
+consumer.
+
+Until that number exists: still no, but for a *much* narrower reason than the
+first draft gave — not "the saving is negligible" (it is 78×) but "the saving is
+in a resource nobody is short of, and it is paid for in error-reporting
+fidelity on the app's most important call".
 
 ## One session per VM, not one shared
 
@@ -348,11 +413,15 @@ prompt shifts every subsequent frame by eight bytes.
 Everything cheap is done. Only two things remain, and neither can be reached
 from a daemon-less box:
 
-1. **A wedged `qemu-ga`** — does `qemu-agent-command --timeout N` really return
+1. **Daemon-side connection cost** — total system CPU for
+   connect+`domstats`+disconnect versus an in-session `domstats`, on a real
+   `qemu:///system`. This is the one that could flip the verdict for the
+   *existing* poll; see the O(1) section above.
+2. **A wedged `qemu-ga`** — does `qemu-agent-command --timeout N` really return
    control to the session, or does the child need killing? (gotcha 5)
-2. **libvirtd restarting under a live session** — does the session notice, and
+3. **libvirtd restarting under a live session** — does the session notice, and
    does in-place `connect` recover it? (gotcha 6)
-3. Then re-measure the win on the host against the 31.16 ms baseline before
+4. Then re-measure the win on the host against the 31.16 ms baseline before
    deciding it is worth the remaining gotchas.
 
 ## Honest summary — revised
@@ -373,6 +442,10 @@ differently shaped than feared.
   because of the readline echo that gotcha 3 treats as noise.
 - Connection loss is **less destructive** than assumed.
 
+- The **load** argument for doing it even at O(1) is real and was missed
+  entirely by the first draft: 78× less CPU and ~70000× fewer minor page faults
+  per call, against a spawn re-paid every 2 s for the life of the TUI.
+
 The remaining honest objection is unchanged and is the one that matters: this
 trades a loud, quoting-proof, self-healing call path (`argv` + exit code + fresh
 connection) for one whose per-command errors are detected by string prefix, and
@@ -381,8 +454,12 @@ echo assertion is a *small* amount of machinery — but it is machinery defendin
 properties that `Open3` + `Run.sync` give away for free, and every line of it is
 load-bearing in a way that is invisible from the call site.
 
-Worth building only once something actually needs O(running-VMs) libvirt calls
-per tick. Nothing does today.
+So: worth building once something needs O(running-VMs) calls per tick — or once
+the daemon-side connection cost is measured and turns out to be substantial. The
+resource saving on the existing O(1) poll is large as a *ratio* and negligible as
+an *absolute*, and it is paid for in error-reporting fidelity on the one call
+that feeds the whole UI. That is the trade to argue about, not the 1 % of a tick
+the first draft argued about.
 
 ## Where the nuggets land if this graduates
 
