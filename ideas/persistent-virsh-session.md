@@ -502,11 +502,17 @@ collaborator.
 
 ```ruby
 # The role, in full. Two implementations; `subcommand` excludes the `virsh` word.
-#   sync(subcommand)  -> String   (stdout; raises on failure)
-#   async(subcommand) -> Thread   (fire-and-forget; logs failure)
-Virt::VirshSpawn    # today's behaviour: Run.sync("virsh #{subcommand}")
-Virt::VirshSession  # the persistent REPL from the recipe above
+#   query(subcommand) -> String   a read; MAY go through a persistent session
+#   sync(subcommand)  -> String   own process, raises on failure
+#   async(subcommand) -> Thread   own process, logs failure
+Virt::VirshSpawn    # today's behaviour; query == sync
+Virt::VirshSession  # query uses the REPL, sync/async delegate to a VirshSpawn
 ```
+
+`query` exists so the read/mutate policy lives in **one** place — the runner
+pair — instead of `Virsh` having two different ways to reach the outside world.
+`VirshSession` *composes* a `VirshSpawn` for the calls it must not serve, which
+is also what makes the degrade path a one-liner.
 
 `Virsh.new(runner: VirshSpawn.new)` by default, so nothing changes unless asked.
 `Virsh` keeps every line of parsing and gains no knowledge of pipes; the runner
@@ -620,6 +626,36 @@ The existing `Virsh` parser specs are untouched — they pass canned text straig
 to `domain_data(fixture)` and never reach a runner. That is the payoff of putting
 the seam below the parsing.
 
+### Opt-in, for an observation period
+
+Decided 2026-08-21: **ship it opt-in**, off by default, behind
+`VIRTUI_VIRSH_SESSION=1`. Spawn stays the default until it has been run for a
+couple of days on a real host and reconvened on.
+
+An env var rather than a CLI flag because `bin/virtui` has no option parser and
+this is a temporary switch, not a feature. Two things the observation period
+needs in order to be worth anything:
+
+- **say so at startup** — one `$log.info` naming the active transport, so "was
+  it even on?" is never a question;
+- **make degradation visible** — the fall back to `VirshSpawn` logs once at
+  `warn` with the reason, and so does any unclassified stderr. If the two days
+  produce a clean log, that is the evidence; if they produce warnings, those are
+  the design's weak joints reporting themselves.
+
+The reconvene decides between making it the default, keeping it opt-in, and
+deleting it. That third option is real, and cheap precisely because the seam is
+a constructor argument.
+
+### A timeout appears where there was none
+
+`Run.sync` blocks forever; the session needs a read deadline, so this introduces
+a bound that did not previously exist. Set it well above the 2 s poll — a read
+still outstanding after several ticks means the child is wedged, and killing it
+is strictly better than pinning the timer thread indefinitely, which is what
+today's code would do. It is a liveness backstop only: nothing about *where a
+reply ends* depends on it (see above).
+
 ### Rough shape of the change
 
 - new `lib/virt/virsh_spawn.rb`, `lib/virt/virsh_session.rb` (one constant per
@@ -679,9 +715,24 @@ over, and neither answer is an argument.**
   carries one argument-free command, so the quoting analysis is dormant, and a
   failed session degrades to `VirshSpawn` — today's behaviour exactly.
 - **By `popen3`:** keeping stderr separate means a failed read raises with its
-  stderr text, which *is* `Run.sync`'s contract. There is no prefix matching in
-  the design at all. The note recommended merging the streams; that was the
-  mistake, not the transport.
+  stderr text, which *is* `Run.sync`'s contract. The note recommended merging
+  the streams; that was the mistake, not the transport.
+
+**One honest correction to that second point.** An earlier draft of this section
+claimed "no prefix matching in the design at all". Too strong. Without an exit
+code, *something* must decide whether stderr content means "the command failed"
+or "libvirt was chatty", and libvirt's own log lines do reach stderr in a
+different shape from `vshError`'s `error: ` prefix. Treating *any* stderr as
+failure would raise spuriously on a deprecation or cgroup warning. So the design
+classifies: `error:`-prefixed lines fail the call, anything else is logged at
+`warn` and the call succeeds.
+
+That is still a much smaller heuristic than the one the earlier verdict rejected
+— it classifies a *dedicated error channel* rather than sniffing failure out of
+the data stream, and stdout reaches the parser byte-identical either way. But it
+is a heuristic, and it is the single weakest joint in the design. Logging the
+unclassified remainder at `warn` rather than `debug` is deliberate: the opt-in
+period is exactly when that noise should be visible.
 
 What is left is a bounded optimisation on the one call that runs 30 times a
 minute for hours, whose output is byte-identical to what it replaces.

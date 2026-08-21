@@ -239,9 +239,49 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
      boundary — `Virsh#set_mem_stats_period` has to be re-armed after every full
      power-off.
 
-   Still open: where the previous sample lives (`Cache`'s per-VM state is the
-   natural home, since it needs the same lifecycle as the staleness tracking), and
-   how the latch composes with `BallooningVM`'s existing grow/shrink branches.
+   **The read half is built (2026-08-21).** `balloon.swap_in`/`swap_out` are parsed
+   into `MemoryStat`, and `Cache::VMCache#swap_out_rate` differences them into
+   bytes/s — the same seam that already derives `cpu_usage` and
+   `mem_data_age_seconds`, so it inherits their lifecycle. `UI::VMWindow` renders a
+   `SWAP` row per swapping VM. Nothing acts on it yet: **that is deliberate**, the
+   threshold below has to be observed before it can be chosen. Two mechanics worth
+   keeping if this note is trimmed:
+
+   - the rate is `Δswap_out / Δlast_updated`, i.e. per *guest-reported* interval, not
+     per poll. That sidesteps libvirt's ~5 s refresh: when `last_updated` hasn't
+     moved the previous rate is carried forward rather than reported as 0 (which
+     would blink the signal off on every other poll);
+   - a decrease in the counter is read as a reboot (fresh baseline, rate 0), never as
+     a negative delta.
+
+   **Two corrections to the proposal above, from designing it.**
+
+   1. **The trigger must be a rate over a threshold, not "any advance".** A bare
+      delta plus a shrink veto is a two-sided ratchet: cgroup-limited reclaim inside
+      the guest (systemd `MemoryHigh=`, a container — where more VM memory relieves
+      nothing) and MGLRU-style proactive aging of cold anon both tick `swap_out`
+      benignly, and a VM grown 30% per tick and never allowed to shrink walks to
+      `max_memory` and stays there. The rate threshold is the whole defence, and its
+      value has to come from watching an *idle* guest's trickle — a number nobody has
+      measured yet. Hence the visualization landing first.
+   2. **The shrink veto needs a cooldown, not per-sample "advancing".** Literal
+      per-sample unblocks on the first quiet tick, which is precisely the case
+      `swap-via-qemu-guest-agent.md` observed: a shrink fired with 853 MiB in swap and
+      `pswpout` flat. A guest that just swapped and went quiet is the one that least
+      wants shrinking — it hasn't had time to fault its working set back. Cooldown
+      from the last over-threshold sample also serves as the level-free proxy for the
+      one thing the swap *level* would have answered: when is it safe to shrink again.
+
+   **And the veto alone is not enough** — worth stating plainly because it is easy to
+   conclude the opposite from "accept the swapping, just stop making it worse". The
+   inversion and the invisibility are separate halves of root cause 3: the veto fixes
+   the inversion, but the *measured* state (61% used, controller idle, 2 GiB swapped)
+   had no shrink in flight at all. Veto-only leaves a stable bad equilibrium — guest
+   trickles to disk, `percent_used` sits mid-deadband, no shrink is attempted so the
+   veto never fires, trickle continues. Only a grow trigger fixes what was observed.
+
+   Still open: the threshold value (observation), the cooldown length, and how the
+   latch composes with `BallooningVM`'s existing grow/shrink branches.
 2. **Buy headroom for the 5–7 s blind spot.** Drop `@trigger_increase_at` to
    ~50–55 (moving `@trigger_decrease_at` down to keep a deadband), and/or give the
    reserve an absolute floor instead of a purely proportional one. The invariant to
