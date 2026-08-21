@@ -289,7 +289,7 @@ no clean-stream mode to switch to.
 
 ```ruby
 CHILD_ENV = { 'TERM' => 'dumb', 'COLUMNS' => '1000000' }.freeze
-Open3.popen2e(CHILD_ENV, 'virsh', '-q', '-c', uri)
+Open3.popen3(CHILD_ENV, 'virsh', '-q', '-c', uri)   # popen3: see gotcha 4
 ```
 
 - `TERM=dumb` (or unset) removes every ANSI byte: 0/20 trials contained an
