@@ -11,6 +11,7 @@ require 'tty-cursor'
 require 'concurrent-ruby'
 require 'open3'
 require 'date'
+require 'json'
 
 # Core extensions: monkey-patches and top-level helpers. These don't define a
 # constant matching their path, so Zeitwerk can't manage them — load eagerly.

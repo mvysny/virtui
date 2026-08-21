@@ -61,6 +61,7 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 - `Virt::Virsh` — the real backend: parses `virsh` text output; owns no transport
 - `Virt::VirshSpawn` — default transport: one `virsh` process per command
 - `Virt::VirshSession` — opt-in transport: one long-lived `virsh` REPL serves the reads
+- `Virt::GuestAgent` — reads a guest's own `/proc/meminfo` (its swap level) via `qemu-guest-agent`
 - `Virt::Cache` — thread-safe cache of every VM's runtime data; the UI reads only this
 - `Virt::Ballooning` — fans one `BallooningVM` out per VM, once per update
 - `Virt::BallooningVM` — one VM's grow/shrink decision; owns every threshold and rate
@@ -71,7 +72,7 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 
 - `System::Info` — reads host CPU/RAM/disk from `/proc` and `df`
 - `System::Emulator` — the `Info`-shaped test double, with fixed numbers
-- `System::CpuStat`, `CpuUsage`, `MemoryStat`, `DiskUsage` — host value objects
+- `System::CpuStat`, `CpuUsage`, `MemoryStat` (also parses a *guest*'s meminfo), `DiskUsage` — host value objects
 
 **`lib/ui/` → `UI::`** — the tuile presentation layer.
 

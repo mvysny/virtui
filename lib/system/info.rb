@@ -15,14 +15,9 @@ module System
     # @param meminfo_file [String, nil] contents of `/proc/meminfo`; reads the real file
     #   when `nil`. Pass a fixture string for testing
     # @return [MemoryStat] memory statistics
+    # @raise [RuntimeError] if the file is missing a key (see {MemoryStat.parse})
     def memory_stats(meminfo_file = nil)
-      meminfo_file ||= File.read('/proc/meminfo')
-      mem = meminfo_file.lines.to_h { |it| it.strip.split(':') }
-      ram = ResourceUsage.new(total: mem['MemTotal'].strip.to_i.KiB,
-                              available: mem['MemAvailable'].strip.to_i.KiB)
-      swap = ResourceUsage.new(total: mem['SwapTotal'].strip.to_i.KiB,
-                               available: mem['SwapFree'].strip.to_i.KiB)
-      MemoryStat.new(ram, swap)
+      MemoryStat.parse(meminfo_file || File.read('/proc/meminfo'))
     end
 
     # Computes whole-CPU usage over the interval since `prev_cpu_usage` was sampled, by

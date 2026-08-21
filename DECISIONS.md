@@ -92,6 +92,84 @@ rejection is crowding out the live design.
 
 ---
 
+## D-guest-swap-level — read the guest's swap level from its own `/proc/meminfo`, through the QEMU guest agent (2026-08-21)
+
+**Status:** Accepted. Retrieval shipped as {Virt::GuestAgent}; sampling it
+into the poll loop, and showing it, are still to come.
+
+**Context.** `domstats` gives `balloon.swap_in`/`swap_out`, which are
+since-boot *I/O counters*: they never fall when swap slots are freed, so a
+level cannot be derived from them at any sampling rate — measured in
+`ideas/swap-despite-ballooning.md`, where a guest drained 1.14 GiB of swap
+with `pswpout` flat. The level is the number an operator wants ("how much
+is this ballooned guest still paying?") and the one the controller would
+need to close root cause 3 (swapping erases its own evidence: evicting N
+bytes raises `MemAvailable` by ~N). Only the guest knows it, and
+`qemu-guest-agent` — a `virt-manager` default, already running in the
+managed VMs — turns out to be a channel to it that needs nothing installed
+in the guest.
+
+**Decision.** {Virt::GuestAgent} reads the guest's `/proc/meminfo` with the
+agent's `guest-file-open`/`read`/`close` trio and parses it through
+{System::MemoryStat.parse} — the same parser the host's copy goes through,
+since it is the same file format. Any failure answers `nil`, and a guest
+that fails repeatedly is written off for five minutes: no agent, or an
+agent with the RPC blocked, is a normal state and must never break the
+poll.
+
+Paired with {Virt::VirshSession}, not offered on {Virt::VirshSpawn}: three
+agent calls per VM per tick is where the ~18 ms process spawn stops being
+noise (~120 ms per VM per tick at N=3 files-worth of calls, against a 2 s
+tick), while the session removes it and leaves only the ~13 ms of
+irreducible libvirtd+QMP+virtio-serial round-trip. The transports needed no
+new code for this — `query` carries the payload and
+{Virt::VirshSession.quote}'s single quotes were already what keeps virsh's
+tokenizer off JSON's backslashes.
+
+**Alternatives rejected.**
+
+- **`guest-exec` + `guest-exec-status`.** Two calls instead of three, and
+  one `sh -c` could cat several files at once — but it is remote *root
+  exec* made a hard dependency of monitoring, it spawns a process in the
+  guest on every tick, and it is asynchronous: the first reply carries only
+  a PID, so the output needs a second round-trip that cannot be issued
+  until the guest process has exited (amortizing that means carrying a PID
+  across ticks). Reading a world-readable file earns none of that.
+  Reconsider only if PSI, `vmstat` and meminfo are all wanted per tick,
+  where one exec beats three `guest-file-*` trios.
+- **Reconstruct the level from the counters (`swap_debt`).** The candidate
+  in `ideas/swap-despite-ballooning.md`: decay-weighted `Δswap_out −
+  Δswap_in`, no guest channel needed. It is an *estimate* with a known bias
+  (slots freed with no fault-in inflate it, which is what forces a decay
+  half-life nobody has a number for), and this reads the real figure. It
+  stays the fallback for guests with no agent, and its own note says the
+  estimate wanted validating against exactly this number.
+- **Ship a virtui agent into the guest.** Ruled out before and still out:
+  the whole appeal here is that the channel already exists, unmaintained by
+  us.
+- **`Libvirt::Domain#qemu_agent_command` via ruby-libvirt.** Saves the
+  spawn, but ruby-libvirt 0.8.4 never releases the GVL, so one wedged
+  `qemu-ga` freezes the entire TUI rather than one thread — see D-virsh-cli.
+
+**Consequences.**
+
+- Two figures now describe guest swap and they answer different questions:
+  the *rate* ({Virt::Cache::VMCache#swap_out_rate}, from the counters, every
+  guest) and the *level* (here, agent-capable guests only). Whatever shows
+  them has to survive the level being absent — this is an enhancement path,
+  never the primary one.
+- `qemu-guest-agent` becomes an optional prerequisite worth documenting in
+  README, alongside the balloon device and the stats period.
+- The guest-side channel is now open in code. It is deliberately narrow —
+  {Virt::GuestAgent#read_file} reads a file and cannot execute anything —
+  and widening it to `guest-exec` (a swap *drain*, `swapoff -a`) is a
+  separate decision, not an extension of this one.
+- Sampling belongs on the timer thread inside {Virt::Cache#update}, not
+  inside `Virsh#domain_data`: `domstats` is one O(1) call for the whole
+  fleet, while this is O(running VMs) calls that fail per VM.
+
+---
+
 ## D-swap-rate-full-scale — the swap gauge reads against a fixed 20 MiB/s, not a per-VM maximum (2026-08-21)
 
 **Status:** Accepted; implemented as `UI::VMWindow::SWAP_RATE_FULL_SCALE`, read
