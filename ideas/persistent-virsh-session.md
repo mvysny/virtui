@@ -1,6 +1,8 @@
 # A persistent `virsh` session as a spawn-free libvirt transport
 
-**Status:** brainstorm, nothing decided, nothing built. Spun out of
+**Status:** **decided to implement** (2026-08-21) as a second `virsh` transport,
+on host-load grounds — see *Is it worth it for the O(1) poll?* and
+*Implementation sketch*. Nothing built yet. Spun out of
 `swap-via-qemu-guest-agent.md` on 2026-08-21, where it appeared as a footnote.
 
 **Verified 2026-08-21 against `virsh` 12.0.0 (Ubuntu `libvirt-clients`
@@ -177,10 +179,29 @@ stayed responsive at 0.37 ms per `dominfo`.
 
 Ordered as originally written, with the verdict from the probes.
 
-### 1. You lose `argv`, so hand-escaping comes back — **NOT A PROBLEM**
+### 1. You lose `argv`, so hand-escaping comes back — **NOT A PROBLEM, AND THE PREMISE WAS WRONG**
 
-Billed as "the deep one". It isn't. `virsh`'s tokenizer follows POSIX-shell
-quoting closely enough that the standard idiom just works:
+Billed as "the deep one". It isn't — and worse for the original framing, the
+`argv` safety it claimed we would be giving up **does not exist in this
+codebase**. {Run.sync} and {Run.async} take a command *String* and hand it to
+`Open3`, which runs it through `/bin/sh` (verified: `Open3.capture3('echo *')`
+comes back glob-expanded). {Virsh} therefore already hand-quotes, with plain
+single quotes and no escaping:
+
+```ruby
+Run.sync("virsh setmem '#{domain_name}' '#{new_actual / 1024}'")
+```
+
+**That is a live latent bug, independent of this idea.** libvirt permits an
+apostrophe in a domain name, and a VM called `it's` produces
+`virsh setmem 'it's' '262144'` → `sh: 1: Syntax error: Unterminated quoted
+string`, today, on every command that interpolates a name: `set_actual`,
+`set_mem_stats_period`, `start`, `shutdown`, `reboot`, `reset`, `force_off`.
+
+So a persistent session's `quote` (below) is **strictly safer than the status
+quo**, not a regression: it is the same single-quote discipline with the
+`'\''` case actually handled. `virsh`'s tokenizer follows POSIX-shell quoting
+closely enough that the standard idiom just works:
 
 | input line | `echo` returns |
 |---|---|
@@ -408,6 +429,151 @@ Read until the sentinel **and** the prompt that follows it, so the stream is
 always left positioned immediately after a prompt; forgetting the trailing
 prompt shifts every subsequent frame by eight bytes.
 
+## Implementation sketch
+
+### How do we know the output is complete?
+
+This is the load-bearing question, and the answer is *not* a timeout.
+
+You cannot conclude "the command finished" from the pipe going quiet — absence
+of bytes is indistinguishable from latency, and a reply that arrives 1 ms later
+would then be attributed to the *next* command. What makes this sound is that
+**`virsh`'s REPL is strictly serial**: read a line → execute → write output →
+write prompt → read the next line. It never overlaps two commands.
+
+So send **two** commands, the real one and a sentinel `echo`, and `virsh`
+physically cannot emit the sentinel's output until the real command's output is
+finished. **Seeing the sentinel's output is proof of completeness** — an
+ordering guarantee from the producer, not a heuristic.
+
+That gives *both* boundaries positively identified, with no timeout in the
+correctness path:
+
+| boundary | how it is found | why it holds |
+|---|---|---|
+| start of reply | readline echoes the input line; assert the buffer opens with `"#{cmd}\n"` | echo precedes execution |
+| end of reply | the asymmetric sentinel's output bytes | virsh is serial |
+
+The read timeout stays, but only as a **liveness** backstop — "this VM's agent is
+wedged" — never as the thing that decides where a reply ends.
+
+**On interleaving:** the note's framing is right that two commands cannot be in
+flight *unmatched*, but the constraint is narrower than "drain before sending".
+Replies come back **strictly in order**, so you may *pipeline* — the recipe above
+writes `cmd\nsentinel\n` in one `write`, which is a pipeline of two, not an
+interleave. What is genuinely forbidden is **two concurrent callers on one
+session**, so a session needs a mutex (or a single owning thread).
+
+### Where it plugs in: a second transport, not a second client
+
+`Virsh` is 190 lines, of which ~150 is `domstats`/`nodeinfo` *parsing* — the
+valuable, fixture-tested part. A peer `Virt::VirshSession` implementing the whole
+client role would either duplicate that parser or inherit to share it, which is
+the anti-pattern the `cop` skill forbids outright.
+
+The seam is one level lower, and **it already exists**: every method of `Virsh`
+reaches the outside world through exactly `Run.sync` / `Run.async`. Make that a
+collaborator.
+
+```ruby
+# The role, in full. Two implementations; `subcommand` excludes the `virsh` word.
+#   sync(subcommand)  -> String   (stdout; raises on failure)
+#   async(subcommand) -> Thread   (fire-and-forget; logs failure)
+Virt::VirshSpawn    # today's behaviour: Run.sync("virsh #{subcommand}")
+Virt::VirshSession  # the persistent REPL from the recipe above
+```
+
+`Virsh.new(runner: VirshSpawn.new)` by default, so nothing changes unless asked.
+`Virsh` keeps every line of parsing and gains no knowledge of pipes; the runner
+knows nothing of `DomainData`. Dependencies point toward data, and the runner is
+a service in the `cop` sense — one purpose, no rendering surface, independently
+testable.
+
+Defining the seam as *virsh subcommand* rather than *shell command* is what
+makes one interface serve both: the session must write `domstats`, not
+`virsh domstats`.
+
+### Only the read path goes through the session
+
+This is the decision that shrinks the risk to almost nothing.
+
+| command | transport | why |
+|---|---|---|
+| `domstats` (every 2 s) | **session** | this is the entire load saving |
+| `nodeinfo` (once, at startup) | session | free, same path |
+| `setmem`, `dommemstat`, `start`, `shutdown`, `reboot`, `reset`, `destroy` | **spawn** | they mutate, and must stay loud |
+
+Two consequences worth stating plainly:
+
+1. **Every mutating command keeps `Run.sync`'s non-zero-exit loudness.** The
+   objection that killed the first verdict — trading exit codes for `error:`
+   prefix matching — applies only to reads, whose failure surfaces as stale data
+   anyway. This is also gotcha 7's rule (route only machine-shaped output) and
+   the answer to `Run.async`: a long `virsh start` would block the *whole
+   session* for ~800 ms, since one child has no internal concurrency. Async work
+   must spawn. That is not a workaround; it is the correct split.
+2. **The quoting problem evaporates.** The session carries exactly one recurring
+   command, `domstats`, **with no arguments**. No payload, no `quote`, no
+   control-byte exposure. The entire gotcha-1 analysis is dormant insurance,
+   needed only if guest-agent commands later join. (`quote` is still worth
+   writing — it fixes the apostrophe bug above on the spawn path.)
+
+### Failure policy: never worse than today
+
+A session failure must degrade, not propagate. On `Desync`, `Timeout` or `EOF`:
+
+1. kill the child, respawn, retry the call **once** — kill-and-respawn is the
+   documented recovery (gotcha 5);
+2. if the retry also fails, **log a warning once and degrade permanently to
+   `VirshSpawn`** for the process's lifetime.
+
+The whole feature is an optimisation, so it must never become a new failure
+mode. Degrading restores exactly today's behaviour, which also covers the one
+gotcha the dev box cannot test (a libvirtd restart, gotcha 6) without needing to
+reason about it: the session dies, reads keep working, and a warning says why.
+
+### Threading and lifecycle
+
+- **One owner thread.** `Cache#update` runs on the timer thread and is the only
+  caller of the read path, so the session is touched from one thread. Guard
+  `sync` with a `Mutex` anyway — it is two lines, and `hostinfo` is called from
+  `Cache#initialize` on the main thread. This joins CLAUDE.md's existing
+  threading rule: the session is a *timer-thread* resource, never touched from
+  the UI thread.
+- **Explicit shutdown.** The child must be reaped in `bin/virtui`'s existing
+  `ensure`, or every run of VirTUI leaks a `virsh`.
+- **`Virsh.available?` still gates everything**; with no `virsh` the demo fleet
+  runs as now.
+
+### Testing
+
+`virsh -c test:///default` is a **real `virsh` with no daemon**, which is how this
+whole page was probed — so the session is testable in CI-ish conditions, not only
+against a hypervisor:
+
+- transport specs against `test:///default`, skipped unless `Virsh.available?`;
+- the desync guard: stall the session with `event --loop --all --timeout 30`,
+  abandon it, assert the next call *raises* rather than returning the stale
+  reply — this is the spec that protects the property nothing else can;
+- framing: a payload containing `virsh # ` round-trips (guards the sentinel);
+- a fuzz spec over control bytes, asserting the wrapper rejects them.
+
+The existing `Virsh` parser specs are untouched — they pass canned text straight
+to `domain_data(fixture)` and never reach a runner. That is the payoff of putting
+the seam below the parsing.
+
+### Rough shape of the change
+
+- new `lib/virt/virsh_spawn.rb`, `lib/virt/virsh_session.rb` (one constant per
+  file, per the Zeitwerk rules)
+- `lib/virt/virsh.rb`: add `runner:` to the constructor, replace the
+  `Run.sync("virsh …")` calls with `@runner.sync("…")`, drop the `virsh` prefix
+  from each command string
+- `bin/virtui`: build the session runner, pass it to `Virsh`, close it in
+  `ensure`
+- `DECISIONS.md`: the transport choice and the roads not taken
+- README: nothing — this is invisible to users
+
 ## What is left to verify, and it needs a real host
 
 Everything cheap is done. Only two things remain, and neither can be reached
@@ -446,20 +612,26 @@ differently shaped than feared.
   entirely by the first draft: 78× less CPU and ~70000× fewer minor page faults
   per call, against a spawn re-paid every 2 s for the life of the TUI.
 
-The remaining honest objection is unchanged and is the one that matters: this
-trades a loud, quoting-proof, self-healing call path (`argv` + exit code + fresh
-connection) for one whose per-command errors are detected by string prefix, and
-whose recovery is kill-and-respawn. Two env vars, a `quote`, a sentinel and an
-echo assertion is a *small* amount of machinery — but it is machinery defending
-properties that `Open3` + `Run.sync` give away for free, and every line of it is
-load-bearing in a way that is invisible from the call site.
+The objection that survived two drafts — that this trades a loud, quoting-proof,
+self-healing call path for one with prefix-matched errors — **is answered by
+scope, not by argument.** Route only `domstats` and `nodeinfo` through the
+session and every mutating command keeps `Run.sync` and its exit code; the
+session then carries one argument-free command, so the quoting analysis is
+dormant, and a failed session degrades to `VirshSpawn`, which is today's
+behaviour exactly. What is left is a bounded optimisation on the one call that
+runs 30 times a minute for hours.
 
-So: worth building once something needs O(running-VMs) calls per tick — or once
-the daemon-side connection cost is measured and turns out to be substantial. The
-resource saving on the existing O(1) poll is large as a *ratio* and negligible as
-an *absolute*, and it is paid for in error-reporting fidelity on the one call
-that feeds the whole UI. That is the trade to argue about, not the 1 % of a tick
-the first draft argued about.
+Two things made the earlier "no" wrong rather than merely narrow:
+
+- it judged **latency** (1 % of a tick) when the cost that matters on a
+  hypervisor host is **load** (78× CPU, ~70000× page faults per call);
+- it assumed `Open3` gave **argv safety we do not actually have** — `Run.sync`
+  goes through `/bin/sh` and `Virsh` already hand-quotes, badly enough to break
+  on an apostrophe in a VM name.
+
+So: **build it**, as a second transport behind the existing `Run.sync` seam. The
+O(running-VMs) guest-agent case remains the thing that would justify the *per-VM
+sharding*; the O(1) read path justifies the *session* on its own.
 
 ## Where the nuggets land if this graduates
 
