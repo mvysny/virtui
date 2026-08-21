@@ -92,7 +92,7 @@ rejection is crowding out the live design.
 
 ---
 
-## D-swap-rate-full-scale — the swap gauge reads against a fixed 10 MiB/s, not a per-VM maximum (2026-08-21)
+## D-swap-rate-full-scale — the swap gauge reads against a fixed 20 MiB/s, not a per-VM maximum (2026-08-21)
 
 **Status:** Accepted; implemented as `UI::VMWindow::SWAP_RATE_FULL_SCALE`, read
 by {UI::VMWindow#format_swap_line}.
@@ -105,12 +105,15 @@ CPU tops out at 100%, RAM at the guest's total, but a swap-out rate is bounded
 only by the guest's swap device, which virtui cannot see and which differs per
 host and per guest.
 
-**Decision.** Full-scale is a fixed 10 MiB/s, clamped: an *alarm gauge*, not a
-utilization ratio. The value is picked so the interesting range is the visible
-range — any sustained swap-out already means the guest's working set no longer
-fits, so ~1 MiB/s must register (it draws a tenth of the bar) and a genuinely
-thrashing guest pins it. The bar answers "how bad, roughly"; the `↑`/`↓`
-since-boot totals beside it carry the exact figures.
+**Decision.** Full-scale is a fixed 20 MiB/s, clamped: an *alarm gauge*, not a
+utilization ratio. The value trades sensitivity for headroom — it is set high
+enough that a guest thrashing on an SSD-backed swap file still has bar left to
+grow into, at the cost of the low end: on a ~100-column terminal the gauge is 17
+characters, so its first character lights at ~1.2 MiB/s and a slower trickle
+draws nothing. That is affordable because the trickle is not silent — the `SWAP`
+label is warn-colored whenever the rate is positive at all, so the bar carries
+"how bad", never "whether". The `↑`/`↓` since-boot totals beside it carry the
+exact figures.
 
 **Alternatives rejected.**
 
@@ -135,11 +138,15 @@ since-boot totals beside it carry the exact figures.
   reader wants at a glance — is this guest hurting *now* — was a number to
   parse rather than a shape to notice.
 
-**Consequences.** Everything from 10 MiB/s upward looks identical (pinned), so
+**Consequences.** Everything from 20 MiB/s upward looks identical (pinned), so
 the rate caption and the `↑` total are what separate "bad" from "much worse".
-The constant is not derived from anything measured on the host, so it must keep
-its reasoning next to its value (`CLAUDE.md` § *Numbers carry their
-provenance*) if it is ever retuned — and nothing else needs to change with it.
+At the other end a sub-1.2 MiB/s trickle renders as an empty bar on a typical
+terminal (and the threshold rises as the window narrows, since the bar shrinks),
+which is why the label's warn coloring — not the bar's emptiness — is what says
+"not swapping". The constant is not derived from anything measured on the host,
+so it must keep its reasoning next to its value (`CLAUDE.md` § *Numbers carry
+their provenance*) if it is ever retuned — and nothing else needs to change
+with it.
 
 ---
 

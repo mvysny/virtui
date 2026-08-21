@@ -19,10 +19,12 @@ module UI
     LABEL_WIDTH = 11
 
     # The rate that fills the swap-out gauge. A rate has no natural 100%, so this is a chosen
-    # alarm scale and not a ratio: at 10 MiB/s full-scale a 1 MiB/s trickle already shows as a
-    # visible tenth of the bar, and a thrashing guest pins it. See DECISIONS.md
+    # alarm scale and not a ratio: it is set high enough that a guest thrashing hard still has
+    # bar left to grow into, which costs sensitivity at the bottom — on a ~100-column terminal
+    # the gauge's first character lights at ~1.2 MiB/s, so a trickle below that reads as an
+    # empty bar and only the warn-colored label reports it. See DECISIONS.md
     # D-swap-rate-full-scale for the self-scaling alternatives this rejects.
-    SWAP_RATE_FULL_SCALE = 10.MiB
+    SWAP_RATE_FULL_SCALE = 20.MiB
 
     # Width of the swap row's `↑written ↓read-back` tail. Fixed, so every VM's gauge is the
     # same length and the bars stay comparable down the list.
@@ -326,9 +328,9 @@ module UI
     # the CPU/RAM rows above it: rate caption, a gauge, then the two since-boot totals
     # (`↑` written out, `↓` read back in) that give the rate its context:
     #
-    #      SWAP:   3M/s    #####------------ ↑  15M ↓    0 │   <- swapping now (label in warn)
-    #      SWAP:    0/s    ----------------- ↑  30M ↓   4M │   <- at rest, 30M written earlier
-    #      SWAP:    -/s    ----------------- ↑    0 ↓    0 │   <- first sample: nothing to diff yet
+    #      SWAP:      3M/s ##--------------- ↑  15M ↓    0 │   <- swapping now (label in warn)
+    #      SWAP:       0/s ----------------- ↑  30M ↓   4M │   <- at rest, 30M written earlier
+    #      SWAP:       -/s ----------------- ↑    0 ↓    0 │   <- first sample: nothing to diff yet
     #
     # The gauge reads against {SWAP_RATE_FULL_SCALE} rather than a per-VM maximum, so two VMs'
     # bars mean the same thing. Padded out to the {COLUMN_SEPARATOR} the other rows carry,
@@ -356,8 +358,9 @@ module UI
       # interval to diff them over yet, so the rate is unknown rather than zero.
       rate_text = rate.nil? ? '-' : format_byte_size(rate.round)
       label = rate&.positive? ? theme.warn('SWAP') : theme.swap('SWAP')
-      # Unstyled, so `ljust` pads it to the same cell the bar rows caption their column with.
-      caption = "#{rate_text.rjust(5)}/s".ljust(LABEL_WIDTH)
+      # Right-aligned within the caption cell, one space clear of the bar — which puts the
+      # figure in the same column the CPU/RAM rows end their own captions in.
+      caption = "#{"#{rate_text.rjust(5)}/s".rjust(LABEL_WIDTH - 1)} "
       totals = "#{theme.frame('↑')}#{format_byte_size(mem_stat.swap_out).rjust(5)} " \
                "#{theme.frame('↓')}#{format_byte_size(mem_stat.swap_in).rjust(5)}"
       bar = Formatter.progress_bar((column_width - LABEL_WIDTH - SWAP_TOTALS_WIDTH - 1).clamp(0, nil),
