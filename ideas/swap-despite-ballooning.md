@@ -9,8 +9,10 @@ A guest with `vm.swappiness=1`, 9.8 GiB of a 32 GiB balloon address space, and a
 while reporting a comfortable 61% to virtui.
 
 This doc records the measurement, the three independent reasons the current design
-can't prevent it, candidate fixes, and one candidate *guideline* ("no disk cache in
-the VM") that the same analysis turns out to bear on. The `@trigger_increase_at`
+can't prevent it, candidate fixes, one candidate *guideline* ("no disk cache in
+the VM") that the same analysis turns out to bear on, and — folded in on
+2026-08-21 — the shape of the **grow rule** itself, since "is +30% the right hop?"
+turned out to answer itself. The `@trigger_increase_at`
 comment in `BallooningVM` encodes one of the misconceptions, so it is a code-level
 finding, not just an ops curiosity.
 
@@ -74,6 +76,14 @@ Guest: Ubuntu, kernel 7.0.0-30-generic, 76 min uptime, swap on `/swap.img`
 Top swap holders were ordinary long-lived desktop processes (IDE, browser helpers,
 node, JVMs) at 15–100 MB each — no single runaway. Consistent with a burst that
 hit everything at once rather than one process misbehaving.
+
+**The workload, named by the maintainer 2026-08-21:** a **Gradle Java build, or
+IntelliJ IDEA starting up — each allocating about 3 GiB.** Not a synthetic burst;
+the routine case, and consistent with the swap holders above. IDEA spreads its
+3 GiB over tens of seconds (class loading, not a tight loop), perhaps
+100–300 MiB/s; a Gradle compile with a warm daemon can be spikier. **The
+allocation rate is still unmeasured** and it is the one number the whole
+threshold/hop discussion below turns on — one `/proc/vmstat` delta away.
 
 ## Root causes
 
@@ -193,6 +203,117 @@ reserve wants an absolute floor (`reserve = max(35%, ~2 GiB)`) rather than being
 purely proportional — which would also let exit 1 be taken *without* penalising
 large VMs, and is a strictly better lever than exit 3 for the same problem.
 
+**And the named workload settles the floor's value by arithmetic.** At
+`min_actual = 8 GiB` with a 65% trigger the controller acts when used ≥ 5.2 GiB, so
+the free memory it is defending with is **2.8 GiB — against a 3 GiB allocation.**
+The burst does not fit in the reserve at all, and what doesn't fit is reclaimed
+before the next sample lands. That is the cleanest explanation yet for the
+measurement, and it is arithmetic rather than a tuning opinion. Two consequences:
+the absolute floor above wants to be **~4 GiB, not ~2 GiB** (the observed burst
+plus dead-time margin); and for a build/IDE guest the honest answer really is
+**exit 3, per-VM** — ≥3 GiB standing free at an 8 GiB floor implies a trigger
+somewhere in the 25–50% range, which is absurd, so the floor is simply too low for
+that role. No grow rule can substitute for a floor, because the grow arrives
+5–12 s late by construction (cause 2); **hop size governs recovery, the standing
+reserve governs survival.**
+
+## The grow rule: a step where everyone else uses a target
+
+Folded in from a separate note on 2026-08-21. The question that started it was
+narrow — "is `+30%` of current `actual` a fast enough hop from the 8 GiB floor?" —
+and it dissolved on contact with prior art: **no surveyed controller has a grow
+step size at all.** The material is here rather than in its own file because its
+conclusions are this note's conclusions (cause 2, cause 3, exit 3).
+
+The constants, from `Virt::BallooningVM`:
+
+```ruby
+@trigger_increase_at = 65   # grow when guest used% >= 65
+@increase_memory_by  = 30   # ...by 30% of the current actual
+@trigger_decrease_at = 55   # shrink when used% <= 55
+@decrease_memory_by  = 10   # ...by 10%, at most once per @back_off_seconds = 10
+@min_actual          = 8.GiB
+```
+
+with `new_actual = actual * (100 + delta) / 100`, clamped to
+`min_actual..max_memory`. Two cadence facts turn the hop into a *velocity*: the
+`@last_update_at == mem_stat.last_updated` guard allows at most **one hop per new
+guest sample** (~5 s — cause 2), and `back_off` after any change gates only the
+*decrease* branch, so a hop buys ≥10 s of protection from the shrinker.
+
+### Three properties of the current rule, in arithmetic
+
+**1. Velocity scales with VM size, but bursts don't.** At the 8 GiB floor the
+first hop is 2.4 GiB ≈ 490 MiB/s. At 20 GiB it is 6 GiB ≈ 1.2 GiB/s. The
+geometric rule accelerates exactly where the absolute-burst argument says it
+needn't, and is stingiest where a small VM is most exposed.
+
+**2. Every hop from the trigger overshoots into shrink territory.** Inflating
+doesn't change `used`, so after a hop taken at exactly 65% the guest reads
+`65 / 1.3 =` **50%** — five points below `@trigger_decrease_at`. The largest hop
+whose landing spot stays inside the deadband is `65/55 - 1 =` **18%**. Hop and
+deadband are therefore not independent knobs, and at 30% the controller is
+guaranteed to hunt: grow, 10 s back-off, one −10% shrink (50% → 55.6%), settle at
+the very edge of the band. The parked RAM costs density for ~20 s per event —
+6 GiB of it on a 20 GiB VM.
+
+**3. Geometric growth's one virtue is O(log) hops.** 8 GiB → 24 GiB is **5 hops
+≈ 25 s**; a flat 2 GiB step needs **8 hops ≈ 40 s**.
+
+### The "cap the hop at ~2 GiB" idea is not a cap — it is a replacement
+
+`hop = min(30% × actual, 2.GiB)` is active whenever `actual > 6.67 GiB`. Since
+`@min_actual = 8.GiB` it is active for **every VM in the fleet, always** — the
+proportional term never wins, so "capped at 2 GiB" silently degenerates to a flat
+2 GiB step. Worse, 2 GiB is *below* today's 2.4 GiB first hop, so as literally
+proposed it makes the 3 GiB-burst case slightly worse. A genuine cap has to exceed
+`0.3 × min_actual = 2.4 GiB` to leave the proportional rule any range (4 GiB bites
+above 13.3 GiB), and wants to be a multiple of the 128 MiB balloon block.
+
+### Prior art, searched 2026-08-21
+
+| Controller | Controlled variable | Target | Grow rule | Shrink rule |
+|---|---|---|---|---|
+| **Xen self-ballooning** (`drivers/xen/xen-selfballoon.c`) | `Committed_AS` (guest) | `Committed_AS + totalreserve_pages` | `up_hysteresis = 1` → **jump the entire gap**, one step | `down_hysteresis = 8` → 1/8 of the gap per 5 s |
+| **oVirt MoM** (`doc/balloon.rules`) | `balloon_cur − mem_unused`, as a **moving average** (`StatAvg`) | `used + 20% × current` (`min_guest_free_percent`) | `max(+5%, target)` — the 5% is a *floor*, the target overrides it upward, **no upper limit** | exactly `−5%` of current (`max_balloon_change_percent`), floored at the target |
+| **Hyper-V Dynamic Memory** | commit charge ("memory pressure") | `needed × (1 + buffer)`; buffer **20% default**, 5–200% range → target pressure 83% | undisclosed (pressure × weight arbitration) | undisclosed |
+| **VMware ESXi** | *host* free-memory state (6/4/2/1%) | share-based entitlement, not guest demand | n/a — never grows on guest demand, only reclaims under host pressure | proportional-share + idle-memory tax |
+| **K8s VPA** | p95 of usage *history* | `p95 + 15% margin` (`--recommendation-margin-fraction`) | n/a (restart / in-place resize) | n/a |
+| **virtui today** | `MemAvailable`-derived used% | **none — a threshold, not a target** | `+30% of current` | `−10% per ≥10 s` |
+
+Five findings, in descending order of how much they should change the design:
+
+1. **Nobody has a grow step size; they compute a target and jump to it.** Xen's
+   up-hysteresis of 1 and MoM's "target overrides the +5% floor" are the same rule:
+   on the way up, gain 1, one step, no rate limit. `+30%` has no analogue in any of
+   them — so the answer to "what hop do others use?" is *none*, which retires the
+   question rather than answering it. Fix 7 below.
+2. **The asymmetry is universal and lives entirely on the shrink side.** Xen
+   1/8-of-gap, MoM a hard −5%; ours is −10%, twice MoM's. Grow-fast/shrink-slow is
+   right, but we implement the *fast* half with a step where everyone else uses a
+   target, and the *slow* half twice as fast as the closest comparable.
+3. **Noise is damped on the input, not by limiting the output step.** MoM averages
+   its stats (`StatAvg`), VPA takes p95 of history, Xen leans on a metric that is
+   inherently smooth. This retires the obvious objection to a gain-1 jump ("one bad
+   sample moves the VM a long way"): damp `used`, then jump — don't rate-limit the
+   jump.
+4. **The reserve everyone converges on is ~15–20%; ours is 35%.** MoM 20%, Hyper-V
+   20% default, VPA 15%; our 65% trigger implies 35%, landing at 50% after a hop.
+   **We are already far more conservative than any of them and the guest swapped
+   anyway** — strong outside evidence that the defect is the *metric* (cause 3),
+   not the threshold. It also means exit 1 is pushing on the one knob prior art
+   says is already over-tightened.
+5. **Both demand-driven controllers use a forward-looking metric.** Xen
+   `Committed_AS`, Hyper-V commit charge — both count memory the guest has
+   *promised itself*, which leads demand. `MemAvailable` trails it. That difference,
+   not the hop, is what lets them get away with one jump per interval, and it is
+   cause 3 seen from the outside: a trailing metric is erased by the very reclaim it
+   should predict. Fix 8 below.
+
+One caveat on all of it: Xen self-ballooning and MoM's `mem_unused` are read
+*guest-side*, with no 5–12 s dead time. We cannot copy gain-1 grow without
+accounting for that lag — which is precisely why fix 8 matters more than fix 7.
+
 ## Candidate fixes
 
 Roughly in order of value. Not decided; 1 is the one that closes the inversion.
@@ -311,6 +432,69 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    drop is the host's, not the guest's. Costs nothing on the controller, and
    removes a chunk of host RAM that virtui's host view currently attributes to
    nobody.
+7. **Replace the fixed grow step with a target.** The prior-art consensus (grow
+   rule section above), in our terms:
+
+   ```
+   target = used + max(reserve_pct × used, reserve_floor)
+   new_actual = target.clamp(actual.., max_memory)   # the grow branch never shrinks
+   ```
+
+   Xen's `Committed_AS + reserve` and MoM's `used + 20%`, and the same thing as the
+   absolute reserve floor argued under "the threshold must be low" — applied to the
+   grow rule instead of to the trigger. It *unifies two knobs into one pair*:
+   trigger value and hop size collapse into a set-point plus an absolute reserve
+   floor, property 2's guaranteed overshoot disappears by construction, and
+   time-to-inflate stops depending on distance. Two things prior art says to get
+   right: **damp the input** (a 2–3 sample moving average of `used`, MoM-style)
+   rather than rate-limiting the output, and **size `reserve_floor` from the
+   observed burst** — 3 GiB observed means ~4 GiB, not the ~2 GiB first guessed.
+
+   The shapes considered and rejected, kept for the eventual `DECISIONS.md` entry:
+
+   - *proportional with an absolute cap* (`min(30% × actual, cap)`) — bounds the
+     blast radius of one false-positive read on a big VM, which is its real merit,
+     but no surveyed controller rate-limits growth, and see the "not a cap" finding
+     above;
+   - *flat absolute step* (`hop = 2.GiB`) — the honest form of "bursts are
+     absolute", but below today's first hop and it costs time-to-inflate on big VMs;
+   - *fraction of `max_memory`* (MoM's `max_balloon_change_percent` shape) — kills
+     the size-dependent acceleration, but `max_memory` is often set carelessly large
+     (32 GiB of balloon address space for a 9.8 GiB working size), so it is a poor
+     proxy for operator intent. **Worth adopting on the shrink side regardless**,
+     together with MoM's "change big enough" gate;
+   - *rate-derived hop* (`Δused / Δt × lookahead`) — data is already there and it
+     answers "fast enough?" by measurement, but the derivative of a 5 s-lagged
+     quantized signal is noisy and it still can't see the burst *between* samples;
+     improves the second hop, not the first. Composes with this fix as the lookahead
+     term;
+   - *escalating hop / slow-start* — costs one sample interval on the first hop of a
+     real burst, precisely the window cause 2 says we can't afford;
+   - *per-VM learned high-water mark* — VPA's p95-of-history is the disciplined
+     version; sticky without a decay rule, and largely subsumed by making
+     `@min_actual` per-VM, which is the auditable form of the same knowledge;
+   - *no grow path at all — boot at max, shrink only* — ESXi's actual shape. Listed
+     because it clarifies why grow-fast/shrink-slow exists: it destroys density at
+     boot, and N VMs starting together would over-commit the host with only the slow
+     path to fix it.
+8. **Control on a forward-looking metric (`Committed_AS`).** Deserves a slot at the
+   top of this list, not the bottom: it is the only candidate that attacks cause 2
+   rather than working around it. Both demand-driven controllers in the wild lead
+   demand instead of trailing it (finding 5 above), and the specific reason to care
+   here is the named workload — **Gradle and IDEA are both JVMs with a fixed
+   `-Xmx`**, so a JVM's committed heap can appear in `Committed_AS` when the heap is
+   committed rather than when the pages are touched. That would turn the 3 GiB burst
+   from an unpredictable event into an announced one, buying exactly the warning the
+   5–12 s blind spot costs us.
+
+   Not free and not proven. The balloon doesn't carry `Committed_AS`, so it needs
+   the guest-agent channel (`swap-via-qemu-guest-agent.md` — already costed, already
+   measured); and *how much* warning it really gives depends on JVM commit
+   behaviour, which is a measurement rather than a claim. **Do that measurement
+   before anything else here:** read `Committed_AS` and `MemAvailable` in the same
+   loop while starting IDEA and see whether the former leads. If it does, it
+   supersedes fix 7 and most of the grow-rule discussion; if it doesn't, fix 7 is
+   the fallback.
 
 ## Candidate guideline: "no disk cache in the VM — the host caches the image anyway"
 
@@ -447,10 +631,25 @@ size it via `min_actual`/the reserve rather than by leaving it unbounded".
   channel virtui can read — the balloon doesn't carry it.~~ **No longer blocked:**
   the balloon still doesn't carry it, but `qemu-guest-agent` reads it for free —
   see `swap-via-qemu-guest-agent.md`. Worth designing?
+  **Second candidate, same channel, and now the higher-value one:**
+  `Committed_AS` — see fix 8.
 - Should shrink be gated on *any* evidence of recent reclaim (`pgsteal_*` deltas),
   not just swap? A VM whose page cache is being churned is also under pressure.
-- Is the increase step (+30% of current `actual`) fast enough from the 8 GiB floor?
-  Two steps to reach ~13.5 GiB, ≥10 s of real time given the data lag.
+- ~~Is the increase step (+30% of current `actual`) fast enough from the 8 GiB
+  floor?~~ **Answered: it is the wrong question** — see the grow-rule section. No
+  surveyed controller has a grow step size, and against a 3 GiB burst at an 8 GiB
+  floor no hop size helps. What replaces it: **does `Committed_AS` lead
+  `MemAvailable` when IDEA or a Gradle daemon starts, and by how much?** That
+  decides whether fix 8 exists, and everything else here is tuning by comparison.
+- Should `@min_actual` become per-VM before any of this? For the named workload
+  that looks like the real fix (exit 3), and it makes the grow-rule question much
+  less urgent.
+- Should the shrink side adopt MoM's `−5%` and its "change big enough" gate as a
+  separate, cheap, low-risk change? Independent of the grow question, and our
+  `−10%` is twice the closest comparable.
+- Does the grow rule want asymmetric treatment near the floor? A VM at
+  `@min_actual` has never been sized by observation, so its first move is the least
+  informed one we ever make.
 - Does the fix belong partly in the guest (a virtui-aware agent that reports PSI /
   swap deltas promptly) rather than entirely in host-side polling? That's a
   scope expansion — the README's ballooning prerequisites are currently
@@ -472,3 +671,26 @@ size it via `min_actual`/the reserve rather than by leaving it unbounded".
   double-caching in the guideline section is real or hypothetical, and it is one `virsh
   dumpxml` away. Does virtui want to *show* it (a per-VM column) so the question
   stops recurring?
+
+## Where the nuggets land when this graduates
+
+The intro to "Blocked on three fundamentals" covers the guideline's targets; this
+is the rest, per the CLAUDE.md graduation map.
+
+- the grow rule finally chosen, **with the prior-art table as its provenance**, and
+  the rejected shapes under fix 7 → **DECISIONS.md**. There is no entry covering
+  the grow rule yet, so whichever shape wins earns the first one; the table is the
+  strongest available argument for any constant that survives, and the rejected
+  shapes are exactly the roads-not-taken material that file is for.
+- what each surviving constant is sized against — the 3 GiB Gradle/IDEA burst for
+  the reserve floor, the ~5 s sample cadence for anything rate-shaped → **the
+  yardoc next to that constant**, per the numbers-carry-their-provenance rule.
+- the user-visible behaviour change → **README**, "Automatic Balloon
+  inflate/deflate", which currently states the flat 30% / 10% pair as fact.
+- "damp the input, don't rate-limit the output" and "never call the guest agent
+  from the UI thread" (if fix 8 lands) → **CLAUDE.md**, as cross-cutting
+  invariants.
+- if fix 8 wins, `Committed_AS` as a controlled variable → merges into
+  `swap-via-qemu-guest-agent.md`'s "what it unlocks".
+- the measurements, the properties-1–3 arithmetic and the exit/fix numbering are
+  evidence about the *current* code, not durable facts: they die with this file.
