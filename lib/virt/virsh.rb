@@ -11,6 +11,7 @@ module Virt
   #
   #   Virsh.new                                   # a process per command
   #   Virsh.new(runner: VirshSession.new)         # reads served from one long-lived child
+  #   Virsh.new(runner: session, guest_agent: GuestAgent.new(runner: session))  # + swap levels
   #
   # Stateless apart from the runner; the read methods accept fixture parameters for
   # testing, which bypass the runner entirely.
@@ -20,12 +21,26 @@ module Virt
     @@states = { 3 => :paused, 1 => :running, 5 => :shut_off }
 
     # @param runner [VirshSpawn, VirshSession] transport for every `virsh` invocation
-    def initialize(runner: VirshSpawn.new)
+    # @param guest_agent [GuestAgent, nil] the channel {#guest_swap} reads through, or `nil`
+    #   for a backend that reports no swap levels at all
+    def initialize(runner: VirshSpawn.new, guest_agent: nil)
       @runner = runner
+      @guest_agent = guest_agent
     end
 
     # @return [VirshSpawn, VirshSession] the transport in use
     attr_reader :runner
+
+    # The guest's own view of how full its swap device is.
+    #
+    # Kept out of {#domain_data} deliberately: that is one `domstats` call for the whole
+    # fleet, while this is three agent calls *per VM* that fail per VM — see DECISIONS.md
+    # D-guest-swap-level.
+    #
+    # @param domain_name [String] VM name; must be running
+    # @return [ResourceUsage, nil] swap used out of the guest's swap total, or `nil` if there
+    #   is no guest agent to ask (see {GuestAgent#swap} for the other reasons)
+    def guest_swap(domain_name) = @guest_agent&.swap(domain_name)
 
     # Reads runtime stats for every VM via `virsh domstats`.
     #

@@ -94,8 +94,9 @@ rejection is crowding out the live design.
 
 ## D-guest-swap-level — read the guest's swap level from its own `/proc/meminfo`, through the QEMU guest agent (2026-08-21)
 
-**Status:** Accepted. Retrieval shipped as {Virt::GuestAgent}; sampling it
-into the poll loop, and showing it, are still to come.
+**Status:** Accepted. Shipped: {Virt::GuestAgent} reads it, and
+{Virt::Cache#update} samples one level per running VM into
+{Virt::Cache::VMCache}. Nothing renders it yet.
 
 **Context.** `domstats` gives `balloon.swap_in`/`swap_out`, which are
 since-boot *I/O counters*: they never fall when swap slots are freed, so a

@@ -52,6 +52,11 @@ module Virt
       end
     end
 
+    # @param name [String] VM name
+    # @return [ResourceUsage, nil] the simulated guest's swap level (see {VMEmulator::VM#swap}),
+    #   or `nil` for an unknown, stopped, or agent-less VM
+    def guest_swap(name) = @vms[name]&.swap
+
     # Sets a VM's current memory, unless {#allow_set_actual} is `false`.
     #
     # @param vmid [String] VM name
@@ -86,6 +91,9 @@ module Virt
       e.vm('win11').start
       # Ubuntu swaps, win11 doesn't, so the demo shows both halves of the swap indicator.
       e.vm('Ubuntu').swap_out_rate = 3.MiB
+      # And win11 reports no level at all — the guest-agent read is the half that plenty of
+      # real guests cannot answer, so the demo has to show that state too.
+      e.vm('win11').swap_total = nil
       e
     end
 

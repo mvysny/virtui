@@ -36,6 +36,7 @@ module Virt
         @swap_out_rate = 0
         @swap_out_base = 0
         @swap_out_since = Time.now
+        @swap_total = 4.GiB
         @startup_seconds = 10
         @shutdown_seconds = 5
         # How many seconds it will take for the VM to decrease its active memory.
@@ -62,6 +63,11 @@ module Virt
       #   default) is a guest with a swap device it isn't touching
       attr_reader :swap_out_rate
 
+      # @return [Integer, nil] size of the simulated guest's swap device (4 GiB by default);
+      #   `nil` simulates a guest whose level cannot be read at all — no guest agent, or no
+      #   swap configured — which is the other half {Virt::GuestAgent#swap} can return
+      attr_accessor :swap_total
+
       # Sets how fast the simulated guest writes to swap, from now on.
       #
       #   vm.swap_out_rate = 3.MiB   # {#swap_out_total} now climbs by 3 MiB per second
@@ -85,6 +91,21 @@ module Virt
         return 0 unless running?
 
         @swap_out_base + (@swap_out_rate * (Time.now - @swap_out_since)).to_i
+      end
+
+      # The simulated guest's swap occupancy, as {Virt::GuestAgent#swap} would report it.
+      #
+      #   vm.swap.to_s   # => "1.2G/4G (30%)"
+      #
+      # Everything written out, capped by the device: the emulator never faults pages back in
+      # (its `swap_in` stays 0), so written-out is parked.
+      #
+      # @return [ResourceUsage, nil] swap used out of {#swap_total}; `nil` when not running,
+      #   or when {#swap_total} is `nil`
+      def swap
+        return nil if !running? || @swap_total.nil?
+
+        ResourceUsage.of(@swap_total, swap_out_total.clamp(0, @swap_total))
       end
 
       # @return [DomainInfo] static VM configuration

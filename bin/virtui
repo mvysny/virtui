@@ -21,13 +21,20 @@ print "\e]0;VirTUI\a"
 # VIRTUI_VIRSH_SESSION=1 serves reads from one long-lived virsh child instead of spawning
 # one per command: ~78x less CPU per read, but on trial, hence opt-in. It degrades to
 # spawning by itself if the child misbehaves, logging why.
+#
+# The guest swap level rides on that session and only on it: reading it is three
+# qemu-agent-command calls per running VM per tick, and it is the process spawn — not the
+# libvirt round-trip — that makes those unaffordable without a session (DECISIONS.md
+# D-guest-swap-level).
 runner = nil
+guest_agent = nil
 if Virt::Virsh.available?
   persistent = ENV['VIRTUI_VIRSH_SESSION'] == '1'
   runner = persistent ? Virt::VirshSession.new : Virt::VirshSpawn.new
-  $log.info("virsh transport: #{persistent ? 'persistent session' : 'one process per command'}")
+  guest_agent = Virt::GuestAgent.new(runner: runner) if persistent
+  $log.info("virsh transport: #{persistent ? 'persistent session, with guest swap levels' : 'one process per command'}")
 end
-virt = runner ? Virt::Virsh.new(runner: runner) : Virt::VMEmulator.demo
+virt = runner ? Virt::Virsh.new(runner: runner, guest_agent: guest_agent) : Virt::VMEmulator.demo
 virt_cache = Virt::Cache.new(virt, System::Info.new)
 
 ballooning = Virt::Ballooning.new(virt_cache)

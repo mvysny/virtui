@@ -3,6 +3,14 @@
 require_relative '../spec_helper'
 require 'timecop'
 
+# A transport for a Virsh with no guest agent behind it: real domstats, so the cache has
+# VMs to sample, and an empty reply to everything else.
+class NoAgentRunner
+  def query(*args) = args.first == 'domstats' ? File.read('spec/virt/domstats0.txt') : ''
+  def sync(*_args) = ''
+  def async(*_args) = nil
+end
+
 # A VMEmulator that records every set_mem_stats_period call instead of no-op'ing it.
 class RecordingEmulator < Virt::VMEmulator
   def period_calls = @period_calls ||= []
@@ -123,6 +131,26 @@ describe Virt::Cache do
       stopped = Virt::DomainData.new(Virt::DomainInfo.new('vm', 2, 8.GiB), :shut_off, now_millis + 2000, 0, nil, [])
       vc = Virt::Cache::VMCache.diff(Virt::Cache::VMCache.diff(nil, data(0, 1000, 0)), stopped)
       assert_nil vc.swap_out_rate
+    end
+  end
+
+  context 'guest swap level' do
+    it 'is sampled per running VM and carried on the entry' do
+      Timecop.freeze(Time.now) do
+        c = Virt::Cache.new(Virt::VMEmulator.demo, System::Emulator.new)
+        assert_equal '0/4G (0%)', c.cache('Ubuntu').guest_swap.to_s
+        # win11 simulates a guest that cannot report a level, BASE is shut off — neither is
+        # a failure, and both must read as "no level" rather than as zero.
+        assert_nil c.cache('win11').guest_swap
+        assert_nil c.cache('BASE').guest_swap
+      end
+    end
+
+    it 'is nil for every VM when the backend has no guest agent' do
+      c = Virt::Cache.new(Virt::Virsh.new(runner: NoAgentRunner.new), System::Emulator.new)
+      assert_equal %w[ubuntu win11], c.domains
+      levels = c.domains.map { |it| c.cache(it).guest_swap }
+      assert_equal [nil, nil], levels
     end
   end
 

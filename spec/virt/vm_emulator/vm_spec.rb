@@ -238,4 +238,29 @@ describe Virt::VMEmulator::VM do
     info = Virt::DomainInfo.new('a', 1, 2.GiB)
     assert_raises(RuntimeError) { Virt::VMEmulator::VM.new(info, 2.GiB, 64.MiB) }
   end
+
+  context 'swap' do
+    it 'is nil for a VM that is not running' do
+      assert_nil Virt::VMEmulator::VM.simple('vm').swap
+    end
+
+    it 'is everything written out, capped by the device' do
+      vm = Virt::VMEmulator::VM.simple('vm')
+      vm.start
+      assert_equal '0/4G (0%)', vm.swap.to_s
+
+      Timecop.freeze(Time.now) do
+        vm.swap_out_rate = 1.GiB
+        Timecop.travel(Time.now + 6)
+        assert_equal '4G/4G (100%)', vm.swap.to_s
+      end
+    end
+
+    it 'is nil for a guest simulating no agent at all' do
+      vm = Virt::VMEmulator::VM.simple('vm')
+      vm.start
+      vm.swap_total = nil
+      assert_nil vm.swap
+    end
+  end
 end

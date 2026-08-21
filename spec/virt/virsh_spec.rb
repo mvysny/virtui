@@ -49,6 +49,24 @@ class RecordingRunner
 end
 
 describe Virt::Virsh do
+  context 'guest_swap' do
+    before { Helpers.setup_dummy_logger }
+
+    it 'is nil without a guest agent, and never touches the transport' do
+      runner = RecordingRunner.new
+      assert_nil Virt::Virsh.new(runner: runner).guest_swap('ubuntu')
+      assert_empty runner.calls
+    end
+
+    it 'delegates to the guest agent it was given' do
+      # The agent's own failure path (no agent in the guest) is what a RecordingRunner's
+      # empty reply produces, so this asserts the wiring, not the parse.
+      runner = RecordingRunner.new
+      assert_nil Virt::Virsh.new(runner: runner, guest_agent: Virt::GuestAgent.new(runner: runner)).guest_swap('ubuntu')
+      assert_equal 'qemu-agent-command', runner.calls.first[1]
+    end
+  end
+
   it 'hostinfo' do
     info = Virt::Virsh.new.hostinfo(VIRSH_NODEINFO)
     assert_equal 'x86_64: 1/8/2', info.to_s

@@ -49,7 +49,7 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt, built on the
 [tuile](https://github.com/mvysny/tuile) TUI gem and organized into three
 namespaces plus a handful of shared top-level classes.
 
-**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `Virt::Cache#update` → submits a block to tuile's `EventQueue` → UI thread runs `Virt::Ballooning#update` then `layout.update_data` → dirty components repaint.
+**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `Virt::Cache#update` (one `domstats` for the fleet, plus one `Virt::GuestAgent` swap-level read per *running* VM when a session serves reads) → submits a block to tuile's `EventQueue` → UI thread runs `Virt::Ballooning#update` then `layout.update_data` → dirty components repaint.
 
 ### Class index
 
@@ -227,4 +227,6 @@ file's preamble, read when you're about to write an entry.
   the `EventQueue`. Don't call UI code from the timer thread — and don't
   read the libvirt backend from the UI thread either: `Virt::VirshSession`
   serialises reads behind one mutex and one child process, so a read from
-  the UI thread can block on a slow one. Reads belong on the timer thread.
+  the UI thread can block on a slow one. Reads belong on the timer thread —
+  most of all `Virt::GuestAgent`'s, which are three RPCs into a guest that
+  may be sick.
