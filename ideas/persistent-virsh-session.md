@@ -329,15 +329,34 @@ stream:  echo 'VT66'f1f0f93679 \n VT66f1f0f93679 <prompt>
          input has no "VT66f1f0f93679"  |  output has exactly one
 ```
 
-### 4. No per-command exit code, and errors land on stderr — **CONFIRMED**
+### 4. No per-command exit code, and errors land on stderr — **CONFIRMED, and the loudness regression is avoidable**
 
-As described. Errors are human text on stderr, `error: failed to get domain
-'nosuchdomain'`; the session exit code stays 0 no matter how many commands
-failed. Two things better than feared: merging with `popen2e` **does** preserve
-ordering (verified by alternating stdout and `echo --err` commands), and a
-failed command **does not desync** — the next call is clean. Textual `error:`
-detection is still a real regression in loudness against `Run.sync`, and must be
-stated wherever this lands.
+Confirmed as described: errors are human text on stderr, `error: failed to get
+domain 'nosuchdomain'`, and the session exit code stays 0 no matter how many
+commands failed. A failed command **does not desync** — the next call is clean.
+
+**But the note's own mitigation was wrong.** It said to merge stderr into stdout
+(`popen2e`) so error text orders deterministically against the marker. Merging
+does work — ordering is preserved, verified by alternating stdout and
+`echo --err` commands — but it destroys the more valuable property: the parser
+must be fed *stdout only*, exactly as `Run.sync` feeds it today, or stray
+libvirt chatter becomes parser input.
+
+**Keep the streams separate (`popen3`) and the loudness regression disappears.**
+The sentinel is on stdout, so framing is unaffected by stderr timing; and
+because `virsh` is strictly serial, anything sitting on stderr by the time the
+sentinel appears on stdout **belongs to this frame**. That is the same serialism
+argument that makes the framing sound, reused for error attribution. Measured:
+
+| frame | stdout | stderr |
+|---|---|---|
+| `domstats`, healthy | 48 B, byte-identical to one-shot | `""` |
+| `dominfo nosuchdomain` | `""` | `error: failed to get domain 'nosuchdomain'\n` |
+| next call after that failure | 48 B | `""` — no contamination |
+
+So `sync` can reproduce `Run.sync`'s contract exactly: return stdout, raise with
+stderr when stderr is non-empty. **Do not use "empty stdout" as the failure
+signal** — a host with zero VMs returns an empty `domstats` legitimately.
 
 ### 5. A timeout desyncs the stream — **CONFIRMED, and the framing makes it SAFE**
 
@@ -403,6 +422,8 @@ class Framed
 
   def self.quote(str) = "'#{str.gsub("'", "'\\\\''")}'"
 
+  # popen3, not popen2e: the parser must be fed stdout only (see gotcha 4).
+  # @return [String] the command's stdout, byte-identical to `Run.sync`'s
   def call(cmd, timeout: 5.0)
     nonce = "VT#{SecureRandom.hex(6)}"
     # Asymmetric: the tokenizer strips the quotes, so the *output* bytes cannot
@@ -411,7 +432,7 @@ class Framed
     @w.write("#{cmd}\n#{sentinel}\n")   # pipelined: one write, two commands
     @w.flush
 
-    buf, st = read_until("#{nonce}#{PROMPT}", timeout: timeout)
+    buf, st = read_until(@out, "#{nonce}#{PROMPT}", timeout: timeout)
     raise Timeout, 'no sentinel' unless st == :ok
     # This assertion is the desync guard — it catches an abandoned late reply.
     raise Desync, 'echo mismatch' unless buf.start_with?("#{cmd}\n")
@@ -419,6 +440,10 @@ class Framed
     body = buf[(cmd.bytesize + 1)..]
     i = body.rindex("#{PROMPT}#{sentinel}\n#{nonce}#{PROMPT}")
     raise Desync, 'sentinel tail not found' unless i
+
+    # virsh is serial, so whatever is on stderr now belongs to this frame.
+    errors = slurp(@err)
+    raise CommandFailed, errors unless errors.empty?
 
     body[0, i]
   end
@@ -518,19 +543,52 @@ Two consequences worth stating plainly:
    needed only if guest-agent commands later join. (`quote` is still worth
    writing — it fixes the apostrophe bug above on the spawn path.)
 
-### Failure policy: never worse than today
+### Failure policy: two classes, and they must not be confused
 
-A session failure must degrade, not propagate. On `Desync`, `Timeout` or `EOF`:
+An earlier draft of this section said "retry once, then degrade to spawn" for
+*any* failure. **That is wrong**, and the probe that shows why is worth keeping:
+interactive `virsh` with no reachable hypervisor **stays in the REPL**. It does
+not exit, and it does not even complain at startup — the connect is *lazy*, so
+the prompt appears immediately and the failure surfaces per-command:
 
-1. kill the child, respawn, retry the call **once** — kill-and-respawn is the
-   documented recovery (gotcha 5);
-2. if the retry also fails, **log a warning once and degrade permanently to
-   `VirshSpawn`** for the process's lifetime.
+```
+virsh # list --all
+error: failed to connect to the hypervisor
+error: Failed to connect socket to '/var/run/libvirt/libvirt-sock': No such file…
+virsh # echo --prefix B: still-alive      <- session is fine
+B: still-alive
+```
+
+So on a daemon-less host **every** call fails while the session is perfectly
+healthy. Respawning or degrading there would be pointless churn forever. Split
+the two:
+
+| class | signal | response |
+|---|---|---|
+| **command failure** | stderr non-empty for the frame | `raise` with the stderr text — exactly `Run.sync`'s contract. Do **not** touch the session. |
+| **transport failure** | `Desync`, `Timeout`, `EOF` | kill the child, respawn, retry **once**; if that fails too, log once and degrade permanently to `VirshSpawn`. |
 
 The whole feature is an optimisation, so it must never become a new failure
 mode. Degrading restores exactly today's behaviour, which also covers the one
 gotcha the dev box cannot test (a libvirtd restart, gotcha 6) without needing to
 reason about it: the session dies, reads keep working, and a warning says why.
+
+Lazy connect has a pleasant corollary: the connection handshake is paid on the
+first `domstats`, not at startup, so nothing has to be sequenced around it.
+
+### Two findings that make this a transport-only change
+
+- **In-session output is byte-identical to one-shot output.** Verified for both
+  commands the session will carry: `domstats` (48 B) and `nodeinfo` (205 B),
+  exact string equality against `Open3.capture3`. So the parsers in {Virsh} need
+  no change, and every recorded fixture in `spec/` stays valid. The diff really
+  is confined to *how the text is fetched*.
+- **Don't hardcode `virsh # `.** The prompt is cosmetic and unversioned, which
+  gotcha 7 flags as a coupling risk — but it is also the *first thing the child
+  writes*. Read it during the startup handshake and use those bytes as the
+  prompt for the rest of the session. A read-until-quiescent timeout is
+  acceptable there and only there: at startup there is no previous frame, so
+  there is nothing to desync from.
 
 ### Threading and lifecycle
 
@@ -613,13 +671,20 @@ differently shaped than feared.
   per call, against a spawn re-paid every 2 s for the life of the TUI.
 
 The objection that survived two drafts — that this trades a loud, quoting-proof,
-self-healing call path for one with prefix-matched errors — **is answered by
-scope, not by argument.** Route only `domstats` and `nodeinfo` through the
-session and every mutating command keeps `Run.sync` and its exit code; the
-session then carries one argument-free command, so the quoting analysis is
-dormant, and a failed session degrades to `VirshSpawn`, which is today's
-behaviour exactly. What is left is a bounded optimisation on the one call that
-runs 30 times a minute for hours.
+self-healing call path for one with prefix-matched errors — **is answered twice
+over, and neither answer is an argument.**
+
+- **By scope:** route only `domstats` and `nodeinfo` through the session and
+  every mutating command keeps `Run.sync` and its exit status. The session then
+  carries one argument-free command, so the quoting analysis is dormant, and a
+  failed session degrades to `VirshSpawn` — today's behaviour exactly.
+- **By `popen3`:** keeping stderr separate means a failed read raises with its
+  stderr text, which *is* `Run.sync`'s contract. There is no prefix matching in
+  the design at all. The note recommended merging the streams; that was the
+  mistake, not the transport.
+
+What is left is a bounded optimisation on the one call that runs 30 times a
+minute for hours, whose output is byte-identical to what it replaces.
 
 Two things made the earlier "no" wrong rather than merely narrow:
 
@@ -646,6 +711,18 @@ sharding*; the O(1) read path justifies the *session* on its own.
   sentinel, and "recovery is kill-and-respawn" → **yardoc**
 - the echo assertion is the desync guard, not a sanity check → **yardoc**, as a
   warning against deleting it
+- **`virsh`'s serialism is what licenses both the framing and the stderr
+  attribution** — the sentinel cannot precede the previous output, and stderr
+  seen by sentinel-time belongs to that frame → **yardoc** on the session; it is
+  the reason the design needs no timeout in its correctness path
+- **`popen3`, not `popen2e`, and why** (the parser gets stdout only, so
+  `Run.sync`'s raise-with-stderr contract survives) → **yardoc**
+- command failure vs transport failure are different classes with different
+  responses, because a daemon-less host fails every call from a healthy session
+  → **yardoc** on the failure path
+- the pre-existing shell-quoting bug on the spawn path (a VM named `it's` breaks
+  `setmem`) is **not** part of this idea — it wants its own fix, whatever
+  happens here
 - "a persistent-session call must never run on the UI thread, and must be bounded
   by both `--timeout` and a parent-side read timeout" → **CLAUDE.md**
 - `virsh -c test:///default` as a daemon-free way to exercise a real `virsh`
