@@ -58,7 +58,9 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 
 **`lib/virt/` → `Virt::`** — the libvirt backend: domain model and clients.
 
-- `Virt::Virsh` — the real backend: shells out to `virsh`, parses its text output
+- `Virt::Virsh` — the real backend: parses `virsh` text output; owns no transport
+- `Virt::VirshSpawn` — default transport: one `virsh` process per command
+- `Virt::VirshSession` — opt-in transport: one long-lived `virsh` REPL serves the reads
 - `Virt::Cache` — thread-safe cache of every VM's runtime data; the UI reads only this
 - `Virt::Ballooning` — fans one `BallooningVM` out per VM, once per update
 - `Virt::BallooningVM` — one VM's grow/shrink decision; owns every threshold and rate
@@ -91,7 +93,7 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 Each kind of doc has a distinct audience and *what it is allowed to own*.
 Match the kind before writing. VirTUI is a small app, so the set is
 deliberately short — there is no book, no CHANGELOG, no per-package
-`DESIGN.md`; if a fact doesn't fit one of these five, it probably belongs
+`DESIGN.md`; if a fact doesn't fit one of these six, it probably belongs
 in a yardoc.
 
 | Kind | Audience | Owns |
@@ -101,13 +103,15 @@ in a yardoc.
 | **CLAUDE.md** (this) | contributor / coding agent | invariants ("what you must not break") + pointers to the owning yardoc |
 | `ideas/*.md` | you + the author | design rationale *in flight*: open topics, measurements, candidate fixes; transient (trimmed as pieces graduate) |
 | `DECISIONS.md` | a contributor asking "why this way?" | the *why-we-chose*, incl. the **roads not taken**; one mutable entry per live decision |
+| `COMPARISON.md` | a contributor weighing a design against prior art | what *other* systems do — surveyed hypervisor behaviour, quoted where public, with per-claim provenance; descriptive only |
 
 Rules:
 
 - **Single source of truth per fact.** One home; others link. Yardoc owns
   per-symbol truth + rationale; README owns the user-facing concept;
-  DECISIONS.md owns the rejected alternative; CLAUDE.md owns invariants
-  and points (`see {ClassName}`). Tempted to explain twice → link
+  DECISIONS.md owns the rejected alternative; COMPARISON.md owns what
+  someone else built; CLAUDE.md owns invariants and points
+  (`see {ClassName}`). Tempted to explain twice → link
   instead. A tiny load-bearing restatement is fine when it saves a jump
   (repeat the *one-line fact*, defer the *explanation*).
 - **README stays user-facing.** It explains what a user must do and what
@@ -121,6 +125,14 @@ Rules:
   the entry. Keeps yardoc *smaller* — a citation passes the
   regression-guard gate that a convincing paragraph would have to fight
   for. (Why the split falls this way: DECISIONS.md's preamble.)
+- **COMPARISON.md describes, DECISIONS.md decides.** The split is
+  whose system a fact is about. "Proxmox caps the per-round change at
+  100 MiB" is COMPARISON.md; "we picked X *because* Proxmox does Y and
+  MoM does Z" is a `DECISIONS.md` entry citing it. Stating *how virtui
+  differs* is still description and belongs there; stating what virtui
+  should therefore *do* does not — that keeps the survey re-usable by the
+  next decision. Mark every claim primary-source or secondary, because
+  these are other people's constants and they move.
 - **Numbers carry their provenance.** A tuning constant (a threshold, a
   poll interval, a staleness tolerance) never sits bare: the yardoc next
   to it says what it is defending against, in a line, or cites the entry
@@ -205,4 +217,7 @@ file's preamble, read when you're about to write an entry.
 - **Threading.** `Virt::Cache#update` and `System::Info` reads run on the
   background timer thread; everything that touches tuile components
   (`Virt::Ballooning`, `layout.update_data`) runs on the UI thread via
-  the `EventQueue`. Don't call UI code from the timer thread.
+  the `EventQueue`. Don't call UI code from the timer thread — and don't
+  read the libvirt backend from the UI thread either: `Virt::VirshSession`
+  serialises reads behind one mutex and one child process, so a read from
+  the UI thread can block on a slow one. Reads belong on the timer thread.
