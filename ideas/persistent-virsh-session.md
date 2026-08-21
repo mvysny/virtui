@@ -3,10 +3,18 @@
 **Status:** brainstorm, nothing decided, nothing built. Spun out of
 `swap-via-qemu-guest-agent.md` on 2026-08-21, where it appeared as a footnote.
 
-**Nothing on this page has been verified against a real `virsh`.** There is no
-`virsh` on the dev box; every claim below is reasoning from how `virsh` and libc
-stdio work, and each gotcha ends with what to run to confirm it. Treat the
-gotcha list as a test plan, not as findings.
+**Verified 2026-08-21 against `virsh` 12.0.0 (Ubuntu `libvirt-clients`
+12.0.0-1ubuntu5.3) on the dev box.** The dev box has no libvirt daemon, so the
+probes ran against **`test:///default`** — libvirt's in-process test driver,
+which needs no socket and no daemon and still answers `list`, `dominfo`,
+`domstats`, `dumpxml`, `event`. That works because every gotcha below except two
+is a property of `vsh.c`, GNU readline and libc stdio, not of the hypervisor
+driver. The two exceptions are called out as **still unverified**: a genuinely
+wedged `qemu-ga`, and a server-side disconnect.
+
+The headline: the framing gotcha was **misdiagnosed** and is worse than the note
+first claimed — *and* it has a clean two-environment-variable fix. The quoting
+gotcha, billed as "the deep one", is a non-issue.
 
 ## The idea
 
@@ -27,10 +35,23 @@ paid once at startup instead of per call.
 Measured on the host 2026-08-21 (`virsh qemu-agent-command Flow
 '{"execute":"guest-ping"}'`, five runs): **31.16 ms** per call, of which
 **17.78 ms (57 %)** is CPU inside `virsh` — the spawn, the dynamic link of
-~50–70 shared objects, and client init. That 17.78 ms is what a persistent
-session removes. Some unknown further slice of the remaining 13.39 ms is the
-libvirt connection handshake, also removed; see the parent note for the
-three-command decomposition that would size it.
+~50–70 shared objects, and client init.
+
+The dev-box probes size that fixed overhead directly, because `test:///default`
+does *no* connection work — so a one-shot call against it is spawn + dynamic
+link + client init and nothing else. That is exactly the component a persistent
+session deletes:
+
+| | per call |
+|---|---|
+| one-shot `virsh -q -c test:///default echo hi` (20 runs) | **8.32 ms** |
+| in-session framed call, incl. its sentinel (2000 runs) | **0.092 ms** |
+| in-session command execution alone (`virsh -t` self-report) | 0.103 ms |
+
+**~90× less fixed overhead**, and `ldd $(which virsh) | wc -l` = **61** shared
+objects explains where the 8.32 ms goes. (8.32 ms here vs the host's 17.78 ms of
+CPU is box-to-box variation plus the host's real connection; the *shape* — a
+fixed multi-millisecond cost per call, fully removable — is confirmed.)
 
 Crucially it keeps the property that makes `virsh` preferable to the Ruby
 binding in the first place: **process isolation.** `ruby-libvirt` 0.8.4 imports
@@ -49,11 +70,12 @@ spawn-free **and** GVL-safe, with no new dependency and no Ruby child to write:
 | **persistent `virsh` session** | yes | yes | medium (this page) |
 
 **Be honest about the size of the prize.** The existing 2 s poll is O(1) — one
-`virsh domstats` for the whole fleet — so this saves it ~18 ms of 2000 ms, about
-1 %. Not worth doing for the current loop. It only pays on an **O(running-VMs)**
-workload, which today means exactly one hypothetical consumer: per-VM guest-agent
-reads. At N=10 that is 312 ms/tick → ~134 ms. Since that consumer is itself on
-hold, so is this.
+`virsh domstats` for the whole fleet — so this saves it ~8–18 ms of 2000 ms,
+about 1 %. Not worth doing for the current loop. It only pays on an
+**O(running-VMs)** workload, which today means exactly one hypothetical
+consumer: per-VM guest-agent reads. At N=10 that is 312 ms/tick, of which
+~180 ms is pure per-call overhead. Since that consumer is itself on hold, so is
+this.
 
 ## One session per VM, not one shared
 
@@ -68,187 +90,296 @@ Per-VM sessions buy three things a shared one cannot:
 
 1. **Fault isolation.** A wedged guest agent stalls only its own VM's stream.
 2. **Independent recovery.** Kill and respawn one child; the others never notice.
-   This matters more than it looks — see gotcha 5, where kill-and-respawn is the
-   *only* safe recovery from a timeout.
 3. **A natural circuit-breaker unit.** "This VM's agent is unhealthy" is a
    property of one child process, not a table the parent has to maintain.
 
-The cost is N resident processes. Worth measuring rather than assuming: `virsh`
-links a large dependency tree, but most of it is shared pages across identical
-processes, so marginal RSS per extra child should be well under a private copy.
-`ps -o rss= -C virsh` with one child vs five answers it.
+**The RSS cost is now measured, and the note's guess was right.** `Pss` from
+`/proc/<pid>/smaps_rollup`, children warmed with one command each:
+
+| children | Σ RSS | Σ PSS | marginal PSS per extra child |
+|---|---|---|---|
+| 1 | 20.3 MB | 8.2 MB | — |
+| 5 | 101 MB | 20.6 MB | 3.03 MB |
+| 10 | 202 MB | 34.9 MB | 2.87 MB |
+| 20 | 404 MB | 62.6 MB | 2.77 MB |
+
+So **~2.8 MB per extra VM** — a ten-VM fleet costs ~35 MB. Summing RSS
+overstates that by ~6.5× because almost all of those 61 shared objects are
+shared pages; quote PSS, not RSS, if this ever needs defending. 20 sessions
+stayed responsive at 0.37 ms per `dominfo`.
 
 ## The gotchas
 
-Ordered roughly by when they will bite.
+Ordered as originally written, with the verdict from the probes.
 
-### 1. You lose `argv`, so hand-escaping comes back
+### 1. You lose `argv`, so hand-escaping comes back — **NOT A PROBLEM**
 
-**This is the deep one, and it is the honest answer to "what's the problem".**
+Billed as "the deep one". It isn't. `virsh`'s tokenizer follows POSIX-shell
+quoting closely enough that the standard idiom just works:
 
-With `Open3` you pass the JSON as one element of an argv array. No shell, no
-tokenizer, no quoting — a payload containing quotes, braces, spaces and
-backslashes arrives at `virsh` byte-for-byte. Quoting simply isn't a category of
-bug that exists.
+| input line | `echo` returns |
+|---|---|
+| `{"execute":"guest-ping"}` | `{execute:guest-ping}` — unquoted strips `"` |
+| `'{"execute":"guest-ping"}'` | intact |
+| `'{"a":"b c","d":["e","f"]}'` | intact — spaces survive `'…'` |
+| `'back\slash'` | `back\slash` — **`'…'` is fully literal, backslash included** |
+| `"back\slash"` | `backslash` — `\` *is* an escape inside `"…"` |
+| `'a'\''b'` | `a'b` — the shell idiom works; adjacent tokens concatenate |
 
-An interactive session has no argv. You write a **line of text** that `virsh`
-tokenizes itself, with its own quoting rules (`vsh.c`'s command-string parser:
-unquoted whitespace splits; `'…'` and `"…"` group; backslash escapes). The
-guest-agent payload is exactly the hostile case:
+So the rule is one line, and it is the one everybody already knows:
 
-```
-qemu-agent-command Flow '{"execute":"guest-exec","arguments":{"path":"/bin/sh","arg":["-c","cat /proc/meminfo"],"capture-output":true}}'
-```
-
-Double quotes throughout, and once you nest a guest command containing a single
-quote (`sh -c "echo it's"`), single-quote wrapping fails the same way it does in
-shell — there is no escaping a `'` inside `'…'`.
-
-So this design **reintroduces precisely the bug class that killed the first
-working attempt** in the parent note, whose hard-won rule was *never hand-escape
-the JSON; build it with `JSON.generate`*. `JSON.generate` still gets you correct
-JSON — but you must then correctly escape that JSON *for virsh's tokenizer*,
-which is a second, separate escaping layer that argv had made unnecessary.
-
-*Mitigation.* Write one `virsh_quote(str)` and test it hard, because `virsh` ships
-the perfect oracle: the `echo` command, which exists specifically to inspect
-quoting. Believed to support `--shell` and `--xml` re-quoting — verify with
-`virsh echo --help`. Round-trip every nasty payload through it and assert the
-bytes come back intact:
-
-```
-echo '{"a":"b c","d":["e","f"]}'
-echo "it's"
-echo 'back\slash'
+```ruby
+# Wrap for virsh's tokenizer: single-quote, and close/escape/reopen around any
+# embedded single quote. Identical to POSIX sh.
+def self.quote(str) = "'#{str.gsub("'", "'\\\\''")}'"
 ```
 
-Do this **before** writing any session plumbing: if virsh's tokenizer cannot
-round-trip the payloads, the whole idea is dead and it costs five minutes to find
-out.
+`'…'` being *literal* is what makes this safe for JSON: `JSON.generate` emits
+`\"`, `\\` and `\n` as two-character sequences, and single quotes pass them
+through untouched where double quotes would eat the backslash. **Wrap in single
+quotes, never double.**
 
-### 2. Block buffering will deadlock you
+**`virsh` blesses this algorithm itself.** `echo --shell` re-quotes for shell
+use, and for input `it's` it emits exactly `'it'\''s'` — the same bytes `quote`
+produces. It is a ready-made oracle; `echo --help` confirms
+`--shell --xml --split --err --prefix` all exist.
 
-When stdout is a pipe rather than a TTY, libc gives `virsh` a **fully buffered**
-stream (4–8 KB) instead of a line-buffered one. A reply that doesn't fill the
-buffer may sit inside `virsh` indefinitely: the parent blocks reading a reply
-that was already produced. This is the classic pipe deadlock and the most likely
-first failure.
+Verified byte-exact round-trip for all of: the guest-ping payload, a payload
+with spaces in values, `it's`, `back\slash`, the full nested `guest-exec`
+payload with an embedded single quote, and a JSON blob containing `"`, `'`, `\`
+*and* the literal prompt string.
 
-*Mitigation.* `stdbuf -oL -eL virsh …` forces line buffering from outside (works
-because `virsh` uses ordinary stdio and doesn't install its own buffer). Or run
-it under a pty, where libc line-buffers by default — but see gotcha 3b.
-`virsh` may well flush after each command anyway; that is the single most
-important thing to test first.
+**The one real constraint that replaces it: no raw control bytes, ever.**
+Because readline is in the loop (gotcha 3), control characters in the input are
+interpreted as *editing keys*, not data. All seven tested — TAB `\x09`
+(readline's completion key), `\x01`, `\x0b`, `\x0d`, `\x15` (kill-line!),
+`\x1b`, `\x7f` — corrupt the command and desync the session. This is survivable
+only because JSON escapes them:
 
-*Test.* Spawn it, send one command, and see whether the reply arrives before the
-process is closed:
-`printf 'hostname\n' | timeout 5 virsh` should print promptly; then hold the pipe
-open (`Open3.popen3`, write, `sleep`, read) and check the reply still arrives.
-
-### 3. There is no reply framing
-
-Command outputs arrive concatenated on one stream with nothing marking where one
-ends and the next begins. Multi-line replies and **empty** replies (many `virsh`
-commands succeed silently) make "read until blank" and "read one line"
-both wrong. Correlating reply to request is your problem.
-
-*Mitigation (recommended).* Send a sentinel after every real command and read
-until you see it:
-
-```
-qemu-agent-command Flow '{"execute":"guest-ping"}'
-echo __VIRTUI_7f3a__
+```ruby
+JSON.generate({ 'k' => (0..0x1f).map(&:chr).join })   # no raw C0 byte in the output
 ```
 
-Everything before the marker is the reply; the marker is unambiguous because you
-chose it. Use a fresh nonce per request and you also detect desync (gotcha 5)
-instead of silently mis-attributing a reply.
+**But `JSON.generate` passes `\x7f` (DEL) through raw.** So a wrapper must, on
+top of `JSON.generate`, reject or escape DEL and assert no byte below `0x20`.
+That is the whole of the escaping burden — much smaller than the note feared,
+but not zero, and it is the kind of thing that only shows up in a fuzz test.
 
-*3b. Mitigation (not recommended): use the prompt.* Under a pty `virsh` prints
-`virsh # ` and you could delimit on that. It drags in terminal echo (your own
-command line comes back at you and must be stripped), `\r\n` translation, and
-`PTY.spawn` lifecycle handling — and it makes you depend on the prompt string,
-which is cosmetic and unversioned. The explicit marker is strictly better.
+### 2. Block buffering will deadlock you — **FALSE ALARM**
 
-### 4. No per-command exit code, and errors land on stderr
+There is no deadlock and no need for `stdbuf`. With `Open3.popen2e`, stdin held
+open and never closed, replies arrive in **0.09–0.37 ms**: a one-line reply, a
+16-line `dominfo`, and a silent `setmaxmem` all came back promptly without the
+pipe ever being closed.
 
-`Run.sync` raises on a non-zero exit status; that is the whole basis of
-CLAUDE.md's *Errors are loud* / *don't swallow failures from `virsh`* rule. An
-interactive session has **one** exit code, at the end of the session. Per-command
-failure is reported only as human text (`error: …`) on **stderr**, whose
-interleaving with stdout is not ordered relative to your marker.
+The reason is gotcha 3: `virsh` writes a prompt after every command and readline
+flushes it, so the stream is pushed out whether you wanted a prompt or not. The
+mitigation the note proposed (`stdbuf -oL`) is unnecessary.
 
-*Mitigation.* Merge stderr into stdout at spawn so ordering against the marker is
-deterministic, then treat any `error:`-prefixed line before the marker as a
-failure and raise. This is textual error detection — strictly weaker than an exit
-code, and a real regression in loudness that should be stated wherever this lands.
+### 3. There is no reply framing — **MISDIAGNOSED, AND WORSE — BUT FIXABLE**
 
-### 5. A timeout desyncs the stream — and kill is the only safe recovery
+The note assumed the stream is command outputs concatenated with nothing between
+them. It is not. **`virsh` drives GNU readline even when stdin is a pipe**, so
+the stream also carries:
 
-If the guest agent wedges, `virsh` blocks mid-command and the reply never comes.
-The parent times out — and is now in an unrecoverable position: a late reply may
-still arrive later and be read as the *next* command's reply. Silently attributing
-VM A's memory numbers to VM B is far worse than a missing sample.
+- a **`virsh #` prompt** after every command — on a plain pipe, no pty needed;
+- an **echo of your own input line**, written by readline, not by you;
+- with an inherited `TERM`, **ANSI redisplay escapes** — a probe caught a
+  cursor-home + clear-screen pair at the head of a reply;
+- for a line longer than readline's idea of the terminal width,
+  **non-deterministic re-emission** of the line as readline re-wraps it. A
+  16 KB payload came back with 16351 `x`s where 8175 were sent — the line
+  emitted roughly twice, and *how many times* varied run to run.
 
-*Mitigation.* On read timeout, **kill the child and respawn.** Do not attempt to
-resync. Per-request nonces (gotcha 3) turn any residual desync into a detected
-error rather than corrupt data.
+That last one is why an early bisect for a "line length limit" produced the
+nonsense non-monotonic answer 4081✗ 4096✓ 4200✗ 5000✓. There is no length
+limit. There was a redisplay race.
 
-This is what makes per-VM sharding structural rather than nice-to-have: the only
-safe recovery destroys the session, so the session must not be shared. It also
-argues for bounding the call in-band as well — `qemu-agent-command` takes
-`--timeout N` (believed also `--async`, `--block`; check `virsh
-qemu-agent-command --help`), so the child can fail fast and stay usable, with the
-parent-side timeout as the backstop.
+Neither `-q` nor anything else suppresses prompt or echo, and **there is no
+`-f`/`--file` option in 12.0.0** (`error: unsupported option '-f'`), so there is
+no clean-stream mode to switch to.
 
-### 6. Connection loss now needs explicit handling
+**The fix is two environment variables on the child.**
 
-Per-call `virsh` reconnects every time, for free: if libvirtd restarts, the next
-call just works. A persistent session holds one connection; when libvirtd is
-restarted (package upgrade, crash) the session survives as a process but every
-subsequent command fails. Persistence converts a self-healing property into
-something you must implement.
+```ruby
+CHILD_ENV = { 'TERM' => 'dumb', 'COLUMNS' => '1000000' }.freeze
+Open3.popen2e(CHILD_ENV, 'virsh', '-q', '-c', uri)
+```
 
-*Mitigation.* Simplest is to treat it like gotcha 5 — on repeated errors, kill
-and respawn. `virsh`'s in-session `connect` command could reconnect in place, but
-respawning is fewer states to reason about.
+- `TERM=dumb` (or unset) removes every ANSI byte: 0/20 trials contained an
+  escape, against 20/20 with `TERM=tmux-256color` or `vt100`.
+- `COLUMNS` larger than the longest line stops the re-wrap, and **the input-line
+  ceiling is then exactly `COLUMNS`** — that is the whole mechanism:
 
-### 7. It is a human REPL, not a stable IPC protocol
+| | 8 K line | 16 K | 64 K | 256 K |
+|---|---|---|---|---|
+| `COLUMNS=10000` | OK | ✗ | ✗ | ✗ |
+| `COLUMNS=100000` | OK | OK | OK | ✗ |
+| `COLUMNS=1000000` | OK | OK | OK | OK |
 
-`virsh`'s interactive output is a UI for people: wording, alignment and column
-layout carry no compatibility guarantee across versions. For
-`qemu-agent-command` this is mild — the payload is raw JSON passed through — but
-any other command parsed this way is a version-coupling risk that the one-shot
-path shares only for the commands it already parses.
+With both set, the stream is **byte-exact and fully deterministic** — 15/15
+trials at every size from 40 B to 4 KB, versus 0/15 for `TERM=dumb` alone at
+anything ≥ 79 characters (readline defaulting to 80 columns).
 
-*Mitigation.* Only route commands through the session whose output is
-machine-shaped (`qemu-agent-command`'s JSON). Leave human-formatted commands on
-`Run.sync`, where an exit code still exists.
+The structure is then precisely, with no separator you did not ask for: the
+echoed command line, a newline, the reply bytes, then the next prompt. Note the
+reply is **glued to the prompt with no intervening newline** (`echo` emits no
+trailing newline), so "read a line" is still wrong — read bytes.
 
-## Verify in this order
+**Prompt-as-delimiter is unsafe, and not for the reason the note gave.** The
+note worried a *reply* might contain the prompt string. The real hazard is the
+*echo*: send a payload containing it and the read terminates on your own echoed
+request, one frame early, desyncing everything after it. Observed exactly — a
+payload of `virsh # FORGED tail` terminated the first read on its own echo, and
+the next call received the previous frame's leftovers.
 
-Each step can kill the idea; do them cheapest-first.
+**The primitive that works is an asymmetric sentinel.** Split a nonce with a
+quote so the tokenizer reassembles it: the *output* byte-sequence then cannot
+occur in the echoed *input*, whatever the payload contains.
 
-1. `virsh echo --help`, then round-trip the hostile payloads of gotcha 1. If the
-   tokenizer can't carry them, stop.
-2. Hold a pipe open, send one command, read the reply *without* closing stdin —
-   does it arrive? If not, retry under `stdbuf -oL`. If neither works, stop.
-3. `echo` as a sentinel: confirm a marker line comes back verbatim and
-   distinguishably after a multi-line and an empty reply.
-4. Break it on purpose: `systemctl restart libvirtd` mid-session (gotcha 6), and
-   an agent-less or paused domain (gotcha 5).
-5. Only then measure the actual win — per-call latency in-session vs the 31.16 ms
-   one-shot baseline — and compare against the parent note's cost table before
-   deciding it is worth the seven gotchas.
+```
+send:    echo 'VT66'f1f0f93679
+stream:  echo 'VT66'f1f0f93679 \n VT66f1f0f93679 <prompt>
+         input has no "VT66f1f0f93679"  |  output has exactly one
+```
 
-## Honest summary
+### 4. No per-command exit code, and errors land on stderr — **CONFIRMED**
 
-The mechanism is genuinely attractive: spawn-free *and* GVL-safe with no new
-dependency, which nothing else on the table manages. But it trades a clean,
-loud, quoting-proof, self-healing call path (`argv` + exit code + fresh
-connection) for a hand-framed, textually-error-detected, hand-escaped stream
-that must be killed and respawned to recover. That is a real downgrade in
-exactly the properties CLAUDE.md's conventions single out.
+As described. Errors are human text on stderr, `error: failed to get domain
+'nosuchdomain'`; the session exit code stays 0 no matter how many commands
+failed. Two things better than feared: merging with `popen2e` **does** preserve
+ordering (verified by alternating stdout and `echo --err` commands), and a
+failed command **does not desync** — the next call is clean. Textual `error:`
+detection is still a real regression in loudness against `Run.sync`, and must be
+stated wherever this lands.
+
+### 5. A timeout desyncs the stream — **CONFIRMED, and the framing makes it SAFE**
+
+`event --loop --all --timeout 30` is a usable stall simulator. Confirmed: the
+read times out, **the child stays alive**, and kill + respawn recovers (the
+replacement session answered correctly).
+
+The important new result is that the desync *is detected*. Abandon a call, let
+its reply land in the pipe, then issue the next one: asserting that the buffer
+starts with the exact command you just sent raises rather than mis-attributing.
+
+```
+gave up on the stalled call
+next call raised Desync: echo mismatch: "event loop timed out\nevents received: 0\n…
+```
+
+**The readline echo — the thing that looked like pure pollution in gotcha 3 — is
+what makes desync detectable.** Silently attributing VM A's numbers to VM B was
+the scenario worth fearing; the echo assertion closes it.
+
+`qemu-agent-command`'s in-band bounding is confirmed to exist, so the child can
+fail fast and stay usable: `[--timeout <number>] [--async] [--block] [--pretty]`.
+
+**Still unverified:** a genuinely wedged `qemu-ga`. The test driver rejects
+`qemu-agent-command` instantly (`error: this function is not supported by the
+connection driver: virDomainQemuAgentCommand`) rather than blocking, so
+`event --loop` is a stand-in for the *stall*, not for the agent.
+
+### 6. Connection loss now needs explicit handling — **PARTLY ANSWERED, LESS SCARY**
+
+A failed in-session `connect` is **non-destructive**, which the note assumed it
+would not be. Connecting to the dead `qemu:///system` fails in 9 ms, prints its
+two `error:` lines — and the **previous connection keeps working**: `list --all`
+still returned the test domain afterwards. A subsequent `connect test:///default`
+then succeeded in place, and `list --all` still worked.
+
+So in-place `connect` is a genuine recovery option, not just a state-machine
+liability, and `-k/--keepalive-interval` exists as a detection knob. Respawn is
+still the simpler policy.
+
+**Still unverified:** a server-side disconnect — libvirtd restarting under a live
+session. No daemon on this box, and the test driver cannot be made to drop a
+connection. This is the one gotcha the dev box genuinely cannot reach.
+
+### 7. It is a human REPL, not a stable IPC protocol — **UNCHANGED**
+
+Mitigation stands and is now cheap to state: route only machine-shaped output
+(`qemu-agent-command`'s JSON) through the session; leave human-formatted
+commands on `Run.sync`, where an exit code still exists.
+
+## The tested recipe
+
+Everything above collapses to about forty lines. Kept here rather than in `lib/`
+because nothing has decided to build it.
+
+```ruby
+class Framed
+  PROMPT = 'virsh # '
+  # Both are load-bearing: virsh drives readline even on a pipe, so TERM=dumb
+  # suppresses ANSI redisplay and a huge COLUMNS stops it re-wrapping (and
+  # re-emitting) long input lines. Without both, the stream is not deterministic.
+  CHILD_ENV = { 'TERM' => 'dumb', 'COLUMNS' => '1000000' }.freeze
+
+  def self.quote(str) = "'#{str.gsub("'", "'\\\\''")}'"
+
+  def call(cmd, timeout: 5.0)
+    nonce = "VT#{SecureRandom.hex(6)}"
+    # Asymmetric: the tokenizer strips the quotes, so the *output* bytes cannot
+    # appear in the echoed *input* line, whatever the payload contains.
+    sentinel = "echo '#{nonce[0, 4]}'#{nonce[4..]}"
+    @w.write("#{cmd}\n#{sentinel}\n")   # pipelined: one write, two commands
+    @w.flush
+
+    buf, st = read_until("#{nonce}#{PROMPT}", timeout: timeout)
+    raise Timeout, 'no sentinel' unless st == :ok
+    # This assertion is the desync guard — it catches an abandoned late reply.
+    raise Desync, 'echo mismatch' unless buf.start_with?("#{cmd}\n")
+
+    body = buf[(cmd.bytesize + 1)..]
+    i = body.rindex("#{PROMPT}#{sentinel}\n#{nonce}#{PROMPT}")
+    raise Desync, 'sentinel tail not found' unless i
+
+    body[0, i]
+  end
+end
+```
+
+Read until the sentinel **and** the prompt that follows it, so the stream is
+always left positioned immediately after a prompt; forgetting the trailing
+prompt shifts every subsequent frame by eight bytes.
+
+## What is left to verify, and it needs a real host
+
+Everything cheap is done. Only two things remain, and neither can be reached
+from a daemon-less box:
+
+1. **A wedged `qemu-ga`** — does `qemu-agent-command --timeout N` really return
+   control to the session, or does the child need killing? (gotcha 5)
+2. **libvirtd restarting under a live session** — does the session notice, and
+   does in-place `connect` recover it? (gotcha 6)
+3. Then re-measure the win on the host against the 31.16 ms baseline before
+   deciding it is worth the remaining gotchas.
+
+## Honest summary — revised
+
+The mechanism is more attractive than the first draft concluded, and the cost is
+differently shaped than feared.
+
+- The quoting gotcha, billed as the deep one, is **one line of POSIX
+  single-quoting that `virsh echo --shell` itself validates**. What replaces it
+  is narrower and sharper: no raw control bytes, which JSON almost gives you
+  free — except DEL.
+- The buffering gotcha **does not exist**.
+- The framing gotcha was **misdiagnosed**: the stream is polluted by readline,
+  not merely unframed, and with an inherited `TERM` it is not even
+  deterministic. Two environment variables make it byte-exact, and an asymmetric
+  sentinel makes it payload-proof.
+- The desync gotcha is **real but detectable** — and detectable precisely
+  because of the readline echo that gotcha 3 treats as noise.
+- Connection loss is **less destructive** than assumed.
+
+The remaining honest objection is unchanged and is the one that matters: this
+trades a loud, quoting-proof, self-healing call path (`argv` + exit code + fresh
+connection) for one whose per-command errors are detected by string prefix, and
+whose recovery is kill-and-respawn. Two env vars, a `quote`, a sentinel and an
+echo assertion is a *small* amount of machinery — but it is machinery defending
+properties that `Open3` + `Run.sync` give away for free, and every line of it is
+load-bearing in a way that is invisible from the call site.
 
 Worth building only once something actually needs O(running-VMs) libvirt calls
 per tick. Nothing does today.
@@ -257,9 +388,19 @@ per tick. Nothing does today.
 
 - the transport choice, with per-call `virsh` / in-process binding / helper
   process as the roads not taken → **DECISIONS.md**
-- the quoting and framing contract, and "recovery is kill-and-respawn" → **yardoc**
-  on whatever wraps the session
+- **`TERM=dumb` + oversized `COLUMNS` are load-bearing, and why** (readline runs
+  on a pipe; `COLUMNS` *is* the line-length limit) → **yardoc** on the session
+  class. This is the single most surprising fact on the page and the one most
+  likely to be "cleaned up" by a later reader.
+- the quoting rule (single quotes, never double, because `'…'` is literal), the
+  no-raw-control-bytes rule incl. the `JSON.generate` DEL hole, the asymmetric
+  sentinel, and "recovery is kill-and-respawn" → **yardoc**
+- the echo assertion is the desync guard, not a sanity check → **yardoc**, as a
+  warning against deleting it
 - "a persistent-session call must never run on the UI thread, and must be bounded
   by both `--timeout` and a parent-side read timeout" → **CLAUDE.md**
-- the 31.16 ms / 57 % baseline is evidence and lives in the parent note; it dies
-  with these files
+- `virsh -c test:///default` as a daemon-free way to exercise a real `virsh`
+  (this whole page was probed that way) → worth a line wherever the specs
+  explain their fakes, alongside `Virt::VMEmulator`
+- the 31.16 ms / 57 % host baseline and the 8.32 ms → 0.092 ms dev-box numbers
+  are evidence and live here; they die with this file
