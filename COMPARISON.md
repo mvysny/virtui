@@ -7,10 +7,11 @@ what they picked, not what virtui should do. The *decision* that cites this
 evidence belongs in `DECISIONS.md`; the per-constant rationale belongs in the
 yardoc next to the constant. Surveyed 2026-08-21.
 
-> Note for maintainers: this is a sixth documentation kind, outside the five
-> declared in `CLAUDE.md` ("Documentation kinds"). It exists because none of the
-> five owns facts about *other* codebases — yardoc owns per-symbol truth about
-> ours, `DECISIONS.md` owns our forks. If it stays, it needs a row in that table.
+> This is the sixth documentation kind in `CLAUDE.md`'s "Documentation kinds"
+> table, and the rule that governs it is there: **this file describes,
+> `DECISIONS.md` decides.** Keep our conclusions out of it so the survey stays
+> re-usable by the next decision, and mark every claim primary-source or
+> secondary — these are other people's constants and they move.
 
 ## The one-screen version
 
