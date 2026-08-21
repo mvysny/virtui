@@ -365,9 +365,12 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    into `MemoryStat`, and `Cache::VMCache#swap_out_rate` differences them into
    bytes/s — the same seam that already derives `cpu_usage` and
    `mem_data_age_seconds`, so it inherits their lifecycle. `UI::VMWindow` renders a
-   `SWAP` row per swapping VM. Nothing acts on it yet: **that was deliberate** — the
-   trigger threshold had to be observed before it could be chosen, and the
-   observation below is that measurement. Two mechanics worth keeping if this note
+   `SWAP` row per swapping VM — since 2026-08-21 with the guest's actual swap
+   *level* beside it, read through the guest agent (D-guest-swap-level): root
+   cause 3's erased evidence recovered rather than estimated. Nothing acts on
+   either figure yet: **that was deliberate** — the trigger threshold had to be
+   observed before it could be chosen, and the observation below is that
+   measurement. Two mechanics worth keeping if this note
    is trimmed:
 
    - the rate is `Δswap_out / Δlast_updated`, i.e. per *guest-reported* interval, not
@@ -529,6 +532,30 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    the fallback.
 
 ## The response shape: what happens when `swap_out` is non-zero
+
+**Overtaken in part, 2026-08-21 (later the same day): the swap *level* is now read
+straight from the guest.** {Virt::GuestAgent} fetches `SwapTotal`/`SwapFree` from
+the guest's own `/proc/meminfo` through `qemu-guest-agent`, and the `SWAP` row
+shows it beside the rate (DECISIONS.md D-guest-swap-level, D-swap-row-two-cells).
+What that does to this section:
+
+- the **`debt` candidate below is now the fallback, not the plan.** For a guest
+  with the agent there is nothing to reconstruct — the number it estimates is
+  measured. `debt` matters only for guests that cannot be asked (no agent,
+  Windows, `guest-file-*` in `BLOCK_RPCS`), and there its bias and its unresolved
+  `HALF_LIFE` are the same problem they always were;
+- the **"display-first, because the estimate is falsifiable" staging step is
+  done** — by measurement rather than by estimate, which is the better version of
+  it. `effective_used = used + level` is now a *fact* a controller could consume,
+  which moves the open question from "is the estimate good?" to "should anything
+  act on it?" (the three shapes below, unchanged);
+- fork 1 (`HALF_LIFE`) applies only to the fallback now; fork 2 (a fleet-level
+  host budget before any grow response) is untouched and still looks like the
+  precondition;
+- what is **not** answered: a level says nothing about *pressure*. If PSI turns
+  out to be the better controlled variable
+  (`ideas/swap-via-qemu-guest-agent.md`), this section is arguing about the wrong
+  input.
 
 Brainstormed 2026-08-21, on the back of the quiet-at-rest observation in fix 1 —
 which is the whole premise: *non-zero means something*, so a response is worth

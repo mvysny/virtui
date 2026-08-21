@@ -21,14 +21,14 @@ module UI
     # The rate that fills the swap-out gauge. A rate has no natural 100%, so this is a chosen
     # alarm scale and not a ratio: it is set high enough that a guest thrashing hard still has
     # bar left to grow into, which costs sensitivity at the bottom — on a ~100-column terminal
-    # the gauge's first character lights at ~1.2 MiB/s, so a trickle below that reads as an
+    # the gauge's first character lights at ~0.8 MiB/s, so a trickle below that reads as an
     # empty bar and only the warn-colored label reports it. See DECISIONS.md
     # D-swap-rate-full-scale for the self-scaling alternatives this rejects.
     SWAP_RATE_FULL_SCALE = 20.MiB
 
-    # Width of the swap row's `↑written ↓read-back` tail. Fixed, so every VM's gauge is the
-    # same length and the bars stay comparable down the list.
-    SWAP_TOTALS_WIDTH = 13
+    # Width of the swap row's `↕traffic` tail — the arrow plus a 5-char byte size. Fixed, so
+    # every VM's gauge is the same length and the bars stay comparable down the list.
+    SWAP_TOTALS_WIDTH = 6
 
     # @param virt_cache [Virt::Cache] the runtime cache to read VM data from and act through
     # @param ballooning [Virt::Ballooning] the ballooning controller toggled from the memory menu
@@ -324,26 +324,26 @@ module UI
       header(line)
     end
 
-    # The guest's swap-out line, one per running VM that reports swap counters — shaped like
-    # the CPU/RAM rows above it: rate caption, a gauge, then the two since-boot totals
-    # (`↑` written out, `↓` read back in) that give the rate its context:
+    # The swap row, one per running VM that reports swap counters. Two cells, two questions:
+    # the guest half is *occupancy*, drawn exactly like the RAM row above it so the two read
+    # against each other; the host half is *I/O*, because guest swap writes land on the host's
+    # disk.
     #
-    #      SWAP:      3M/s ##--------------- ↑  15M ↓    0 │   <- swapping now (label in warn)
-    #      SWAP:       0/s ----------------- ↑  30M ↓   4M │   <- at rest, 30M written earlier
-    #      SWAP:       -/s ----------------- ↑    0 ↓    0 │   <- first sample: nothing to diff yet
+    #     RAM: 50%    4G ########---------  7.9G │  16%  5.1G ##---------------   32G
+    #    SWAP: 43%  1.8G #######----------    4G │       3M/s ##-------------- ↕ 1.8G
+    #    SWAP:  -        -----------------       │        0/s ---------------- ↕    0
+    #          ^level, or unknown                        ^rate now      traffic since boot^
     #
-    # The gauge reads against {SWAP_RATE_FULL_SCALE} rather than a per-VM maximum, so two VMs'
-    # bars mean the same thing. Padded out to the {COLUMN_SEPARATOR} the other rows carry,
-    # with nothing on its host side: swap is a guest-only counter, and the host's own swap
-    # bar already lives in the System window, identical for every VM.
+    # Why the rate sits on the host side rather than beside the level: {#swap_io_bar}. Why an
+    # unknown level is dashes rather than blank: {#swap_level_bar}. Both in DECISIONS.md
+    # D-swap-row-two-cells.
     #
-    # A rate rather than a level, because the level is a since-boot high-water scar that says
-    # nothing about now — see {Virt::Cache::VMCache#swap_out_rate}; the totals are here only
-    # to give the rate its context. Rendered whether or not the guest is swapping, so the warn
-    # coloring on the label rather than the row's presence is what draws the eye: hiding the
-    # row at rest made every VM below it jump a row on each swap burst. Absent counters are
-    # the one case that still hides the row, because that state never flips back — see
-    # DECISIONS.md D-swap-row-always-on.
+    # Rendered whether or not the guest is swapping, so the warn coloring on the label rather
+    # than the row's presence is what draws the eye: hiding the row at rest made every VM
+    # below it jump a row on each swap burst. Absent *counters* are the one case that still
+    # hides it, because that state never flips back — see DECISIONS.md D-swap-row-always-on.
+    # (A guest that reports a level but no counters therefore gets no row at all; no distro
+    # kernel builds without `CONFIG_VM_EVENT_COUNTERS`, so that combination stays theoretical.)
     #
     # @param cache [Virt::Cache::VMCache] the VM's cache entry
     # @param column_width [Integer] width of one usage-bar column, so the separator lines up
@@ -353,21 +353,62 @@ module UI
       return nil unless mem_stat&.swap_data_available?
 
       theme = screen.theme
-      rate = cache.swap_out_rate
-      # nil is a VM we have only sampled once: the counters are there, but there is no
-      # interval to diff them over yet, so the rate is unknown rather than zero.
+      label = cache.swap_out_rate&.positive? ? theme.warn('SWAP') : theme.swap('SWAP')
+      # 3 spaces, not 4: 'SWAP' is a character wider than 'CPU'/'RAM', and this lines its
+      # colon up with theirs — same trick as the 4-char disk labels above.
+      "   #{label}:#{swap_level_bar(column_width, cache.guest_swap)} " \
+        "#{COLUMN_SEPARATOR} #{swap_io_bar(column_width, cache.swap_out_rate, mem_stat)}"
+    end
+
+    # How full the guest's swap device is — the guest half of the swap row.
+    #
+    #    22%  1.8G #####--------------------     8G   <- 1.8G parked on an 8G device
+    #      -        -------------------------         <- this guest cannot report a level
+    #
+    # Dashes rather than blank space for an unknown level, because blank reads as *nothing
+    # parked* when it means *nobody asked*: the level needs a guest agent behind a persistent
+    # virsh session (see {Virt::GuestAgent}), which plenty of guests will never have. Keeping
+    # the cell occupied is also what keeps the rate in one column for every VM.
+    #
+    # @param width [Integer] width of one usage-bar column
+    # @param level [ResourceUsage, nil] the guest's swap level, or `nil` if unavailable
+    # @return [String] the rendered segment
+    def swap_level_bar(width, level)
+      theme = screen.theme
+      return usage_bar(width, level, theme[:swap]) unless level.nil?
+
+      # A full-width run of `rest_color` dashes: value 0 of 1.
+      progress_bar('  -', '', width, 0, 1, theme[:swap])
+    end
+
+    # What the guest's swapping costs the host — the host half of the swap row: the rate now,
+    # then the traffic since the guest booted.
+    #
+    #     3M/s ##-------------------- ↕  45M
+    #
+    # On the host side because that is what this column means everywhere else on the screen:
+    # a guest's swap writes are the host's disk writes. The two lifetime counters are summed
+    # for the same reason — `swap_out + swap_in` is the total traffic the host paid for, and
+    # which direction it went is what the rate and the level already say.
+    #
+    # The gauge reads against {SWAP_RATE_FULL_SCALE} rather than a per-VM maximum, so two VMs'
+    # bars mean the same thing.
+    #
+    # @param width [Integer] width of one usage-bar column
+    # @param rate [Float, nil] bytes per second written to swap; `nil` on a first sample,
+    #   where the counters are there but no interval has passed to diff them over
+    # @param mem_stat [Virt::MemoryStat] the VM's memory stats, for the lifetime counters
+    # @return [String] the rendered segment
+    def swap_io_bar(width, rate, mem_stat)
+      theme = screen.theme
       rate_text = rate.nil? ? '-' : format_byte_size(rate.round)
-      label = rate&.positive? ? theme.warn('SWAP') : theme.swap('SWAP')
       # Right-aligned within the caption cell, one space clear of the bar — which puts the
       # figure in the same column the CPU/RAM rows end their own captions in.
       caption = "#{"#{rate_text.rjust(5)}/s".rjust(LABEL_WIDTH - 1)} "
-      totals = "#{theme.frame('↑')}#{format_byte_size(mem_stat.swap_out).rjust(5)} " \
-               "#{theme.frame('↓')}#{format_byte_size(mem_stat.swap_in).rjust(5)}"
-      bar = Formatter.progress_bar((column_width - LABEL_WIDTH - SWAP_TOTALS_WIDTH - 1).clamp(0, nil),
+      traffic = "#{theme.frame('↕')}#{format_byte_size(mem_stat.swap_out + mem_stat.swap_in).rjust(5)}"
+      bar = Formatter.progress_bar((width - LABEL_WIDTH - SWAP_TOTALS_WIDTH - 1).clamp(0, nil),
                                    rate || 0, SWAP_RATE_FULL_SCALE, theme[:swap], theme[:frame])
-      # 3 spaces, not 4: 'SWAP' is a character wider than 'CPU'/'RAM', and this lines its
-      # colon up with theirs — same trick as the 4-char disk labels above.
-      "   #{label}:#{caption}#{bar.to_ansi} #{totals} #{COLUMN_SEPARATOR}"
+      "#{caption}#{bar.to_ansi} #{traffic}"
     end
 
     # Draws a row header: `left` caption followed by a frame rule filling the rest of the

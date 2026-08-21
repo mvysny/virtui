@@ -41,6 +41,12 @@ module Tuile
     # @return [Array<String>] every rendered guest swap-out line, top to bottom
     def swap_lines = window.content.items.map(&:to_s).grep(/SWAP/)
 
+    # One VM's swap row as text, styling stripped, at a width that leaves room for both bars.
+    #
+    # @param entry [Virt::Cache::VMCache] the VM's cache entry
+    # @return [String] the rendered row
+    def swap_line(entry) = window.send(:format_swap_line, entry, 42).gsub(/\e\[[\d;:]*m/, '')
+
     # Cursor positions of each demo VM (see the 'has the right content' test for the layout).
     # base + Fedora are shut off; Ubuntu + win11 are running.
     def base = 0
@@ -57,12 +63,14 @@ module Tuile
       assert_equal '▶ Ubuntu 🎈─────', content[4]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[5]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[6]
-      assert_equal '   SWAP:      3M/s  ↑  15M ↓    0 │', content[7] # demo Ubuntu swaps
+      # Ubuntu swaps: 15M written in the 5s since boot, so a level to show and a live rate
+      assert_equal '   SWAP:  0%   15M     4G │       3M/s  ↕  15M', content[7]
       assert_equal '    vda: 50%   64G   128G │', content[8]
       assert_equal '▶ win11 🎈──────', content[9]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[10]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[11]
-      assert_equal '   SWAP:       0/s  ↑    0 ↓    0 │', content[12] # win11 is at rest, line stays
+      # win11 is at rest and reports no level at all, so its guest cell is the '-' placeholder
+      assert_equal '   SWAP:  -               │        0/s  ↕    0', content[12]
       assert_equal '    vda: 50%   64G   128G │', content[13]
     end
 
@@ -290,8 +298,8 @@ module Tuile
         end
         Timecop.freeze(now + 15) { cache.update } # first interval with a flat counter
         window.update
-        # the totals keep the scar, only the rate goes quiet
-        assert_equal '   SWAP:       0/s  ↑  30M ↓    0 │', swap_lines[0]
+        # the level and the lifetime traffic keep the scar, only the rate goes quiet
+        assert_equal '   SWAP:  0%   30M     4G │        0/s  ↕  30M', swap_lines[0]
       end
 
       it 'reports a zero rate when a reboot resets the guest counter' do
@@ -302,6 +310,27 @@ module Tuile
         end
         window.update
         assert_includes swap_lines[0], '    0/s'
+      end
+
+      it 'draws the guest swap level like the RAM bar above it' do
+        entry = cache.cache('Ubuntu').with(guest_swap: ResourceUsage.of(4.GiB, 1.GiB))
+        assert_equal '   SWAP: 25%    1G ######-------------------    4G │        ' \
+                     '-/s ------------------------ ↕    0', swap_line(entry)
+      end
+
+      # Blank would read as an empty swap device; this guest simply cannot be asked.
+      it 'marks an unreadable level with a dash, keeping the rate in its own column' do
+        entry = cache.cache('Ubuntu').with(guest_swap: nil)
+        assert_equal '   SWAP:  -        -------------------------       │        ' \
+                     '-/s ------------------------ ↕    0', swap_line(entry)
+      end
+
+      # The demo guest never faults anything back, so swap_in is 0 there and the sum needs
+      # its own case: the host paid for the traffic in both directions.
+      it 'sums the lifetime counters into one traffic figure' do
+        entry = cache.cache('Ubuntu')
+        entry = entry.with(data: entry.data.with(mem_stat: entry.data.mem_stat.with(swap_in: 5.MiB, swap_out: 10.MiB)))
+        assert_includes swap_line(entry), '↕  15M'
       end
 
       it 'drops the swap line entirely when the guest reports no swap counters' do

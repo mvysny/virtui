@@ -92,11 +92,77 @@ rejection is crowding out the live design.
 
 ---
 
+## D-swap-row-two-cells — the SWAP row splits into guest occupancy and host I/O (2026-08-21)
+
+**Status:** Accepted, shipped in {UI::VMWindow#format_swap_line}.
+
+**Context.** Until now the row carried one figure — the swap-out *rate* —
+in the guest cell, with the two since-boot counters as a tail and the host
+cell left empty on the grounds that swap is a guest-only concern
+(D-swap-row-always-on). D-guest-swap-level then produced a second figure,
+the swap *level*, and it does not fit beside the rate: at a ~100-column
+terminal one cell is ~42 characters, and three figures plus two bars in
+that space shrinks the level bar to ~10 characters, which is exactly the
+comparison against the RAM bar above it that makes the level worth
+showing.
+
+**Decision.** Two cells, two questions. The guest cell shows **occupancy** —
+the level, rendered by the same `usage_bar` the RAM row uses, so the two
+stack and can be read against each other. The host cell shows **I/O** — the
+rate gauge, then the lifetime traffic as one summed `↕` figure.
+
+The rate moved to the host side on the merits, not for the room: a guest's
+swap writes *are* host disk writes, which is what that column means
+everywhere else on the screen. The same argument sums the two lifetime
+counters — `swap_out + swap_in` is the total traffic the host paid for, and
+which direction it went is already answered by the rate (out, now) and the
+level (parked, now).
+
+A guest that cannot report a level gets a dashed placeholder with a `-`
+caption, not blank space.
+
+**Alternatives rejected.**
+
+- **Blank guest cell when the level is unavailable.** Blank reads as *an
+  empty swap device*, when it means *nobody could ask* — and that is the
+  default configuration, since the level needs `VIRTUI_VIRSH_SESSION=1`
+  plus an agent in the guest. The dashed cell says unknown in the same
+  idiom the row already uses for an unknown rate (`-/s`) on a first sample.
+- **Fall back to the old layout when there is no level** (rate in the guest
+  cell, host cell empty). Denser, and it changes nothing for today's users
+  — but the rate would then sit in a different column depending on the
+  guest, so a fleet could no longer be scanned by running one eye down one
+  column. Column stability beat row density.
+- **Keep swap strictly guest-side** — level and rate both in the guest
+  cell, host cell always empty, preserving the old "swap is a guest-only
+  counter" framing. Rejected on the width arithmetic above, and because the
+  framing turned out to be wrong: the I/O half is not guest-only.
+- **Keep `↑written ↓read-back` as two figures.** 13 characters of tail for
+  a distinction that the rate and the level now make better, and it costs
+  the gauge 7 characters of resolution (the first bar character now lights
+  at ~0.8 MiB/s instead of ~1.2). The one thing lost is spotting a guest
+  that is *draining* swap — visible instead as a falling level.
+
+**Consequences.**
+
+- The row is now the one place on screen where the two cells are not the
+  same quantity from two viewpoints (guest RAM vs host RAM); they are two
+  different quantities. The captions carry that (`1.8G` of `4G` vs `3M/s`),
+  and the yardoc says it in a line.
+- A guest reporting a level but no swap counters still gets *no row*: the
+  gate is unchanged (D-swap-row-always-on), and the host cell needs the
+  counters. No distro kernel builds without `CONFIG_VM_EVENT_COUNTERS`, so
+  this stays theoretical.
+- The rate gauge got wider, so D-swap-rate-full-scale's sensitivity figure
+  moved with it; the constant itself is unchanged.
+
+---
+
 ## D-guest-swap-level — read the guest's swap level from its own `/proc/meminfo`, through the QEMU guest agent (2026-08-21)
 
-**Status:** Accepted. Shipped: {Virt::GuestAgent} reads it, and
+**Status:** Accepted, shipped: {Virt::GuestAgent} reads it,
 {Virt::Cache#update} samples one level per running VM into
-{Virt::Cache::VMCache}. Nothing renders it yet.
+{Virt::Cache::VMCache}, and the `SWAP` row shows it (D-swap-row-two-cells).
 
 **Context.** `domstats` gives `balloon.swap_in`/`swap_out`, which are
 since-boot *I/O counters*: they never fall when swap slots are freed, so a
@@ -463,14 +529,17 @@ now.
   runner entirely.
 - *One session per VM, with per-VM fault isolation and circuit breakers.*
   That machinery is justified only by an O(running-VMs) workload — per-VM
-  guest-agent reads — which does not exist yet. The fleet-wide `domstats`
-  poll needs exactly one child. Conflating the two is what made this look
-  more expensive than it is.
+  guest-agent reads. Those now exist (D-guest-swap-level) and one shared
+  child still serves them: the reads are serialised behind this session's
+  mutex, a per-call `--timeout` bounds the damage a wedged guest can do, and
+  {Virt::GuestAgent}'s own write-off is the circuit breaker, at no
+  multi-process cost. Revisit only if a wedged guest is measured delaying
+  the fleet poll. The fleet-wide `domstats` poll still needs exactly one
+  child; conflating the two is what made this look more expensive than it is.
 - *The `ruby-libvirt` binding, to avoid subprocesses altogether.* Rejected
-  separately and for a harder reason — see D-virsh-cli, plus the GVL
-  measurement in `ideas/swap-via-qemu-guest-agent.md`: the gem never
-  releases the GVL, so an in-process libvirt call freezes the UI thread. A
-  subprocess cannot.
+  separately and for a harder reason — see D-virsh-cli, whose GVL paragraph
+  is the argument: the gem never releases the GVL, so an in-process libvirt
+  call freezes the UI thread. A subprocess cannot.
 - *Merging the child's stderr into stdout* (as the idea note first
   proposed), so error text orders against the reply marker. It does order
   correctly — but the parser must receive stdout alone, exactly as
@@ -532,6 +601,18 @@ otherwise `bin/virtui` falls back to {Virt::VMEmulator} demo mode.
   the gap is blocked by [bug #1](https://github.com/mvysny/virtui/issues/1).
   Still wanted — the README lists it under *Future plans* — so this entry is
   the thing to revisit, not re-litigate, once that bug moves.
+
+  **A second, worse objection, found 2026-08-21 while designing
+  D-guest-swap-level: ruby-libvirt 0.8.4 never releases the GVL.** The
+  extension imports no `rb_thread_*` symbol at all, so every libvirt call
+  holds the GVL for its full duration — measured with a blocking
+  `Libvirt::open` to an unroutable address, which stopped a ticker thread
+  dead for the whole ~10 s hang. Consequence: a slow or wedged libvirtd
+  freezes the *entire* TUI — no repaint, no keyboard — where a `virsh` child
+  costs one late update, because `Process.wait` releases the GVL. So the
+  process spawn is not pure waste; it buys thread isolation. Anything built
+  on the binding needs a short timeout plus a per-VM circuit breaker, or a
+  separate process, before it is safe near the event loop.
 
 **Consequences.** Every read is a text parse, which is why the parsers take
 a fixture parameter and the specs feed recorded `virsh` output

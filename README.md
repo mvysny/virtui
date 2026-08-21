@@ -96,12 +96,34 @@ When ballooning is enabled properly in a VM, 🎈 is shown next to the VM name i
 When virtui controls the app memory, an arrow is shown next to 🎈: up arrow indicates a memory increase,
 down arrow indicates memory decrease, and a flat dash `-` indicates no change.
 
-A running VM whose balloon reports swap counters has a `SWAP` row under its RAM bar, showing
-how fast the guest is writing pages out to its swap device plus the totals since it booted.
-The rate drops back to `0/s` once the guest stops swapping — the row itself stays, so the VMs
-below it don't shift around. Note that this is swap *I/O*, not how much swap is in use: a VM
-still holding swap it isn't actively writing to reads `0/s`, and the totals never fall when
-swap slots are freed. A guest that reports no swap counters at all gets no row.
+A running VM whose balloon reports swap counters has a `SWAP` row under its RAM bar. It reads
+in two halves, like the CPU and RAM rows above it:
+
+```
+    RAM: 50%    4G ########---------  7.9G │  16%  5.1G ##---------------   32G
+   SWAP: 43%  1.8G #######----------    4G │       3M/s ##-------------- ↕ 1.8G
+   SWAP:  -        -----------------       │        0/s ---------------- ↕    0
+```
+
+- **left — how full the guest's swap device is.** 1.8 GiB parked on a 4 GiB device above.
+  Read it against the RAM bar directly above: that is the memory this guest wanted and did
+  not get. It needs the guest agent (see below); `-` means this guest could not be asked,
+  which is not the same as an empty swap device.
+- **right — what that swapping costs the host,** since the guest's swap writes are writes to
+  your disk: how fast pages are going out right now, then `↕` the total traffic in both
+  directions since the guest booted. The rate drops back to `0/s` once the guest stops
+  swapping, and the `SWAP` label turns yellow while it is non-zero.
+
+The row itself stays whether or not the guest is swapping, so the VMs below it don't shift
+around. A guest that reports no swap counters at all gets no row.
+
+**To see the level,** virtui has to ask the guest, which needs two things: `qemu-guest-agent`
+running in the guest (the same package the ballooning section asks for), and virtui started
+with `VIRTUI_VIRSH_SESSION=1`, which keeps one `virsh` session open instead of spawning a
+process per command — reading the level is three agent calls per running VM every 2 seconds,
+and that is only affordable without the spawns. Guests that cannot answer (no agent, Windows,
+or a distro that blocks the agent's file-read commands) show `-` and are asked again every
+five minutes.
 
 More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/).
 
