@@ -51,19 +51,19 @@ module Tuile
     it 'has the right content' do
       content = window.content.items.map(&:to_s)
       assert_equal '⏹ BASE──────────', content[0]
-      assert_equal '    vda: 50%   64G   128G |', content[1]
+      assert_equal '    vda: 50%   64G   128G │', content[1]
       assert_equal '⏹ Fedora────────', content[2]
-      assert_equal '    vda: 50%   64G   128G |', content[3]
+      assert_equal '    vda: 50%   64G   128G │', content[3]
       assert_equal '▶ Ubuntu 🎈─────', content[4]
-      assert_equal '    CPU:  0%          1 t |   0%          8 t', content[5]
-      assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[6]
-      assert_equal '   SWAP: out    3M/s  total out 15M in 0', content[7] # demo Ubuntu swaps
-      assert_equal '    vda: 50%   64G   128G |', content[8]
+      assert_equal '    CPU:  0%          1 t │   0%          8 t', content[5]
+      assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[6]
+      assert_equal '   SWAP: out    3M/s  total out 15M in 0 │', content[7] # demo Ubuntu swaps
+      assert_equal '    vda: 50%   64G   128G │', content[8]
       assert_equal '▶ win11 🎈──────', content[9]
-      assert_equal '    CPU:  0%          1 t |   0%          8 t', content[10]
-      assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[11]
-      assert_equal '   SWAP: out     0/s  total out 0 in 0', content[12] # win11 is at rest, line stays
-      assert_equal '    vda: 50%   64G   128G |', content[13]
+      assert_equal '    CPU:  0%          1 t │   0%          8 t', content[10]
+      assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[11]
+      assert_equal '   SWAP: out     0/s  total out 0 in 0 │', content[12] # win11 is at rest, line stays
+      assert_equal '    vda: 50%   64G   128G │', content[13]
     end
 
     it 'show_power_popup opens picker' do
@@ -291,7 +291,7 @@ module Tuile
         Timecop.freeze(now + 15) { cache.update } # first interval with a flat counter
         window.update
         # the totals keep the scar, only the rate goes quiet
-        assert_equal '   SWAP: out     0/s  total out 30M in 0', swap_lines[0]
+        assert_equal '   SWAP: out     0/s  total out 30M in 0 │', swap_lines[0]
       end
 
       it 'reports a zero rate when a reboot resets the guest counter' do
@@ -307,7 +307,7 @@ module Tuile
       it 'drops the swap line entirely when the guest reports no swap counters' do
         entry = cache.cache('Ubuntu') # the emulator always reports them, so blank them out here
         entry = entry.with(data: entry.data.with(mem_stat: entry.data.mem_stat.with(swap_in: nil, swap_out: nil)))
-        assert_nil window.send(:format_swap_line, entry)
+        assert_nil window.send(:format_swap_line, entry, 20)
       end
 
       it 'renders nothing when the window is too narrow' do

@@ -10,6 +10,10 @@ module UI
   class VMWindow < Tuile::Component::Window
     include Tuile
 
+    # Separates a row's guest half from its host half. The same vertical bar tuile draws the
+    # window border with, so the two columns read as framed rather than piped apart.
+    COLUMN_SEPARATOR = '│'
+
     # @param virt_cache [Virt::Cache] the runtime cache to read VM data from and act through
     # @param ballooning [Virt::Ballooning] the ballooning controller toggled from the memory menu
     def initialize(virt_cache, ballooning)
@@ -67,17 +71,17 @@ module UI
                                     cpu_usage, 100, theme[:cpu_vm])
             cpuhost = progress_bar("#{host_cpu_usage.to_s.rjust(3)}%", "#{cpus.to_s.rjust(3)} t", column_width,
                                    host_cpu_usage, 100, theme[:cpu])
-            lines << "    #{theme.cpu('CPU')}:#{cpuguest} | #{cpuhost}"
+            lines << "    #{theme.cpu('CPU')}:#{cpuguest} #{COLUMN_SEPARATOR} #{cpuhost}"
             @line_data << domain_name
 
             guest_mem_usage = cache.data.mem_stat.guest_mem
             host_mem_usage = cache.data.mem_stat.host_mem
             memguest = usage_bar(column_width, guest_mem_usage, theme[:ram_vm])
             memhost = usage_bar(column_width, ResourceUsage.of(host_ram.total, host_mem_usage.used), theme[:ram])
-            lines << "    #{theme.ram('RAM')}:#{memguest} | #{memhost}"
+            lines << "    #{theme.ram('RAM')}:#{memguest} #{COLUMN_SEPARATOR} #{memhost}"
             @line_data << domain_name
 
-            swap = format_swap_line(cache)
+            swap = format_swap_line(cache, column_width)
             unless swap.nil?
               lines << swap
               @line_data << domain_name
@@ -89,7 +93,7 @@ module UI
             name = theme.disk_label(ds.name[0..3].rjust(4))
             guest_du = usage_bar(column_width, ds.guest_usage, theme[:disk_vm])
             host_du = progress_bar_qcow2(column_width, ds)
-            lines << "   #{name}:#{guest_du} | #{host_du}"
+            lines << "   #{name}:#{guest_du} #{COLUMN_SEPARATOR} #{host_du}"
             @line_data << domain_name
           end
         end
@@ -123,7 +127,8 @@ module UI
         true
       elsif key == 'v' # view
         $log.info "Launching viewer for '#{current_vm}'"
-        Run.async("virt-manager --connect qemu:///system --show-domain-console '#{current_vm}'")
+        Run.async('virt-manager', '--connect', 'qemu:///system',
+                  '--show-domain-console', current_vm)
         true
       elsif key == 'm' # memory
         show_memory_popup
@@ -305,9 +310,12 @@ module UI
 
     # The guest's swap-out line, one per running VM that reports swap counters:
     #
-    #      SWAP: out    3M/s  total out 15M in 0     <- swapping right now (label in warn)
-    #      SWAP: out     0/s  total out 15M in 0     <- at rest, 15M written earlier
-    #      SWAP: out     -/s  total out 15M in 0     <- first sample: no interval to diff yet
+    #      SWAP: out    3M/s  total out 15M in 0     │     <- swapping right now (label in warn)
+    #      SWAP: out     0/s  total out 15M in 0     │     <- at rest, 15M written earlier
+    #      SWAP: out     -/s  total out 15M in 0     │     <- first sample: no interval to diff yet
+    #
+    # Padded out to the {COLUMN_SEPARATOR} the CPU/RAM/disk rows carry, with nothing on its
+    # host side: swap is a guest-only counter, and the bar keeps the row inside the grid.
     #
     # A rate rather than a level, because the level is a since-boot high-water scar that says
     # nothing about now — see {Virt::Cache::VMCache#swap_out_rate}; the totals are here only
@@ -318,8 +326,9 @@ module UI
     # DECISIONS.md D-swap-row-always-on.
     #
     # @param cache [Virt::Cache::VMCache] the VM's cache entry
+    # @param column_width [Integer] width of one usage-bar column, so the separator lines up
     # @return [String, nil] the rendered line, or `nil` if the guest reports no swap counters
-    def format_swap_line(cache)
+    def format_swap_line(cache, column_width)
       mem_stat = cache.data.mem_stat
       return nil unless mem_stat&.swap_data_available?
 
@@ -328,10 +337,13 @@ module UI
       # interval to diff them over yet, so the rate is unknown rather than zero.
       rate_text = rate.nil? ? '-' : format_byte_size(rate.round)
       label = rate&.positive? ? screen.theme.warn('SWAP') : 'SWAP'
+      # Unstyled, so its size is its display width and `ljust` pads to where the guest bars
+      # end; the styled label stays outside it.
+      text = " out #{rate_text.rjust(5)}/s  " \
+             "total out #{format_byte_size(mem_stat.swap_out)} in #{format_byte_size(mem_stat.swap_in)}"
       # 3 spaces, not 4: 'SWAP' is a character wider than 'CPU'/'RAM', and this lines its
       # colon up with theirs — same trick as the 4-char disk labels above.
-      "   #{label}: out #{rate_text.rjust(5)}/s  " \
-        "total out #{format_byte_size(mem_stat.swap_out)} in #{format_byte_size(mem_stat.swap_in)}"
+      "   #{label}:#{text.ljust(column_width)} #{COLUMN_SEPARATOR}"
     end
 
     # Draws a row header: `left` caption followed by a frame rule filling the rest of the
