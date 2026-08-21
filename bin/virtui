@@ -17,8 +17,17 @@ print "\e]0;VirTUI\a"
 
 # The virsh CLI is the only real backend — see DECISIONS.md D-virsh-cli. With no virsh
 # installed there is nothing to manage, so fall back to the demo fleet.
-virt = Virt::Virsh.new if Virt::Virsh.available?
-virt ||= Virt::VMEmulator.demo
+#
+# VIRTUI_VIRSH_SESSION=1 serves reads from one long-lived virsh child instead of spawning
+# one per command: ~78x less CPU per read, but on trial, hence opt-in. It degrades to
+# spawning by itself if the child misbehaves, logging why.
+runner = nil
+if Virt::Virsh.available?
+  persistent = ENV['VIRTUI_VIRSH_SESSION'] == '1'
+  runner = persistent ? Virt::VirshSession.new : Virt::VirshSpawn.new
+  $log.info("virsh transport: #{persistent ? 'persistent session' : 'one process per command'}")
+end
+virt = runner ? Virt::Virsh.new(runner: runner) : Virt::VMEmulator.demo
 virt_cache = Virt::Cache.new(virt, System::Info.new)
 
 ballooning = Virt::Ballooning.new(virt_cache)
@@ -48,4 +57,5 @@ begin
 ensure
   scheduler.shutdown
   screen.close
+  runner&.close
 end

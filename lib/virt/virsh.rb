@@ -6,11 +6,26 @@ module Virt
   #
   # Not the ruby-libvirt binding — see DECISIONS.md D-virsh-cli.
   #
-  # Stateless; the read methods accept fixture parameters for testing.
+  # Every call to the outside world goes through a *runner* ({VirshSpawn} by default,
+  # {VirshSession} for a persistent child), so this class holds nothing but parsing:
+  #
+  #   Virsh.new                                   # a process per command
+  #   Virsh.new(runner: VirshSession.new)         # reads served from one long-lived child
+  #
+  # Stateless apart from the runner; the read methods accept fixture parameters for
+  # testing, which bypass the runner entirely.
   class Virsh
     # Maps the numeric `state.state` from `virsh domstats` to our state symbols; anything
     # else becomes `:other`.
     @@states = { 3 => :paused, 1 => :running, 5 => :shut_off }
+
+    # @param runner [VirshSpawn, VirshSession] transport for every `virsh` invocation
+    def initialize(runner: VirshSpawn.new)
+      @runner = runner
+    end
+
+    # @return [VirshSpawn, VirshSession] the transport in use
+    attr_reader :runner
 
     # Reads runtime stats for every VM via `virsh domstats`.
     #
@@ -19,9 +34,9 @@ module Virt
     # @param sampled_at [Integer, nil] millis since epoch to stamp the snapshots with;
     #   defaults to now. For testing
     # @return [Hash{String => DomainData}] maps VM name to its {DomainData}
-    # @raise [RuntimeError] if `virsh domstats` fails (via {Run.sync})
+    # @raise [RuntimeError] if `virsh domstats` fails
     def domain_data(domstats_file = nil, sampled_at = nil)
-      domstats_file ||= Run.sync('virsh domstats')
+      domstats_file ||= @runner.query('domstats')
       sampled_at ||= DomainData.millis_now
 
       data = {}
@@ -104,9 +119,9 @@ module Virt
     # @param virsh_nodeinfo [String, nil] canned `virsh nodeinfo` output for testing; runs
     #   the real command when `nil`
     # @return [CpuInfo] the host CPU topology
-    # @raise [RuntimeError] if `virsh nodeinfo` fails (via {Run.sync})
+    # @raise [RuntimeError] if `virsh nodeinfo` fails
     def hostinfo(virsh_nodeinfo = nil)
-      virsh_nodeinfo ||= Run.sync('virsh nodeinfo')
+      virsh_nodeinfo ||= @runner.query('nodeinfo')
       values = virsh_nodeinfo.lines.filter { |it| !it.strip.empty? }.to_h { |it| it.split ':' }
       values = values.transform_values(&:strip)
       CpuInfo.new(values['CPU model'], values['CPU socket(s)'].to_i, values['Core(s) per socket'].to_i,
@@ -121,7 +136,7 @@ module Virt
     def set_actual(domain_name, new_actual)
       raise "#{new_actual} must be at least 256m" if new_actual < 256.MiB
 
-      Run.sync("virsh setmem '#{domain_name}' '#{new_actual / 1024}'")
+      @runner.sync("setmem '#{domain_name}' '#{new_actual / 1024}'")
       $log.info "#{domain_name}: set new actual memory to #{format_byte_size(new_actual)}"
     end
 
@@ -135,14 +150,14 @@ module Virt
     # power-off; {Cache#update} does that. Why virtui arms it at all instead of asking the
     # user to configure the domain XML: DECISIONS.md D-mem-stats-self-armed.
     #
-    # Runs asynchronously (failures logged, not raised, via {Run.async}): a VM without a
+    # Runs asynchronously (failures logged, not raised): a VM without a
     # balloon device rejects this command, and that must not abort the refresh loop.
     #
     # @param domain_name [String] VM name
     # @param period_seconds [Integer] how often the guest refreshes its stats, in seconds
-    # @return [Thread] the thread running the command (see {Run.async})
+    # @return [Thread] the thread running the command
     def set_mem_stats_period(domain_name, period_seconds)
-      Run.async("virsh dommemstat '#{domain_name}' --period #{period_seconds} --live")
+      @runner.async("dommemstat '#{domain_name}' --period #{period_seconds} --live")
     end
 
     # Starts a stopped VM. Behaviour is undefined for an already-started or paused VM.
@@ -150,9 +165,9 @@ module Virt
     # Asynchronous: `virsh start` takes ~800ms, and the UI thread must not wait on it.
     #
     # @param domain_name [String] VM name
-    # @return [Thread] the thread running the command (see {Run.async})
+    # @return [Thread] the thread running the command
     def start(domain_name)
-      Run.async("virsh start '#{domain_name}'")
+      @runner.async("start '#{domain_name}'")
     end
 
     # Asks a VM to shut down gracefully.
@@ -160,33 +175,33 @@ module Virt
     # Asynchronous: `virsh shutdown` takes 0.5–5s, and the UI thread must not wait on it.
     #
     # @param domain_name [String] VM name
-    # @return [Thread] the thread running the command (see {Run.async})
+    # @return [Thread] the thread running the command
     def shutdown(domain_name)
-      Run.async("virsh shutdown '#{domain_name}'")
+      @runner.async("shutdown '#{domain_name}'")
     end
 
     # Asks the VM to reboot itself gracefully.
     #
     # @param domain_name [String] VM name
-    # @raise [RuntimeError] if `virsh reboot` fails (via {Run.sync})
+    # @raise [RuntimeError] if `virsh reboot` fails
     def reboot(domain_name)
-      Run.sync("virsh reboot '#{domain_name}'")
+      @runner.sync("reboot '#{domain_name}'")
     end
 
     # Resets the VM forcefully (a hard power-cycle).
     #
     # @param domain_name [String] VM name
-    # @raise [RuntimeError] if `virsh reset` fails (via {Run.sync})
+    # @raise [RuntimeError] if `virsh reset` fails
     def reset(domain_name)
-      Run.sync("virsh reset '#{domain_name}'")
+      @runner.sync("reset '#{domain_name}'")
     end
 
     # Forces the VM off (a hard power-off, via `virsh destroy`).
     #
     # @param domain_name [String] VM name
-    # @raise [RuntimeError] if `virsh destroy` fails (via {Run.sync})
+    # @raise [RuntimeError] if `virsh destroy` fails
     def force_off(domain_name)
-      Run.sync("virsh destroy '#{domain_name}'")
+      @runner.sync("destroy '#{domain_name}'")
     end
   end
 end

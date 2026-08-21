@@ -213,6 +213,97 @@ stopped reporting, not why (see the README's ballooning prerequisites).
 
 ---
 
+## D-virsh-session — a persistent `virsh` REPL as an opt-in transport for reads (2026-08-21)
+
+**Status:** On trial. {Virt::VirshSession} is opt-in behind
+`VIRTUI_VIRSH_SESSION=1`; {Virt::VirshSpawn} remains the default. Revisit
+after a few days of real-host observation.
+
+**Context.** {Virt::Cache#update} polls `virsh domstats` every 2s for the
+whole fleet, and each poll re-execs a binary that dynamically links 61
+shared objects. Measured on the dev box against `test:///default` (libvirt's
+in-process driver, so no hypervisor work is included and the figures are
+pure per-call overhead), 200 iterations each way:
+
+| per call | CPU (user+sys) | minor page faults |
+|---|---|---|
+| one process per command | 7.8 ms | 1065 |
+| persistent session | 0.100 ms | 0.015 |
+
+78x the CPU and ~70000x the page faults, all of it discarded milliseconds
+later. Through the real {Virt::Virsh} parser the end-to-end read is 64x
+faster (7.79 ms → 0.121 ms). At the 2s tick that is 0.39 % of one core held
+continuously, for as long as the TUI is open, against 8.3 MB PSS to keep a
+child resident instead.
+
+**Decision.** Introduce a *runner* seam — `query`/`sync`/`async`, where a
+subcommand excludes the word `virsh` — and give it two implementations.
+Only `query`, the read path, may be served from a session; every mutating
+command keeps its own process and its own exit status. Reads are opt-in for
+now.
+
+**Alternatives rejected.**
+
+- *Leave it alone; 0.39 % of a core is noise.* True in the absolute, and it
+  is why this stayed rejected through two rounds. What moved it was noticing
+  the first verdict had been reached on the wrong axis entirely — latency
+  (8 ms of a 2000 ms tick, invisible) rather than host load, which is the
+  quantity that matters on a box whose job is running VMs.
+- *A peer client class implementing the whole {Virt::Virsh} role.* Would
+  have had to duplicate or inherit ~150 lines of `domstats`/`nodeinfo`
+  parsing. Putting the seam *below* the parsing instead means the existing
+  parser specs and recorded fixtures are untouched, because they bypass the
+  runner entirely.
+- *One session per VM, with per-VM fault isolation and circuit breakers.*
+  That machinery is justified only by an O(running-VMs) workload — per-VM
+  guest-agent reads — which does not exist yet. The fleet-wide `domstats`
+  poll needs exactly one child. Conflating the two is what made this look
+  more expensive than it is.
+- *The `ruby-libvirt` binding, to avoid subprocesses altogether.* Rejected
+  separately and for a harder reason — see D-virsh-cli, plus the GVL
+  measurement in `ideas/swap-via-qemu-guest-agent.md`: the gem never
+  releases the GVL, so an in-process libvirt call freezes the UI thread. A
+  subprocess cannot.
+- *Merging the child's stderr into stdout* (as the idea note first
+  proposed), so error text orders against the reply marker. It does order
+  correctly — but the parser must receive stdout alone, exactly as
+  {Run.sync} delivers it today. Keeping the streams split preserves that
+  *and* {Run.sync}'s raise-with-stderr contract; `virsh` is strictly serial,
+  so anything on stderr by the time the sentinel is read belongs to that
+  frame.
+- *Framing replies on the `virsh # ` prompt.* Looks free, since readline
+  emits one after every command. It is not: readline also echoes the request,
+  so a payload containing the prompt string terminates the read on its own
+  echo and desynchronises every reply after it. Measured, not theorised. An
+  asymmetric sentinel — a nonce split by a quote the tokenizer removes, so
+  the bytes searched for cannot occur in the echoed input — is what actually
+  holds.
+- *Deciding a reply is complete when the pipe goes quiet.* Indistinguishable
+  from latency, and the failure mode is one VM's numbers reported as
+  another's. Completeness comes from ordering instead: `virsh` runs one
+  command at a time, so a sentinel sent after the real command cannot answer
+  until the real command has finished.
+
+**Consequences.**
+
+- A read deadline now exists where {Run.sync} would have blocked forever.
+  It is a liveness backstop only; nothing about where a reply *ends* depends
+  on it.
+- Both transports pass `-q`. Without it `virsh` appends a blank line that an
+  interactive session does not, and byte-identical output is the whole basis
+  for calling the swap safe.
+- Failure splits in two, and the split is load-bearing: a host with no
+  libvirtd leaves `virsh` sitting happily in its REPL failing every command,
+  so treating a *command* failure as a broken child would respawn forever.
+- Without an exit status, deciding whether stderr means failure or chatter
+  is a prefix test on `error:`. This is the design's weakest joint, and the
+  reason the unclassified remainder is logged at `warn` rather than `debug`
+  during the trial.
+- Still unmeasured, and the thing that should decide whether this becomes
+  the default: the *daemon-side* cost of the connect/disconnect the current
+  path pays every 2s. `test:///default` has no daemon, so the dev box cannot
+  see it.
+
 ## D-virsh-cli — drive libvirt by shelling out to `virsh`, not the ruby-libvirt binding (2025-11-11)
 
 **Status:** Accepted. {Virt::Virsh} is the only real backend;
