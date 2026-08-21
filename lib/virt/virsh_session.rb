@@ -5,8 +5,9 @@ module Virt
   # it over pipes, instead of spawning a process per command. Drop-in for {VirshSpawn}:
   #
   #   runner = VirshSession.new
-  #   Virsh.new(runner: runner)   # reads now cost ~0.1ms instead of ~8ms
-  #   runner.close                # always; otherwise the child outlives the process
+  #   Virsh.new(runner: runner)      # reads now cost ~0.1ms instead of ~8ms
+  #   runner.query('domstats')       # one argument per word; {.quote} handles the rest
+  #   runner.close                   # always; otherwise the child outlives the process
   #
   # Only {#query} uses the session. {#sync} and {#async} delegate to a {VirshSpawn},
   # because one `virsh` child runs commands strictly one at a time: a `virsh start` would
@@ -108,36 +109,50 @@ module Virt
     # good. A failure *reported by* `virsh` is not a broken child and propagates
     # untouched.
     #
-    # @param subcommand [String] a `virsh` subcommand and its arguments, e.g. `domstats`
+    # @param args [Array<String>] a `virsh` subcommand and its arguments, one per element
     # @return [String] the command's stdout, with stderr excluded
     # @raise [RuntimeError] if `virsh` reported an error for this command
-    def query(subcommand)
+    def query(*args)
+      line = args.map { |it| self.class.quote(it) }.join(' ')
       @mutex.synchronize do
-        next @spawn.query(subcommand) if @degraded
+        next @spawn.query(*args) if @degraded
 
         begin
-          call(subcommand)
+          call(line)
         rescue TransportError => e
           $log.warn("virsh session: #{e.message}; respawning")
           begin
             restart
-            call(subcommand)
+            call(line)
           rescue TransportError => e2
             degrade(e2)
-            @spawn.query(subcommand)
+            @spawn.query(*args)
           end
         end
       end
     end
 
-    # @param subcommand [String] a `virsh` subcommand and its arguments
+    # Quotes one argument for `virsh`'s own tokenizer, which is not the shell's.
+    #
+    # Single quotes, never double: inside `'…'` `virsh` takes every byte literally, while
+    # inside `"…"` it treats backslash as an escape and would eat the ones JSON puts
+    # there. An embedded quote closes, escapes and reopens, exactly as POSIX sh needs —
+    # `virsh echo --shell` emits this same form, which is a handy oracle.
+    #
+    #   quote("it's")   # => "'it'\\''s'"
+    #
+    # @param str [String] one argument, as the caller means it to arrive
+    # @return [String] the argument wrapped so the tokenizer reproduces it byte for byte
+    def self.quote(str) = "'#{str.gsub("'") { "'\\''" }}'"
+
+    # @param args [Array<String>] a `virsh` subcommand and its arguments, one per element
     # @return [String] the command's stdout
     # @raise [RuntimeError] if the command fails (via {Run.sync})
-    def sync(subcommand) = @spawn.sync(subcommand)
+    def sync(*args) = @spawn.sync(*args)
 
-    # @param subcommand [String] a `virsh` subcommand and its arguments
+    # @param args [Array<String>] a `virsh` subcommand and its arguments, one per element
     # @return [Thread] the thread running the command (see {Run.async})
-    def async(subcommand) = @spawn.async(subcommand)
+    def async(*args) = @spawn.async(*args)
 
     # Shuts the child down, killing it if it will not leave politely. Safe to call twice;
     # after it, {#query} degrades to spawning.
@@ -213,27 +228,27 @@ module Virt
 
     # Sends one command plus a sentinel and returns the command's stdout.
     #
-    # @param subcommand [String] a `virsh` subcommand and its arguments
+    # @param line [String] the command line to send, arguments already quoted by {.quote}
     # @return [String] the command's stdout
     # @raise [TransportError] if the child is unusable
     # @raise [RuntimeError] if `virsh` reported an error for this command
-    private def call(subcommand)
+    private def call(line)
       nonce = "VT#{SecureRandom.hex(6)}"
       # Splitting the nonce with a quote that virsh's tokenizer removes means the echoed
       # command line cannot contain the bytes we search for — so a payload that happens
       # to include the marker, or the prompt, can't terminate the read early.
       sentinel = "echo '#{nonce[0, 4]}'#{nonce[4..]}"
-      write_line("#{subcommand}\n#{sentinel}\n")
+      write_line("#{line}\n#{sentinel}\n")
 
       raw = read_until(@stdout, "#{nonce}#{@prompt}")
-      raise Desync, "expected an echo of #{subcommand.inspect}" unless raw.start_with?("#{subcommand}\n")
+      raise Desync, "expected an echo of #{line.inspect}" unless raw.start_with?("#{line}\n")
 
-      body = raw[(subcommand.bytesize + 1)..]
+      body = raw[(line.bytesize + 1)..]
       tail = "#{@prompt}#{sentinel}\n#{nonce}#{@prompt}"
       cut = body.rindex(tail)
       raise Desync, 'sentinel did not close the reply' if cut.nil?
 
-      check_stderr(subcommand)
+      check_stderr(line)
       body[0, cut]
     end
 
@@ -256,16 +271,16 @@ module Virt
     # a warning must not turn a good read into an exception, so the remainder is logged —
     # at `warn`, because during the opt-in trial that noise is the thing worth seeing.
     #
-    # @param subcommand [String] the command just run, for the message
+    # @param line [String] the command just run, for the message
     # @return [void]
     # @raise [RuntimeError] if `virsh` printed an `error:` line
-    private def check_stderr(subcommand)
+    private def check_stderr(line)
       text = read_available(@stderr)
       return if text.empty?
 
       errors, chatter = text.lines.partition { |it| it.start_with?('error:') }
-      $log.warn("virsh session: '#{subcommand}' wrote #{chatter.join.strip}") unless chatter.empty?
-      raise "Command 'virsh #{subcommand}' failed: #{errors.join.strip}" unless errors.empty?
+      $log.warn("virsh session: '#{line}' wrote #{chatter.join.strip}") unless chatter.empty?
+      raise "Command 'virsh #{line}' failed: #{errors.join.strip}" unless errors.empty?
     end
 
     # @param io [IO] stream to read

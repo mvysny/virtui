@@ -136,7 +136,7 @@ module Virt
     def set_actual(domain_name, new_actual)
       raise "#{new_actual} must be at least 256m" if new_actual < 256.MiB
 
-      @runner.sync("setmem '#{domain_name}' '#{new_actual / 1024}'")
+      @runner.sync('setmem', domain_name, (new_actual / 1024).to_s)
       $log.info "#{domain_name}: set new actual memory to #{format_byte_size(new_actual)}"
     end
 
@@ -157,7 +157,7 @@ module Virt
     # @param period_seconds [Integer] how often the guest refreshes its stats, in seconds
     # @return [Thread] the thread running the command
     def set_mem_stats_period(domain_name, period_seconds)
-      @runner.async("dommemstat '#{domain_name}' --period #{period_seconds} --live")
+      @runner.async('dommemstat', domain_name, '--period', period_seconds.to_s, '--live')
     end
 
     # Starts a stopped VM. Behaviour is undefined for an already-started or paused VM.
@@ -167,7 +167,7 @@ module Virt
     # @param domain_name [String] VM name
     # @return [Thread] the thread running the command
     def start(domain_name)
-      @runner.async("start '#{domain_name}'")
+      @runner.async('start', domain_name)
     end
 
     # Asks a VM to shut down gracefully.
@@ -177,7 +177,7 @@ module Virt
     # @param domain_name [String] VM name
     # @return [Thread] the thread running the command
     def shutdown(domain_name)
-      @runner.async("shutdown '#{domain_name}'")
+      @runner.async('shutdown', domain_name)
     end
 
     # Asks the VM to reboot itself gracefully.
@@ -185,7 +185,7 @@ module Virt
     # @param domain_name [String] VM name
     # @raise [RuntimeError] if `virsh reboot` fails
     def reboot(domain_name)
-      @runner.sync("reboot '#{domain_name}'")
+      @runner.sync('reboot', domain_name)
     end
 
     # Resets the VM forcefully (a hard power-cycle).
@@ -193,7 +193,7 @@ module Virt
     # @param domain_name [String] VM name
     # @raise [RuntimeError] if `virsh reset` fails
     def reset(domain_name)
-      @runner.sync("reset '#{domain_name}'")
+      @runner.sync('reset', domain_name)
     end
 
     # Forces the VM off (a hard power-off, via `virsh destroy`).
@@ -201,7 +201,7 @@ module Virt
     # @param domain_name [String] VM name
     # @raise [RuntimeError] if `virsh destroy` fails
     def force_off(domain_name)
-      @runner.sync("destroy '#{domain_name}'")
+      @runner.sync('destroy', domain_name)
     end
   end
 end

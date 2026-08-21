@@ -196,6 +196,12 @@ file's preamble, read when you're about to write an entry.
 - **Errors are loud.** On unexpected internal state, raise with the
   offending data included (see `Run.sync`). Don't swallow failures from
   `virsh` or `/proc` parsing.
+- **One argument per word to `Run`.** `Run.sync('virsh', 'setmem', name)`,
+  never `Run.sync("virsh setmem '#{name}'")` — a single string goes through
+  `/bin/sh`, so an interpolated VM name or path needs escaping that nobody
+  remembers (a VM named `it's` broke seven commands; see DECISIONS.md
+  D-argv-not-shell). The only quoting left in the project is
+  `Virt::VirshSession.quote`, for `virsh`'s own tokenizer.
 - **Diagnostics go through `$log`** (the `TTY::Logger` set up in
   `bin/virtui`, the one allowed global). Use it instead of `puts` /
   `warn` / `$stderr.puts` for log lines.

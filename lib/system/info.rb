@@ -66,8 +66,7 @@ module System
     def disk_usage(qcow2_files, test_df = nil)
       return {} if qcow2_files.empty?
 
-      files = qcow2_files.map { |it| "'#{it[0]}'" }.join ' '
-      df = test_df || Run.sync("df -P #{files}")
+      df = test_df || Run.sync('df', '-P', *qcow2_files.map { |it| it[0] })
       df_lines = df.lines.map(&:strip)[1..]
       # each line is an Array: 0=>physical disk name, 1=>total size in kb, 3=>available space in kb.
       df_lines = df_lines.map(&:split)

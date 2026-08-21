@@ -33,6 +33,21 @@ VIRSH_DOMSTATS_SWAPPING = <<~EOF
     balloon.rss=23068672
 EOF
 
+# Records what the runner was asked to do, so the assertions below read as argv lists.
+class RecordingRunner
+  attr_reader :calls
+
+  def initialize = @calls = []
+  def query(*args) = record(:query, args)
+  def sync(*args) = record(:sync, args)
+  def async(*args) = record(:async, args)
+
+  private def record(kind, args)
+    @calls << [kind, *args]
+    ''
+  end
+end
+
 describe Virt::Virsh do
   it 'hostinfo' do
     info = Virt::Virsh.new.hostinfo(VIRSH_NODEINFO)
@@ -71,5 +86,36 @@ describe Virt::Virsh do
     assert_equal 22.51, result1.cpu_usage(result0).round(2)
     result2 = Virt::Virsh.new.domain_data(File.read('spec/virt/domstats2.txt'), millis_since_epoch + (20 * 1000))['ubuntu']
     assert_equal 181.43, result2.cpu_usage(result1).round(2)
+  end
+
+  # A VM whose name contains an apostrophe used to build `virsh setmem 'it's' …`, which
+  # /bin/sh rejected with an unterminated-quote error. Every command that names a VM must
+  # hand the name over as one argument, with no quoting of its own.
+  context 'passes VM names as arguments, never as shell text' do
+    let(:runner) { RecordingRunner.new }
+    let(:hostile) { "it's a \"VM\"" }
+
+    it 'set_actual' do
+      Helpers.setup_dummy_logger
+      Virt::Virsh.new(runner: runner).set_actual(hostile, 1.GiB)
+      assert_equal [[:sync, 'setmem', hostile, '1048576']], runner.calls
+    end
+
+    it 'the power commands' do
+      virsh = Virt::Virsh.new(runner: runner)
+      virsh.start(hostile)
+      virsh.shutdown(hostile)
+      virsh.reboot(hostile)
+      virsh.reset(hostile)
+      virsh.force_off(hostile)
+      assert_equal [[:async, 'start', hostile], [:async, 'shutdown', hostile],
+                    [:sync, 'reboot', hostile], [:sync, 'reset', hostile],
+                    [:sync, 'destroy', hostile]], runner.calls
+    end
+
+    it 'set_mem_stats_period' do
+      Virt::Virsh.new(runner: runner).set_mem_stats_period(hostile, 2)
+      assert_equal [[:async, 'dommemstat', hostile, '--period', '2', '--live']], runner.calls
+    end
   end
 end

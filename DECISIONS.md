@@ -213,6 +213,76 @@ stopped reporting, not why (see the README's ballooning prerequisites).
 
 ---
 
+## D-argv-not-shell — subprocesses take one argument per word, not a command string (2026-08-21)
+
+**Status:** Accepted. {Run.sync} and {Run.async} take a splat; every call
+site that interpolates a VM name or a file path passes it as its own
+argument.
+
+**Context.** {Run} originally took a single `String`, which Ruby hands to
+`/bin/sh` whenever it contains shell metacharacters. Three call sites
+interpolated user-controlled text into that string and hand-wrapped it in
+single quotes:
+
+```ruby
+Run.sync("virsh setmem '#{domain_name}' '#{new_actual / 1024}'")
+Run.async("virt-manager … --show-domain-console '#{current_vm}'")
+qcow2_files.map { |it| "'#{it[0]}'" }.join(' ')     # into `df -P …`
+```
+
+Single quotes cannot contain a single quote, so all three broke on an
+apostrophe — and libvirt permits one in a domain name, as does any
+filesystem in a qcow2 path. A VM named `it's` produced:
+
+```
+$ virsh setmem 'it's' '262144'
+sh: 1: Syntax error: Unterminated quoted string
+```
+
+Every VirTUI command that names a VM was affected: `setmem`, `dommemstat`,
+`start`, `shutdown`, `reboot`, `reset`, `destroy`, the `virt-manager`
+launch, and `df` on the disk images.
+
+**Decision.** `Run.sync(*command)` / `Run.async(*command)`. With more than
+one element `Open3` execs directly, no shell is involved, and an argument
+containing quotes, spaces, `*` or `$HOME` arrives byte-for-byte. The
+`virsh` runner role took the same shape — `query`/`sync`/`async` all splat
+— so {Virt::Virsh} now writes `@runner.sync('setmem', domain_name, kib)`.
+The single-string form still works and is kept for literal commands with
+nothing interpolated.
+
+**Alternatives rejected.**
+
+- *Escape correctly instead, with `Shellwords.escape`.* Works, and it is
+  what the first sketch of this fix did. Rejected because it keeps a shell
+  in the path for no benefit: every future call site then has to remember
+  to escape, and forgetting is silent until someone names a VM oddly. Argv
+  removes the category rather than defending against it. It would also have
+  been escaping for the *wrong target* half the time — see the next point.
+- *One escaping helper shared by both transports.* Tempting, and wrong:
+  {Virt::VirshSpawn} needs no escaping at all now, while
+  {Virt::VirshSession} must quote for `virsh`'s own tokenizer, which is not
+  the shell's. Structured arguments let each transport do its own thing —
+  spawn passes argv, the session quotes with
+  {Virt::VirshSession.quote} — from one call site that knows about neither.
+  (They *are* near-identical grammars, which is exactly what would have
+  made a single shared helper look right until it wasn't.)
+- *Leave it; nobody names a VM `it'\''s`.* An apostrophe in a name is
+  ordinary, and the failure is not graceful: `virsh setmem` dies in the
+  shell with a syntax error nobody would connect to the VM's name. The same
+  bug in `df -P` silently mis-reports disk usage for the affected image.
+
+**Consequences.**
+
+- `Run`'s error and log messages join the argv with spaces for readability,
+  so a name containing a space is ambiguous *in the message*. Cosmetic, and
+  the alternative (inspecting each element) is noisier for the common case.
+- The runner role's methods take a splat, which cannot carry a yardoc
+  `@param` if written as anonymous `*` forwarding — hence the documented
+  `Style/ArgumentsForwarding` exclusion in `.rubocop.yml`.
+- {Virt::VirshSession.quote} is now the only quoting code in the project,
+  and it has exactly one target: `virsh`'s tokenizer.
+
 ## D-virsh-session — a persistent `virsh` REPL as an opt-in transport for reads (2026-08-21)
 
 **Status:** On trial. {Virt::VirshSession} is opt-in behind

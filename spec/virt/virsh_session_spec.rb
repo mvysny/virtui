@@ -19,7 +19,7 @@ describe Virt::VirshSession do
   it 'returns the same bytes as spawning a process per command' do
     spawn = Virt::VirshSpawn.new
     %w[domstats nodeinfo].each do |subcommand|
-      assert_equal spawn.query("-c test:///default #{subcommand}"), @session.query(subcommand),
+      assert_equal spawn.query('-c', 'test:///default', subcommand), @session.query(subcommand),
                    "#{subcommand} differed between transports"
     end
   end
@@ -35,23 +35,23 @@ describe Virt::VirshSession do
   end
 
   it 'handles a multi-line reply, an empty reply and a repeat' do
-    assert_operator @session.query('dominfo test').lines.size, :>, 5
-    assert_equal '', @session.query('setmaxmem test 1048576 --config')
+    assert_operator @session.query('dominfo', 'test').lines.size, :>, 5
+    assert_equal '', @session.query('setmaxmem', 'test', '1048576', '--config')
     assert_operator @session.query('domstats').bytesize, :>, 0
   end
 
   # The reply is framed by a sentinel whose bytes cannot appear in the echoed request, so
   # a payload carrying the prompt string must not cut the read short.
   it 'survives a payload containing the prompt' do
-    assert_equal 'virsh # FORGED', @session.query("echo 'virsh # FORGED'")
-    assert_equal 'still-here', @session.query("echo 'still-here'")
+    assert_equal 'virsh # FORGED', @session.query('echo', 'virsh # FORGED')
+    assert_equal 'still-here', @session.query('echo', 'still-here')
   end
 
   it 'raises with virsh stderr when the command fails, and stays usable' do
-    e = assert_raises(RuntimeError) { @session.query('dominfo nosuchdomain') }
+    e = assert_raises(RuntimeError) { @session.query('dominfo', 'nosuchdomain') }
     assert_includes e.message, 'nosuchdomain'
     refute @session.degraded?, 'a command failure must not write off the session'
-    assert_equal 'ok', @session.query("echo 'ok'")
+    assert_equal 'ok', @session.query('echo', 'ok')
   end
 
   # The guard that matters most. A wedged child must never let one command's output be
@@ -95,6 +95,14 @@ describe Virt::VirshSession do
     session&.close
   end
 
+  # An apostrophe in a VM name used to build `virsh setmem 'it's' …` and die in /bin/sh.
+  # Both transports must now carry it verbatim.
+  it "carries an apostrophe through, the way a VM named it's needs" do
+    hostile = "it's a \"VM\" \\ odd"
+    assert_equal hostile, @session.query('echo', hostile)
+    assert_equal hostile, Virt::VirshSpawn.new.query('-c', 'test:///default', 'echo', hostile)
+  end
+
   it 'degrades to spawning after close, rather than raising' do
     stub = Class.new(Virt::VirshSpawn) do
       def query(_subcommand) = 'FROM-SPAWN'
@@ -111,9 +119,9 @@ describe Virt::VirshSpawn do
     skip 'virsh not installed' unless Virt::Virsh.available?
 
     runner = Virt::VirshSpawn.new
-    assert_includes runner.query('-c test:///default nodeinfo'), 'CPU model'
-    assert_equal runner.query('-c test:///default nodeinfo'),
-                 runner.sync('-c test:///default nodeinfo')
+    assert_includes runner.query('-c', 'test:///default', 'nodeinfo'), 'CPU model'
+    assert_equal runner.query('-c', 'test:///default', 'nodeinfo'),
+                 runner.sync('-c', 'test:///default', 'nodeinfo')
     runner.close
   end
 end

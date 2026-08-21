@@ -71,3 +71,11 @@ Style/CaseLikeIf:
 # Inline `private def name` is used alongside bare `private`; both are accepted.
 Style/AccessModifierDeclarations:
   Enabled: false
+
+# The `virsh` runner role ({Virt::VirshSpawn}, {Virt::VirshSession}) forwards a splat, and
+# the project mandates a yardoc `@param` on every public method — which needs a parameter
+# name. Anonymous `*` forwarding cannot be documented, so the name stays.
+Style/ArgumentsForwarding:
+  Exclude:
+    - 'lib/virt/virsh_spawn.rb'
+    - 'lib/virt/virsh_session.rb'

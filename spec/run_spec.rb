@@ -11,6 +11,13 @@ describe Run do
       assert_raises(StandardError) { Run.sync('echjasd foo') }
       assert_raises(StandardError) { Run.sync('cat non-existing-file') }
     end
+    # One argument per word means no shell, so nothing in an argument is ever reparsed.
+    it 'passes arguments through without a shell' do
+      assert_equal "it's", Run.sync('echo', "it's").strip
+      assert_equal '*', Run.sync('echo', '*').strip
+      assert_equal 'a b  c', Run.sync('echo', 'a b  c').strip
+      assert_equal '$HOME `id`', Run.sync('echo', '$HOME `id`').strip
+    end
   end
   context 'async' do
     it 'runs command successfully' do

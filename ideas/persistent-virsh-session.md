@@ -511,6 +511,10 @@ sharding*; the O(1) read path justifies the *session* on its own.
 Landed with the implementation:
 
 - the transport choice and its roads not taken → **DECISIONS.md D-virsh-session**
+- the quoting rule (single quotes, never double, because `'…'` is literal) →
+  **yardoc** on {Virt::VirshSession.quote}, now the project's only quoting code.
+  The shell-quoting bug this page kept flagging — `virsh setmem 'it's' …` — is
+  fixed by structured arguments instead → **DECISIONS.md D-argv-not-shell**
 - `TERM=dumb` + oversized `COLUMNS` are load-bearing, and why → **yardoc** on
   {Virt::VirshSession::CHILD_ENV}. The single most surprising fact on this page,
   and the one most likely to be "cleaned up" by a later reader
@@ -524,13 +528,9 @@ Landed with the implementation:
 
 Still owed, and deliberately not written yet:
 
-- **the quoting rule** (single quotes, never double, because `'…'` is literal) and
-  the **no-raw-control-bytes rule** including the `JSON.generate` DEL hole. The
-  session carries only argument-free commands today, so there is nothing to
-  quote; this lands with the first guest-agent command, not before
-- **the pre-existing shell-quoting bug** — `Virsh#set_actual` on a VM named `it's`
-  builds `virsh setmem 'it's' …` and dies with an unterminated-quote syntax error.
-  It lives on the spawn path, predates all of this, and wants its own fix
+- **the no-raw-control-bytes rule** including the `JSON.generate` DEL hole. The
+  session carries no caller-supplied payload today, so nothing can carry a control
+  byte; this lands with the first guest-agent command, not before
 - **the daemon-side connection cost**, the measurement that decides whether the
   session becomes the default (see *Is it worth it for the O(1) poll?*)
 - the 31.16 ms / 57 % host baseline and the dev-box figures are evidence and live
