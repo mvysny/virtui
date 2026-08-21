@@ -44,7 +44,7 @@ describe Virt::BallooningVM do
     available = actual - 128.MiB
     used = ((available * percent) + 99) / 100 # ceil, so percent_used == percent exactly
     usable = available - used
-    Virt::MemoryStat.new(actual, usable, available, usable, 0, actual, now_secs)
+    Virt::MemoryStat.new(actual, usable, available, usable, 0, 0, 0, actual, now_secs)
   end
 
   # A BallooningVM over a fake cache holding `mem` for 'vm0'. `min_actual` defaults low so
@@ -80,7 +80,7 @@ describe Virt::BallooningVM do
   end
 
   it 'does nothing when the VM lacks ballooning support' do
-    mem = Virt::MemoryStat.new(2.GiB, nil, nil, nil, nil, 2.GiB, now_secs)
+    mem = Virt::MemoryStat.new(2.GiB, nil, nil, nil, nil, nil, nil, 2.GiB, now_secs)
     cache, b = ballooner(mem)
     b.update
     assert_equal 'ballooning unsupported by the VM; d=0', b.status.to_s
@@ -91,7 +91,7 @@ describe Virt::BallooningVM do
     now_ms = 1_762_378_459_933
     info = Virt::DomainInfo.new('vm0', 2, 16.GiB)
     # 7G of 8G used (87%) would normally trigger an increase, but last-update is an hour old.
-    mem = Virt::MemoryStat.new(8.GiB, 0, 8.GiB, 1.GiB, 0, 4.GiB, (now_ms / 1000) - 3600)
+    mem = Virt::MemoryStat.new(8.GiB, 0, 8.GiB, 1.GiB, 0, 0, 0, 4.GiB, (now_ms / 1000) - 3600)
     data = Virt::DomainData.new(info, :running, now_ms, 0, mem, [])
     cache = BallooningFakeCache.new(mem: mem, info: info, data: data)
 

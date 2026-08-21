@@ -84,6 +84,8 @@ module Virt
       e.add(VMEmulator::VM.simple('Fedora', actual: 20.GiB, max_actual: 40.GiB))
       e.vm('Ubuntu').start
       e.vm('win11').start
+      # Ubuntu swaps, win11 doesn't, so the demo shows both halves of the swap indicator.
+      e.vm('Ubuntu').swap_out_rate = 3.MiB
       e
     end
 

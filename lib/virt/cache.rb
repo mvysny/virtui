@@ -121,18 +121,56 @@ module Virt
     # @!attribute [r] mem_data_age_seconds
     #   @return [Integer, nil] age of the guest memory data, in seconds; `nil` if balloon
     #     data is unavailable or the VM is shut down
-    class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds)
-      # Builds a cache entry by diffing the previous snapshot against the current one
-      # (for CPU usage and memory-data age).
+    # @!attribute [r] swap_out_rate
+    #   @return [Float, nil] how fast the guest is writing pages to swap, in bytes per
+    #     second; `nil` if the guest doesn't report swap counters (see
+    #     {MemoryStat#swap_data_available?}) or this is the VM's first sample
+    #
+    #     The one figure here that says whether a guest is *paying* for memory pressure.
+    #     `MemAvailable` can't: evicting anon pages to swap raises it, so a swapping guest
+    #     and an idle one report the same `guest_mem` — see `ideas/swap-despite-ballooning.md`.
+    #     Positive means reclaim is hitting the swap device right now; `0.0` is what at-rest
+    #     looks like, even for a guest with gigabytes already parked in swap.
+    class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds, :swap_out_rate)
+      # Builds a cache entry by diffing the previous entry against the current snapshot
+      # (for CPU usage, memory-data age and swap-out rate).
       #
-      # @param prev_data [DomainData, nil] previous VM snapshot, or `nil` on first sight
+      # @param prev_cache [VMCache, nil] previous entry for this VM, or `nil` on first sight
       # @param next_data [DomainData] current VM snapshot
       # @return [VMCache] the derived cache entry
-      def self.diff(prev_data, next_data)
+      def self.diff(prev_cache, next_data)
+        prev_data = prev_cache&.data
         # Age is wall-clock (sampled_at minus last_updated), never the delta between two
         # polls' last_updated — see DECISIONS.md D-wall-clock-mem-age.
         age = next_data.mem_stat.nil? ? nil : ((next_data.sampled_at / 1000) - next_data.mem_stat.last_updated)
-        VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age)
+        VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age,
+                    swap_out_rate(prev_cache, next_data))
+      end
+
+      # Bytes-per-second at which the guest wrote to swap between the previous sample and
+      # this one, or `nil` if it can't be computed.
+      #
+      # @param prev_cache [VMCache, nil] previous entry for this VM, or `nil` on first sight
+      # @param next_data [DomainData] current VM snapshot
+      # @return [Float, nil] swap-out rate in bytes per second
+      def self.swap_out_rate(prev_cache, next_data)
+        now = next_data.mem_stat
+        prev = prev_cache&.data&.mem_stat
+        return nil if now.nil? || prev.nil? || !now.swap_data_available? || !prev.swap_data_available?
+
+        seconds = now.last_updated - prev.last_updated
+        # The guest hasn't reported since the last poll: libvirt refreshes balloon data only
+        # every ~5s while we poll every ~2s, so most polls see an unchanged sample. Carrying
+        # the last rate forward keeps the figure readable; reporting 0 here would blink it
+        # off on every other poll and hide exactly the activity we are watching for.
+        return prev_cache.swap_out_rate if seconds <= 0
+
+        delta = now.swap_out - prev.swap_out
+        # The counter is per-boot, so it only ever falls by resetting to 0 on a guest
+        # restart. That is a fresh baseline, not negative swapping.
+        return 0.0 if delta.negative?
+
+        delta.to_f / seconds
       end
 
       # @return [DomainInfo] the VM's static config
@@ -174,7 +212,7 @@ module Virt
         cache = Concurrent::Map.new(options: { initial_capacity: domain_data.length })
         domain_data.each do |did, data|
           prev_data = old_cache[did]&.data
-          cache[did] = VMCache.diff(prev_data, data)
+          cache[did] = VMCache.diff(old_cache[did], data)
           # A VM just (re)started: arm its guest mem-stat collection, or the balloon stats
           # stay frozen (see {Virsh#set_mem_stats_period}).
           @virt.set_mem_stats_period(did, STATS_PERIOD_SECONDS) if data.running? && !prev_data&.running?

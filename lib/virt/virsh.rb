@@ -58,6 +58,8 @@ module Virt
 
           mem_stat = MemoryStat.new(mem_current, mem_unused, mem_available, mem_usable,
                                     values['balloon.disk_caches']&.to_i&.KiB,
+                                    values['balloon.swap_in']&.to_i&.KiB,
+                                    values['balloon.swap_out']&.to_i&.KiB,
                                     values['balloon.rss'].to_i.KiB, last_updated)
         end
 

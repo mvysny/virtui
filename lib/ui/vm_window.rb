@@ -76,6 +76,12 @@ module UI
             memhost = usage_bar(column_width, ResourceUsage.of(host_ram.total, host_mem_usage.used), theme[:ram])
             lines << "    #{theme.ram('RAM')}:#{memguest} | #{memhost}"
             @line_data << domain_name
+
+            swap = format_swap_line(cache)
+            unless swap.nil?
+              lines << swap
+              @line_data << domain_name
+            end
           end
           next unless @show_disk_stat || data.running?
 
@@ -295,6 +301,28 @@ module UI
         line += " \u{1F422}" if cache.stale?
       end
       header(line)
+    end
+
+    # The guest's swap-out line, shown only while the guest is actually writing to swap:
+    #
+    #      SWAP: out    3M/s  total out 15M in 0
+    #
+    # A rate rather than a level, because the level is a since-boot high-water scar that
+    # says nothing about now — see {Virt::Cache::VMCache#swap_out_rate}. Hidden at rest so
+    # a healthy fleet costs no vertical space, which also means "no line" and "guest doesn't
+    # report swap" look the same; the totals are here to give the visible rate its context.
+    #
+    # @param cache [Virt::Cache::VMCache] the VM's cache entry
+    # @return [String, nil] the rendered line, or `nil` if the guest isn't swapping out
+    def format_swap_line(cache)
+      rate = cache.swap_out_rate
+      return nil if rate.nil? || !rate.positive?
+
+      mem_stat = cache.data.mem_stat
+      # 3 spaces, not 4: 'SWAP' is a character wider than 'CPU'/'RAM', and this lines its
+      # colon up with theirs — same trick as the 4-char disk labels above.
+      "   #{screen.theme.warn('SWAP')}: out #{format_byte_size(rate.round).rjust(5)}/s  " \
+        "total out #{format_byte_size(mem_stat.swap_out)} in #{format_byte_size(mem_stat.swap_in)}"
     end
 
     # Draws a row header: `left` caption followed by a frame rule filling the rest of the

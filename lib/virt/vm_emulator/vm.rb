@@ -33,6 +33,9 @@ module Virt
         @started_initial_apps = started_initial_apps
         @initial_actual = initial_actual
         @disk_caches = 1.GiB
+        @swap_out_rate = 0
+        @swap_out_base = 0
+        @swap_out_since = Time.now
         @startup_seconds = 10
         @shutdown_seconds = 5
         # How many seconds it will take for the VM to decrease its active memory.
@@ -53,6 +56,35 @@ module Virt
       # @return [String] the VM name
       def name
         info.name
+      end
+
+      # @return [Integer] bytes per second the simulated guest writes to swap; 0 (the
+      #   default) is a guest with a swap device it isn't touching
+      attr_reader :swap_out_rate
+
+      # Sets how fast the simulated guest writes to swap, from now on.
+      #
+      #   vm.swap_out_rate = 3.MiB   # {#swap_out_total} now climbs by 3 MiB per second
+      #
+      # @param bytes_per_second [Integer] the new rate
+      def swap_out_rate=(bytes_per_second)
+        # Bank what has accrued so far, so a rate change never walks the counter backwards.
+        # A real pswpout only ever resets by rebooting, and the controller reads a decrease
+        # as exactly that (see {Cache::VMCache#swap_out_rate}).
+        @swap_out_base = swap_out_total
+        @swap_out_since = Time.now
+        @swap_out_rate = bytes_per_second
+      end
+
+      # The guest's cumulative swap-out counter: {#swap_out_rate} integrated over the time
+      # it has been set, restarting from 0 on every {#start} — which is what a real guest's
+      # per-boot `pswpout` does.
+      #
+      # @return [Integer] bytes written to swap since {#start}, or 0 when not running
+      def swap_out_total
+        return 0 unless running?
+
+        @swap_out_base + (@swap_out_rate * (Time.now - @swap_out_since)).to_i
       end
 
       # @return [DomainInfo] static VM configuration
@@ -76,6 +108,8 @@ module Virt
 
         @started_at = Time.now
         @shut_down_at = nil
+        @swap_out_base = 0
+        @swap_out_since = @started_at
         @actual = Interpolator::Const.new(@initial_actual)
         # Mem used by guest apps. This doesn't include disk_caches.
         # This can be higher than 'MemoryStat.available' - we pretend that the rest of the app memory
@@ -164,7 +198,10 @@ module Virt
         disk_caches = @disk_caches.clamp(0, usable)
         rss = (apps + disk_caches).clamp(nil, available) + BIOS_KERNEL
         unused = usable - disk_caches
-        MemoryStat.new(actual, unused, available, usable, disk_caches, rss, DomainData.millis_now / 1000)
+        # swap_in stays 0: nothing needs a simulated drain, and 0 is honest for a guest whose
+        # swapped pages are never faulted back.
+        MemoryStat.new(actual, unused, available, usable, disk_caches, 0, swap_out_total, rss,
+                       DomainData.millis_now / 1000)
       end
     end
   end

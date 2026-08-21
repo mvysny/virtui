@@ -4,7 +4,7 @@ require_relative '../spec_helper'
 
 describe Virt::DomainData do
   def info = Virt::DomainInfo.new('web', 4, 8.GiB)
-  def mem = Virt::MemoryStat.new(8.GiB, 4.GiB, 8.GiB, 6.GiB, 1.GiB, 3.GiB, 1000)
+  def mem = Virt::MemoryStat.new(8.GiB, 4.GiB, 8.GiB, 6.GiB, 1.GiB, 0, 0, 3.GiB, 1000)
 
   # info, state, sampled_at (ms), cpu_time (ms), mem_stat, disk_stat
   def running = Virt::DomainData.new(info, :running, 2000, 7000, mem, [])

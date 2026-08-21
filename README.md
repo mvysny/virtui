@@ -96,6 +96,11 @@ When ballooning is enabled properly in a VM, 🎈 is shown next to the VM name i
 When virtui controls the app memory, an arrow is shown next to 🎈: up arrow indicates a memory increase,
 down arrow indicates memory decrease, and a flat dash `-` indicates no change.
 
+When a guest starts writing pages out to its swap device, a `SWAP` row appears under that VM's
+RAM bar, showing how fast it is swapping out plus the totals since the guest booted. The row
+disappears again once the guest stops: the balloon reports swap *I/O*, not how much swap is in
+use, so a VM still holding swap it isn't actively writing to shows no row.
+
 More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/).
 
 ## Automatic Balloon inflate/deflate

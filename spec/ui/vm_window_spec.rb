@@ -38,11 +38,15 @@ module Tuile
       @log.string
     end
 
+    # @return [Boolean] whether any rendered line carries the guest swap-out indicator
+    def swap_shown? = window.content.items.map(&:to_s).any? { |l| l.include?('SWAP') }
+
     # Cursor positions of each demo VM (see the 'has the right content' test for the layout).
     # base + Fedora are shut off; Ubuntu + win11 are running.
     def base = 0
     def ubuntu = 4
-    def win11 = 8
+    # 9, not 8: Ubuntu is 5 lines because it swaps, so it gets a SWAP line too.
+    def win11 = 9
 
     it 'has the right content' do
       content = window.content.items.map(&:to_s)
@@ -53,11 +57,12 @@ module Tuile
       assert_equal '▶ Ubuntu 🎈─────', content[4]
       assert_equal '    CPU:  0%          1 t |   0%          8 t', content[5]
       assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[6]
-      assert_equal '    vda: 50%   64G   128G |', content[7]
-      assert_equal '▶ win11 🎈──────', content[8]
-      assert_equal '    CPU:  0%          1 t |   0%          8 t', content[9]
-      assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[10]
-      assert_equal '    vda: 50%   64G   128G |', content[11]
+      assert_equal '   SWAP: out    3M/s  total out 15M in 0', content[7] # demo Ubuntu swaps
+      assert_equal '    vda: 50%   64G   128G |', content[8]
+      assert_equal '▶ win11 🎈──────', content[9]
+      assert_equal '    CPU:  0%          1 t |   0%          8 t', content[10]
+      assert_equal '    RAM: 25%    2G   7.9G |   9%  3.1G    32G', content[11]
+      assert_equal '    vda: 50%   64G   128G |', content[12] # no SWAP line: win11 isn't swapping
     end
 
     it 'show_power_popup opens picker' do
@@ -80,16 +85,16 @@ module Tuile
         # second VM is running and takes 3 lines
         window.content.handle_key(Keys::DOWN_ARROW)
         assert_equal 4, window.content.cursor.position
-        # third VM is running and takes 3 lines
+        # third VM is running and swapping, so it takes 4 lines
         window.content.handle_key(Keys::DOWN_ARROW)
-        assert_equal 8, window.content.cursor.position
+        assert_equal 9, window.content.cursor.position
         # no more VMs
         window.content.handle_key(Keys::DOWN_ARROW)
-        assert_equal 8, window.content.cursor.position
+        assert_equal 9, window.content.cursor.position
       end
       it 'moves cursor up correctly' do
-        window.content.cursor.go(8)
-        assert_equal 8, window.content.cursor.position
+        window.content.cursor.go(9)
+        assert_equal 9, window.content.cursor.position
         window.content.handle_key(Keys::UP_ARROW)
         assert_equal 4, window.content.cursor.position
         window.content.handle_key(Keys::UP_ARROW)
@@ -126,7 +131,7 @@ module Tuile
       it 'jumps to the matching VM as the user types' do
         window.handle_key('/')
         window.footer.handle_key('w') # win11
-        assert_equal 8, window.content.cursor.position
+        assert_equal 9, window.content.cursor.position
       end
 
       it 'is case-insensitive and matches substrings' do
@@ -274,6 +279,27 @@ module Tuile
       it 'maps paused and unknown states to their glyphs' do
         assert window.send(:format_domain_state, :paused).include?("\u{23F8}")
         assert window.send(:format_domain_state, :other).include?('?')
+      end
+
+      it 'hides the swap line once the guest stops swapping' do
+        assert swap_shown? # forces the window to be built before the clock moves
+        Timecop.freeze(now + 10) do
+          cache.virt.vm('Ubuntu').swap_out_rate = 0 # counter plateaus, it does not reset
+          cache.update # still reports the 15M genuinely written over the interval just ended
+        end
+        Timecop.freeze(now + 15) { cache.update } # first interval with a flat counter
+        window.update
+        refute swap_shown?
+      end
+
+      it 'hides the swap line when a reboot resets the guest counter' do
+        assert swap_shown?
+        Timecop.freeze(now + 10) do
+          cache.virt.vm('Ubuntu').force_reboot
+          cache.update
+        end
+        window.update
+        refute swap_shown?
       end
 
       it 'renders nothing when the window is too narrow' do

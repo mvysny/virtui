@@ -13,6 +13,26 @@ VIRSH_NODEINFO = <<~EOF
   Memory size:         29987652 KiB
 EOF
 
+# One running VM's domstats, trimmed to the balloon fields. The swap counters are the pair
+# measured in ideas/swap-despite-ballooning.md, where they were cross-checked against the
+# guest's own /proc/vmstat: swap_out 3_205_344 KiB == pswpout 801_336 pages x 4096.
+VIRSH_DOMSTATS_SWAPPING = <<~EOF
+  Domain: 'swapper'
+    state.state=1
+    vcpu.maximum=8
+    cpu.time=1000000000
+    balloon.current=23068672
+    balloon.maximum=25165824
+    balloon.swap_in=2195252
+    balloon.swap_out=3205344
+    balloon.unused=4194304
+    balloon.available=22118400
+    balloon.usable=8388608
+    balloon.last-update=1762371689
+    balloon.disk_caches=4508876
+    balloon.rss=23068672
+EOF
+
 describe Virt::Virsh do
   it 'hostinfo' do
     info = Virt::Virsh.new.hostinfo(VIRSH_NODEINFO)
@@ -27,6 +47,21 @@ describe Virt::Virsh do
     assert_equal 'win11: CPUs: 4, RAM: 8G; shut_off', result['win11'].to_s
     assert_equal 'sda: 18G/128G (13%); physical 18G (2% overhead)', result['win11'].disk_stat.join(',')
     assert_equal 'vda: 23G/64G (36%); physical 25G (9% overhead)', result['ubuntu'].disk_stat.join(',')
+  end
+
+  it 'parses the guest swap counters, converting KiB to bytes' do
+    mem = Virt::Virsh.new.domain_data(VIRSH_DOMSTATS_SWAPPING, 0)['swapper'].mem_stat
+    assert mem.swap_data_available?
+    assert_equal 801_336 * 4096, mem.swap_out # the guest's pswpout, in bytes
+    assert_equal 548_813 * 4096, mem.swap_in
+  end
+
+  it 'reports swap as unavailable when the guest omits the counters' do
+    # a guest kernel without CONFIG_VM_EVENT_COUNTERS: everything else is still parsed
+    stats = VIRSH_DOMSTATS_SWAPPING.lines.grep_v(/balloon\.swap_/).join
+    mem = Virt::Virsh.new.domain_data(stats, 0)['swapper'].mem_stat
+    refute mem.swap_data_available?
+    assert mem.guest_data_available?
   end
 
   it 'cpu usage' do

@@ -43,7 +43,7 @@ describe Virt::Cache do
     # @param last_updated [Integer] guest report time, epoch seconds
     def running_data(last_updated)
       info = Virt::DomainInfo.new('vm', 2, 8.GiB)
-      mem = Virt::MemoryStat.new(8.GiB, 1.GiB, 8.GiB, 4.GiB, 0, 4.GiB, last_updated)
+      mem = Virt::MemoryStat.new(8.GiB, 1.GiB, 8.GiB, 4.GiB, 0, 0, 0, 4.GiB, last_updated)
       Virt::DomainData.new(info, :running, now_millis, 0, mem, [])
     end
 
@@ -69,6 +69,60 @@ describe Virt::Cache do
       vc = Virt::Cache::VMCache.diff(nil, data)
       assert_nil vc.mem_data_age_seconds
       refute vc.stale?
+    end
+  end
+
+  context 'VMCache#swap_out_rate' do
+    def now_millis = 1_762_378_459_933
+
+    # @param swap_out [Integer, nil] the guest's cumulative swap-out counter, in bytes
+    # @param last_updated [Integer] guest report time, epoch seconds
+    # @param poll [Integer] which poll this is; our own polls advance even when the guest's
+    #   `last_updated` doesn't, which is the normal case
+    def data(swap_out, last_updated, poll)
+      info = Virt::DomainInfo.new('vm', 2, 8.GiB)
+      mem = Virt::MemoryStat.new(8.GiB, 1.GiB, 8.GiB, 4.GiB, 0, 0, swap_out, 4.GiB, last_updated)
+      Virt::DomainData.new(info, :running, now_millis + (poll * 2000), 0, mem, [])
+    end
+
+    # Chains snapshots through diff the way Cache#update does, and returns the last entry.
+    # @param samples [Array<Array(Integer, Integer)>] `[swap_out, last_updated]` pairs
+    def rate_after(*samples)
+      samples.each_with_index
+             .reduce(nil) { |prev, ((out, at), i)| Virt::Cache::VMCache.diff(prev, data(out, at, i)) }
+             .swap_out_rate
+    end
+
+    it 'is nil on the first sample — a counter needs two reads' do
+      assert_nil rate_after([0, 1000])
+    end
+
+    it 'is the counter delta over the guest-reported interval' do
+      assert_equal 2.MiB, rate_after([0, 1000], [10.MiB, 1005]) # 10 MiB over 5s
+    end
+
+    it 'is 0.0 for a guest that is not swapping' do
+      assert_equal 0.0, rate_after([5.MiB, 1000], [5.MiB, 1005])
+    end
+
+    # libvirt refreshes balloon data only every ~5s while we poll every ~2s, so most polls
+    # see an unchanged sample. Reporting 0 there would blink the rate off every other poll.
+    it 'carries the last rate forward while the guest sample is unchanged' do
+      assert_equal 2.MiB, rate_after([0, 1000], [10.MiB, 1005], [10.MiB, 1005])
+    end
+
+    it 'reads a counter reset as a guest reboot, not as negative swapping' do
+      assert_equal 0.0, rate_after([0, 1000], [10.MiB, 1005], [0, 1010])
+    end
+
+    it 'is nil when the guest does not report swap counters' do
+      assert_nil rate_after([nil, 1000], [nil, 1005])
+    end
+
+    it 'is nil for a shut-off VM with no memory data' do
+      stopped = Virt::DomainData.new(Virt::DomainInfo.new('vm', 2, 8.GiB), :shut_off, now_millis + 2000, 0, nil, [])
+      vc = Virt::Cache::VMCache.diff(Virt::Cache::VMCache.diff(nil, data(0, 1000, 0)), stopped)
+      assert_nil vc.swap_out_rate
     end
   end
 
