@@ -224,7 +224,13 @@ module Virt
           prev_data = old_cache[did]&.data
           # Only running VMs, and one read each: a stopped VM has no agent to answer, and the
           # cost is per-VM rather than per-fleet (see {Virsh#guest_swap}).
-          guest_swap = data.running? ? @virt.guest_swap(did) : nil
+          if data.running?
+            guest_swap = @virt.guest_swap(did)
+          else
+            # Strikes burned during the shutdown must not greet the next boot.
+            guest_swap = nil
+            @virt.forget_guest(did)
+          end
           cache[did] = VMCache.diff(old_cache[did], data, guest_swap)
           # A VM just (re)started: arm its guest mem-stat collection, or the balloon stats
           # stay frozen (see {Virsh#set_mem_stats_period}).

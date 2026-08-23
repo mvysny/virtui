@@ -77,6 +77,13 @@ module Virt
     # @return [void]
     def set_mem_stats_period(vmid, period_seconds); end
 
+    # No-op: the emulator's guests always answer, so there is no failure state to forget.
+    # Mirrors {Virsh#forget_guest} so {Cache} can call it backend-agnostically.
+    #
+    # @param name [String] VM name
+    # @return [void]
+    def forget_guest(name); end
+
     # Builds a ready-made demo fleet: BASE (shut off), Ubuntu (running), win11 (running),
     # Fedora (shut off).
     #

@@ -42,6 +42,13 @@ module Virt
     #   is no guest agent to ask (see {GuestAgent#swap} for the other reasons)
     def guest_swap(domain_name) = @guest_agent&.swap(domain_name)
 
+    # Drops what the guest agent remembers about a VM's failed samples.
+    #
+    # @param domain_name [String] VM name, typically one that has just stopped running (see
+    #   {GuestAgent#forget})
+    # @return [void]
+    def forget_guest(domain_name) = @guest_agent&.forget(domain_name)
+
     # Reads runtime stats for every VM via `virsh domstats`.
     #
     # @param domstats_file [String, nil] canned `virsh domstats` output for testing; runs

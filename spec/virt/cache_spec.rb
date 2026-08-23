@@ -11,10 +11,13 @@ class NoAgentRunner
   def async(*_args) = nil
 end
 
-# A VMEmulator that records every set_mem_stats_period call instead of no-op'ing it.
+# A VMEmulator that records the calls {Virt::Cache} makes on the VM-state edges, instead of
+# no-op'ing them.
 class RecordingEmulator < Virt::VMEmulator
   def period_calls = @period_calls ||= []
   def set_mem_stats_period(vmid, period_seconds) = period_calls << [vmid, period_seconds]
+  def forget_calls = @forget_calls ||= []
+  def forget_guest(name) = forget_calls << name
 end
 
 describe Virt::Cache do
@@ -174,6 +177,25 @@ describe Virt::Cache do
         cache.update # newly-started VM gets armed
         assert_equal [['Ubuntu', Virt::Cache::STATS_PERIOD_SECONDS], ['BASE', Virt::Cache::STATS_PERIOD_SECONDS]],
                      e.period_calls
+      end
+    end
+  end
+
+  context 'forgetting a stopped guest' do
+    it 'forgets every VM that is not running, so its next boot starts clean' do
+      e = RecordingEmulator.new
+      e.add(Virt::VMEmulator::VM.simple('Ubuntu', actual: 8.GiB, max_actual: 16.GiB))
+      e.add(Virt::VMEmulator::VM.simple('BASE', actual: 8.GiB, max_actual: 8.GiB))
+      e.vm('Ubuntu').start
+
+      Timecop.freeze(Time.now) do
+        cache = Virt::Cache.new(e, System::Emulator.new) # constructor runs update once
+        assert_equal ['BASE'], e.forget_calls, 'the running VM must be sampled, not forgotten'
+
+        e.vm('Ubuntu').force_off
+        Timecop.travel(Time.now + 2)
+        cache.update
+        assert_equal %w[BASE Ubuntu BASE].sort, e.forget_calls.sort
       end
     end
   end

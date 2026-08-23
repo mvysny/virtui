@@ -114,6 +114,27 @@ describe Virt::GuestAgent do
     assert_equal 4, runner.calls.size, 'a lapsed write-off must let the next poll through'
   end
 
+  it 'spends one probe per lapse, not a fresh three strikes' do
+    runner = ScriptedAgentRunner.new('guest-file-open' => RuntimeError.new('error: nope'))
+    agent = Virt::GuestAgent.new(runner: runner, backoff_seconds: 0)
+    10.times { assert_nil agent.swap('win11') }
+
+    assert_equal Virt::GuestAgent::FAILURES_BEFORE_BACKOFF + 7, runner.calls.size,
+                 'a still-mute guest must re-arm on its single probe, not spend three'
+  end
+
+  it 'forgets a written-off guest' do
+    runner = ScriptedAgentRunner.new(HEALTHY_AGENT.merge('guest-file-open' => RuntimeError.new('error: nope')))
+    agent = Virt::GuestAgent.new(runner: runner)
+    5.times { agent.swap('win11') }
+    assert_equal Virt::GuestAgent::FAILURES_BEFORE_BACKOFF, runner.calls.size
+
+    agent.forget('win11')
+    assert_nil agent.swap('win11'), 'the guest still cannot answer'
+    assert_equal Virt::GuestAgent::FAILURES_BEFORE_BACKOFF + 1, runner.calls.size,
+                 'a forgotten guest must be asked again at once'
+  end
+
   # The payload is nothing but nested quotes, and this is the end-to-end proof that the
   # session does not mangle it: `test:///default` needs no libvirtd but does reach libvirt's own
   # virDomainQemuAgentCommand, which it then declines — so a quoting bug would surface as a
