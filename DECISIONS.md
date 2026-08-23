@@ -92,6 +92,86 @@ rejection is crowding out the live design.
 
 ---
 
+## D-virsh-own-pgroup — the session child runs in its own process group, so a terminal resize cannot reach it (2026-08-23)
+
+**Status:** Accepted; the `pgroup: true` on {Virt::VirshSession#start}'s
+`popen3`.
+
+**Context.** A rare `expected an echo of "'domstats'"; respawning` in the
+wild became attributable once the message carried the bytes that did
+arrive (commit 8820f6c): the reply began with a carriage return followed
+by a long run of spaces, which is not a `virsh` reply at all — it is GNU
+readline repainting its input line.
+
+The child was spawned into virtui's process group, and the kernel sends a
+terminal-generated signal to the whole *foreground* process group. So
+every time the user resized their window, the `virsh` child got a
+`SIGWINCH` it had no business receiving. readline catches that signal even
+though its streams are pipes, and reacted on the dev box with 521 bytes
+into stdout — `"\r"`, 513 spaces (clear-to-end-of-line the hard way,
+because `TERM=dumb` has no `ce`), `"\r"`, then a fresh prompt. Nobody was
+reading at that moment, so the repaint sat in the pipe and arrived as the
+prefix of the *next* reply, where the echo assertion caught it. Recovery
+worked as designed — one respawn, one lost read — but the read that was
+lost is a whole fleet poll, and the log line accused the wrong thing.
+
+The signal also does quieter damage, which is the reason not to just
+tolerate the bytes. On `SIGWINCH` readline re-derives its width from the
+terminal and **does not consult `COLUMNS` again**, so
+{Virt::VirshSession::CHILD_ENV}'s line-length guard silently expires: the
+dev box measured the width dropping to ~512, after which any command line
+longer than that is echoed in horizontal-scroll mode (`"\r<…"`) and
+desynchronises *every* read until a respawn. Today's longest line — the
+{Virt::GuestAgent} JSON, ~130 bytes — sits under that, so this half was a
+landmine rather than a live bug.
+
+**Decision.** `pgroup: true`. The child leads a process group of its own
+and no terminal-generated signal — `SIGWINCH` on a resize, `SIGINT` on a
+`^C`, `SIGTSTP` on a `^Z`, each of which makes readline repaint — can
+reach it. Losing those signals costs nothing: the child has no terminal,
+and it is shut down explicitly by {Virt::VirshSession#close}, or by its
+stdin closing when virtui dies, which was measured to leave no orphan
+(`virsh` reads EOF and exits 0).
+
+**Alternatives rejected.**
+
+- *Drain the stdout pipe before writing each command, discarding whatever
+  is there.* Tolerates the stray bytes without knowing where they came
+  from — and that is the objection: the only *other* thing that leaves
+  bytes in the pipe is a frame abandoned mid-read, which is exactly the
+  condition {Virt::VirshSession::Desync} exists to shout about. Swapping a
+  loud respawn for a quiet discard buys nothing here (the respawn already
+  recovers) and blunts the guard that keeps one VM's numbers from being
+  reported as another's. It also leaves the width collapse in place.
+- *Accept a leading repaint in the echo assertion* (strip a `\r`-and-spaces
+  prefix). Cheapest patch, and it hard-codes one readline version's
+  repaint shape into our framing. The bytes are a redisplay, so their
+  shape is a function of the terminfo entry and readline's optimiser, not
+  a contract.
+- *Ignore `SIGWINCH` in the child via a shell wrapper* (`sh -c 'trap ""
+  WINCH; exec virsh …'`). Fixes only the signal we happened to see, and
+  pays for it with a `/bin/sh` in the middle of the one transport that
+  must not re-learn quoting — see D-argv-not-shell.
+- *Drop `TERM=dumb` for a terminfo entry with a real `ce`, so the repaint
+  is short.* Makes the symptom smaller and the reply stream worse: the
+  point of `dumb` is that readline cannot emit ANSI escapes into the
+  bytes the parser reads.
+
+**Consequences.**
+
+- {Virt::VirshSession::CHILD_ENV}'s `COLUMNS` cap is only as good as this:
+  anything that puts the child back in virtui's process group re-arms both
+  failure modes, and the second one is silent. The pair is one mechanism,
+  which is why each side's yardoc points at the other.
+- `^C` no longer reaches the child. Nothing depended on it — tuile holds
+  the terminal in raw mode, so an interactive `^C` never became a signal —
+  but a future non-TUI entry point that expects `^C` to clean up must kill
+  the child itself.
+- {Virt::VirshSpawn} needs none of this: its children are non-interactive
+  and start no readline, so a resize mid-command is nothing to them.
+
+---
+
 ## D-guest-os-glyph — the guest-OS marker is a two-cell emoji, and an undeclared OS draws a dim `?` rather than a blank (2026-08-23)
 
 **Status:** Accepted; implemented in {UI::VMWindow#format_guest_os}.

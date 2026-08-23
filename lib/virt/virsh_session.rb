@@ -53,6 +53,10 @@ module Virt
     # re-emits, non-deterministically) anything it thinks is wider than the terminal, so
     # this is a line-length limit and not merely a cosmetic hint.
     #
+    # `COLUMNS` holds only while the child sees no `SIGWINCH`: readline re-derives its
+    # width from the terminal on that signal and does not consult the environment again,
+    # so the cap is really this entry *plus* the child's own process group ({#start}).
+    #
     # Not replaceable by a `virsh` flag, which is the first thing a reader tidying this up
     # will look for: `-q` silences the banner but not the prompt or the echo, and 12.0.0
     # has no `-f`/`--file` clean-stream mode at all.
@@ -186,6 +190,9 @@ module Virt
 
     # Starts the child and learns its prompt.
     #
+    # The child gets its own process group, so a terminal signal aimed at virtui cannot
+    # reach it (see the call below).
+    #
     # The prompt is whatever the child prints first, rather than a hardcoded `virsh # `:
     # it is cosmetic, unversioned string, and reading it costs nothing. Waiting for
     # quiescence is safe *here only* — at startup there is no earlier reply that a
@@ -195,7 +202,10 @@ module Virt
     # @raise [TransportError] if nothing prompt-shaped arrived in time
     private def start
       args = @uri ? ['-c', @uri] : []
-      @stdin, @stdout, @stderr, @wait = Open3.popen3(CHILD_ENV, 'virsh', '-q', *args)
+      # `pgroup: true` shields the child from every signal the terminal sends to virtui's
+      # process group — a window resize above all, which makes readline repaint a line
+      # nobody typed straight into the reply stream. See DECISIONS.md D-virsh-own-pgroup.
+      @stdin, @stdout, @stderr, @wait = Open3.popen3(CHILD_ENV, 'virsh', '-q', *args, pgroup: true)
 
       banner = read_quiescent(@stdout, STARTUP_TIMEOUT_SECONDS)
       # A failed connection prints errors first, but `virsh` stays in the REPL and

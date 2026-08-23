@@ -47,6 +47,21 @@ describe Virt::VirshSession do
     assert_equal 'still-here', @session.query('echo', 'still-here')
   end
 
+  # Resizing the terminal signals virtui's whole process group, and the child runs GNU
+  # readline: on SIGWINCH it repaints its line — ~520 bytes nobody asked for — into the
+  # reply stream, and the next read finds them ahead of its echo. The child therefore
+  # lives in a process group of its own. see DECISIONS.md D-virsh-own-pgroup
+  it 'is deaf to the resize signal that reaches virtui process group' do
+    child = @session.instance_variable_get(:@wait).pid
+    refute_equal Process.getpgid(0), Process.getpgid(child), 'the child shares our process group'
+
+    Process.kill('WINCH', -Process.getpgid(0))
+    sleep 0.1
+
+    assert_equal 'still-here', @session.query('echo', 'still-here')
+    refute_includes @log.string, 'respawning'
+  end
+
   it 'raises with virsh stderr when the command fails, and stays usable' do
     e = assert_raises(RuntimeError) { @session.query('dominfo', 'nosuchdomain') }
     assert_includes e.message, 'nosuchdomain'
