@@ -24,9 +24,10 @@ module Virt
   # guest with no agent — or with `guest-file-*` among the agent's `BLOCK_RPCS`, as
   # RHEL/Fedora ship it — is a normal state, not an internal error. It is the one read path
   # in the project that swallows; everything under it raises loudly. A guest that keeps
-  # failing is written off and then probed once a minute (see {FAILURES_BEFORE_BACKOFF}),
-  # and none of it is logged above `debug` — every VM start passes through that state while
-  # `qemu-ga` comes up.
+  # failing is written off and then probed once a minute (see {FAILURES_BEFORE_BACKOFF}).
+  # A failure a healthy host produces on its own ({EXPECTED_FAILURES}) stays at `debug` —
+  # every VM start passes through one while `qemu-ga` comes up — and anything else says so
+  # once, at `warn`, so a misconfigured agent is not swallowed with the rest.
   #
   # Timer-thread-confined: three RPCs against a sick guest is exactly the stall that must
   # never reach the UI thread.
@@ -58,6 +59,18 @@ module Virt
     FAILURES_BEFORE_BACKOFF = 3
     # @see FAILURES_BEFORE_BACKOFF
     BACKOFF_SECONDS = 60
+
+    # The failures a healthy host produces on its own, matched against the error message to
+    # keep them out of the log at `warn`. In order: the agent is not up (a guest mid-boot or
+    # mid-shutdown, or one that never had `qemu-guest-agent`), it went away mid-command, the
+    # RPC is blocked or absent (`guest-file-*` is in `BLOCK_RPCS` as RHEL/Fedora ship the
+    # agent), and the VM stopped between the `domstats` snapshot and this read.
+    #
+    # Matching libvirt's error text is fragile on purpose-limited grounds: it picks the *log
+    # level* only, never the write-off, so a miss costs one `warn` line and a new libvirt
+    # phrasing cannot change what virtui does. See DECISIONS.md D-guest-agent-backoff.
+    EXPECTED_FAILURES = ['guest agent is not responding', 'guest agent disappeared',
+                         'has not been found', 'domain is not running'].freeze
 
     # @param runner [VirshSession, VirshSpawn] transport for the `qemu-agent-command` calls
     # @param timeout_seconds [Integer] per-call agent timeout (see {TIMEOUT_SECONDS})
@@ -152,7 +165,11 @@ module Virt
     private def close_quietly(domain, handle)
       agent_command(domain, 'guest-file-close', { handle: handle })
     rescue StandardError => e
-      $log.warn("#{domain}: leaked guest file handle #{handle}: #{e.message.lines.first&.strip}")
+      # A guest shutting down between the open and the close leaks a handle it is about to
+      # destroy anyway, and that is the common way to get here (see {EXPECTED_FAILURES}).
+      reason = e.message.lines.first&.strip
+      $log.public_send(expected?(e) ? :debug : :warn,
+                       "#{domain}: leaked guest file handle #{handle}: #{reason}")
     end
 
     # Runs one guest-agent command and returns its `return` member.
@@ -210,6 +227,14 @@ module Virt
       false
     end
 
+    # @param error [StandardError] the failure to classify
+    # @return [Boolean] whether this is a failure a healthy host produces on its own (see
+    #   {EXPECTED_FAILURES}), and so belongs at `debug`
+    private def expected?(error)
+      message = error.message.downcase
+      EXPECTED_FAILURES.any? { |it| message.include?(it) }
+    end
+
     # Records one failed sample, writing the guest off on the {FAILURES_BEFORE_BACKOFF}th.
     #
     # @param domain [String] VM name
@@ -222,8 +247,12 @@ module Virt
         $log.debug("#{domain}: no swap level (#{count}/#{FAILURES_BEFORE_BACKOFF}): #{reason}")
       else
         @retry_at[domain] = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @backoff_seconds
-        $log.debug("#{domain}: guest agent gives no swap level (#{reason}); not asking again " \
-                   "for #{@backoff_seconds}s")
+        # Exactly at the write-off, so an unforeseen failure is announced once per episode:
+        # earlier is a blip that may yet clear, later is a re-arm of something already said.
+        unforeseen = count == FAILURES_BEFORE_BACKOFF && !expected?(error)
+        $log.public_send(unforeseen ? :warn : :debug,
+                         "#{domain}: guest agent gives no swap level (#{reason}); not asking " \
+                         "again for #{@backoff_seconds}s")
       end
     end
   end

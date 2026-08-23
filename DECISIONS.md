@@ -92,6 +92,108 @@ rejection is crowding out the live design.
 
 ---
 
+## D-guest-agent-backoff — a mute guest is written off for 60s, probed once a minute, and logged only when the failure is one we did not foresee (2026-08-23)
+
+**Status:** Accepted; implemented as {Virt::GuestAgent::BACKOFF_SECONDS} and
+{Virt::GuestAgent::EXPECTED_FAILURES}, plus {Virt::GuestAgent#forget}, called
+from {Virt::Cache#update}.
+
+**Context.** The write-off added with D-guest-swap-level shipped as three
+strikes then 300 seconds, announced with a `$log.info` line. Both numbers were
+picked against the guest that will *never* answer — no agent, or `guest-file-*`
+blocked — and both are wrong for the guest that simply cannot answer *yet*. At a
+2s poll the three strikes are spent 6 seconds after libvirt calls a domain
+running, and no guest gets `qemu-ga` connected within 6 seconds of `virsh
+start`. So every VM start wrote its own guest off, blanked the swap gauge for
+the next five minutes on a perfectly healthy VM, and announced it in the log —
+which is how this was noticed. Shutdown produced the same line from the other
+side, as the agent goes down before libvirt calls the domain stopped.
+
+**Decision.** Three parts, all aimed at the boot case:
+
+- **60 seconds, flat.** A booting guest is retried a minute later, by which
+  point its agent is up. The other side of the trade — the guest that never
+  answers now costs a probe a minute instead of one per five — is accepted
+  rather than optimized: its `guest-file-open` is refused immediately (no agent
+  connected is not a timeout), and a well-maintained fleet has the agent
+  installed, so it is the special case.
+- **`$log.debug` for the failures a healthy host produces on its own.** A
+  missing swap level is an enhancement declining, not a fault. There is no
+  phrasing that stays useful at `info`, because the two moments it fires are
+  boot and shutdown.
+- **`$log.warn`, once, for anything else.** Silence is right for the guest that
+  is booting, shutting down, has no agent, or ships `guest-file-*` blocked —
+  and wrong for an agent installed incorrectly, a reply we cannot parse, or a
+  libvirt error nobody foresaw, which would otherwise be swallowed with the
+  rest. {Virt::GuestAgent::EXPECTED_FAILURES} draws the line, matched against
+  the error text; the warn fires exactly at the write-off, so one broken guest
+  costs one line per episode rather than one a minute.
+- **The strike count survives a lapse.** Only a successful sample clears it, so
+  a still-mute guest re-arms on the one probe rather than spending a fresh
+  three. Without this the "one probe a minute" above is really three, and the
+  attempt rate against a *wedged* agent — the case that costs a full
+  {Virt::GuestAgent::TIMEOUT_SECONDS} of the timer thread, unlike a mute one —
+  would rise 4.5x over what D-virsh-session assumed.
+
+{Virt::Cache#update} additionally calls {Virt::GuestAgent#forget} for every VM
+it sees not running, so strikes burned during a shutdown do not greet the next
+boot.
+
+**Alternatives rejected.**
+
+- *Escalating backoff — 60s doubling to a 300s cap.* Serves both guests
+  exactly: a minute for the booting one, five for the one that never answers.
+  Rejected as tuning for the special case. The cost it saves is a refused RPC
+  per minute per agent-less VM, which is not worth a second constant and a
+  doubling rule that has to be reasoned about at every read.
+- *Suppress logging and backoff entirely for 1–2 minutes after a VM starts.*
+  The most direct reading of the symptom, and the first proposal. It needs a
+  boot clock virtui does not have: libvirt's state stays `running` across a
+  guest-induced reboot, so the grace period never re-arms for the case that
+  most needs it, and a shutdown falls outside it altogether. It is also the
+  expensive answer — it keeps polling a *wedged* agent for the whole window,
+  2s of timer thread per tick, which is precisely what the write-off exists to
+  bound. The state-transition half of the idea survives as
+  {Virt::GuestAgent#forget}.
+- *Keying the write-off itself on the error text* (`is not connected` =
+  transient, everything else = permanent). Would separate the two guests
+  exactly, at the price of hanging virtui's *behaviour* on libvirt's error
+  strings, which are not an API: a rephrasing upstream silently changes how
+  long a guest is skipped, and no test goes red. Keying the **log level** on
+  the same strings is what shipped instead, and it is a different bet — a miss
+  there costs one line in the log or one line missing from it, never a change
+  in what virtui does. Don't promote the match from the level to the backoff.
+- *Warning on every unexpected failure, not just the write-off.* Louder, and
+  for a persistent fault it is the same line repeated every 60s forever. The
+  cost of the once-per-episode rule is an *intermittent* unexpected error that
+  never lands three consecutive strikes: it stays at `debug`. Accepted —
+  anything genuinely misconfigured is persistent and surfaces within 6s.
+- *Dropping {Virt::GuestAgent::FAILURES_BEFORE_BACKOFF} to 1*, since a 60s
+  write-off is itself blip tolerance. Cheaper against a wedged agent, but a
+  single hiccup then blanks the gauge of a healthy guest for a minute.
+
+**Consequences.**
+
+- Nothing in the UI says a guest has been written off, and for an expected
+  failure nothing in the log does either: `bin/virtui` pins `$log` at `:info`,
+  so seeing those means lowering the level by hand. That is the intended trade —
+  the swap level is the only read in the project allowed to go quiet (see
+  {Virt::GuestAgent}). An *unforeseen* failure is the exception and still
+  announces itself once.
+- {Virt::GuestAgent::EXPECTED_FAILURES} is a list of substrings from another
+  project's error messages, so it rots by definition. The failure mode is
+  benign and self-announcing — a phrase libvirt has renamed shows up as a
+  `warn` line on a healthy host — which is the reason the list is allowed to
+  exist at all.
+- A guest-induced reboot is still not detected: `forget` cannot fire, because
+  the domain never leaves `running`. It heals within the 60s instead, which is
+  what makes the short backoff load-bearing and `forget` mere hygiene.
+- D-virsh-session's "revisit only if a wedged guest is measured delaying the
+  fleet poll" bullet stays live, and this moves that dial: a wedged guest now
+  stalls one tick a minute rather than one per five.
+
+---
+
 ## D-swap-row-two-cells — the SWAP row splits into guest occupancy and host I/O (2026-08-21)
 
 **Status:** Accepted, shipped in {UI::VMWindow#format_swap_line}.
@@ -234,82 +336,6 @@ tokenizer off JSON's backslashes.
 - Sampling belongs on the timer thread inside {Virt::Cache#update}, not
   inside `Virsh#domain_data`: `domstats` is one O(1) call for the whole
   fleet, while this is O(running VMs) calls that fail per VM.
-
----
-
-## D-guest-agent-backoff — a mute guest is written off for 60s and then probed once a minute, silently (2026-08-23)
-
-**Status:** Accepted; implemented as {Virt::GuestAgent::BACKOFF_SECONDS} plus
-{Virt::GuestAgent#forget}, called from {Virt::Cache#update}.
-
-**Context.** The write-off added with D-guest-swap-level shipped as three
-strikes then 300 seconds, announced with a `$log.info` line. Both numbers were
-picked against the guest that will *never* answer — no agent, or `guest-file-*`
-blocked — and both are wrong for the guest that simply cannot answer *yet*. At a
-2s poll the three strikes are spent 6 seconds after libvirt calls a domain
-running, and no guest gets `qemu-ga` connected within 6 seconds of `virsh
-start`. So every VM start wrote its own guest off, blanked the swap gauge for
-the next five minutes on a perfectly healthy VM, and announced it in the log —
-which is how this was noticed. Shutdown produced the same line from the other
-side, as the agent goes down before libvirt calls the domain stopped.
-
-**Decision.** Three parts, all aimed at the boot case:
-
-- **60 seconds, flat.** A booting guest is retried a minute later, by which
-  point its agent is up. The other side of the trade — the guest that never
-  answers now costs a probe a minute instead of one per five — is accepted
-  rather than optimized: its `guest-file-open` is refused immediately (no agent
-  connected is not a timeout), and a well-maintained fleet has the agent
-  installed, so it is the special case.
-- **`$log.debug`, unconditionally.** A missing swap level is an enhancement
-  declining, not a fault. There is no phrasing that stays useful at `info`,
-  because the two moments it fires are boot and shutdown.
-- **The strike count survives a lapse.** Only a successful sample clears it, so
-  a still-mute guest re-arms on the one probe rather than spending a fresh
-  three. Without this the "one probe a minute" above is really three, and the
-  attempt rate against a *wedged* agent — the case that costs a full
-  {Virt::GuestAgent::TIMEOUT_SECONDS} of the timer thread, unlike a mute one —
-  would rise 4.5x over what D-virsh-session assumed.
-
-{Virt::Cache#update} additionally calls {Virt::GuestAgent#forget} for every VM
-it sees not running, so strikes burned during a shutdown do not greet the next
-boot.
-
-**Alternatives rejected.**
-
-- *Escalating backoff — 60s doubling to a 300s cap.* Serves both guests
-  exactly: a minute for the booting one, five for the one that never answers.
-  Rejected as tuning for the special case. The cost it saves is a refused RPC
-  per minute per agent-less VM, which is not worth a second constant and a
-  doubling rule that has to be reasoned about at every read.
-- *Suppress logging and backoff entirely for 1–2 minutes after a VM starts.*
-  The most direct reading of the symptom, and the first proposal. It needs a
-  boot clock virtui does not have: libvirt's state stays `running` across a
-  guest-induced reboot, so the grace period never re-arms for the case that
-  most needs it, and a shutdown falls outside it altogether. It is also the
-  expensive answer — it keeps polling a *wedged* agent for the whole window,
-  2s of timer thread per tick, which is precisely what the write-off exists to
-  bound. The state-transition half of the idea survives as
-  {Virt::GuestAgent#forget}.
-- *Keying the write-off on the error text* (`is not connected` = transient,
-  everything else = permanent). Would separate the two guests exactly, at the
-  price of matching on libvirt's error strings, which are not an API.
-- *Dropping {Virt::GuestAgent::FAILURES_BEFORE_BACKOFF} to 1*, since a 60s
-  write-off is itself blip tolerance. Cheaper against a wedged agent, but a
-  single hiccup then blanks the gauge of a healthy guest for a minute.
-
-**Consequences.**
-
-- Nothing in the UI or the log says a guest has been written off: `bin/virtui`
-  pins `$log` at `:info`, so seeing it means lowering that level by hand. That
-  is the intended trade — the swap level is the only read in the project allowed
-  to go quiet (see {Virt::GuestAgent}).
-- A guest-induced reboot is still not detected: `forget` cannot fire, because
-  the domain never leaves `running`. It heals within the 60s instead, which is
-  what makes the short backoff load-bearing and `forget` mere hygiene.
-- D-virsh-session's "revisit only if a wedged guest is measured delaying the
-  fleet poll" bullet stays live, and this moves that dial: a wedged guest now
-  stalls one tick a minute rather than one per five.
 
 ---
 

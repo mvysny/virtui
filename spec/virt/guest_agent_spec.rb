@@ -123,6 +123,45 @@ describe Virt::GuestAgent do
                  'a still-mute guest must re-arm on its single probe, not spend three'
   end
 
+  # `TTY::Logger` renders the level as a word, so 'warning' is what a warn line is spotted by.
+  context 'log level' do
+    # @param open_error [StandardError] what `guest-file-open` raises on every poll
+    # @return [String] everything logged over the three polls that write the guest off
+    def log_of_write_off(open_error)
+      agent = Virt::GuestAgent.new(runner: ScriptedAgentRunner.new('guest-file-open' => open_error))
+      Virt::GuestAgent::FAILURES_BEFORE_BACKOFF.times { agent.swap('win11') }
+      @log.string
+    end
+
+    it 'keeps a guest with no agent — booting, shutting down, or without one — out of warn' do
+      log = log_of_write_off(RuntimeError.new(
+                               'error: Guest agent is not responding: QEMU guest agent is not connected'
+                             ))
+      assert_includes log, 'not asking again'
+      refute_includes log, 'warning'
+    end
+
+    it 'keeps a blocked guest-file-open out of warn' do
+      log = log_of_write_off(RuntimeError.new(
+                               'win11: guest-file-open failed: {"class"=>"CommandNotFound", ' \
+                               '"desc"=>"The command guest-file-open has not been found"}'
+                             ))
+      assert_includes log, 'not asking again'
+      refute_includes log, 'warning'
+    end
+
+    it 'warns once about a failure no healthy host produces' do
+      runner = ScriptedAgentRunner.new(
+        HEALTHY_AGENT.merge('guest-file-read' => '{"return":{"count":0}}')
+      )
+      agent = Virt::GuestAgent.new(runner: runner, backoff_seconds: 0)
+      10.times { assert_nil agent.swap('win11') }
+
+      assert_equal 1, @log.string.scan('warning').size, 'one warn per episode, at the write-off'
+      assert_includes @log.string, 'gave no buf-b64'
+    end
+  end
+
   it 'forgets a written-off guest' do
     runner = ScriptedAgentRunner.new(HEALTHY_AGENT.merge('guest-file-open' => RuntimeError.new('error: nope')))
     agent = Virt::GuestAgent.new(runner: runner)
