@@ -20,9 +20,66 @@ class RecordingEmulator < Virt::VMEmulator
   def forget_guest(name) = forget_calls << name
 end
 
+# A VMEmulator that declares win11 as Windows, and records what {Virt::Cache} asked about
+# whom -- so the gate on the guest-agent read is observable.
+class DeclaringEmulator < Virt::VMEmulator
+  WINDOWS = Virt::GuestOS.from_osinfo_id('http://microsoft.com/win/11')
+
+  def swap_asked = @swap_asked ||= []
+  def os_asked = @os_asked ||= []
+
+  def guest_swap(name)
+    swap_asked << name
+    super
+  end
+
+  def guest_os(name)
+    os_asked << name
+    name == 'win11' ? WINDOWS : super
+  end
+end
+
 describe Virt::Cache do
   it 'smokes' do
     Virt::Cache.new(Virt::VMEmulator.new, System::Emulator.new)
+  end
+
+  context 'guest_os' do
+    # Two running VMs, identical but for what they declare.
+    def two_guests
+      virt = DeclaringEmulator.new
+      virt.add(Virt::VMEmulator::VM.simple('Ubuntu', actual: 8.GiB, max_actual: 16.GiB)).start
+      virt.add(Virt::VMEmulator::VM.simple('win11', actual: 8.GiB, max_actual: 16.GiB)).start
+      virt
+    end
+
+    it 'does not ask a non-Linux guest for a swap level' do
+      virt = two_guests
+      Virt::Cache.new(virt, System::Emulator.new)
+
+      # Both are running; only the one declaring Linux is worth three agent RPCs.
+      assert_includes virt.swap_asked, 'Ubuntu'
+      refute_includes virt.swap_asked, 'win11'
+    end
+
+    it 'asks each domain once, however many ticks pass' do
+      virt = two_guests
+      start = Time.now
+      cache = Timecop.freeze(start) { Virt::Cache.new(virt, System::Emulator.new) }
+      # Each tick needs its own instant, or DomainData#cpu_usage refuses to diff.
+      (1..3).each { |i| Timecop.freeze(start + (i * 2)) { cache.update } }
+
+      assert_equal %w[Ubuntu win11], virt.os_asked.sort
+    end
+
+    it 'is carried on the cache entry, including for a stopped VM' do
+      cache = Virt::Cache.new(Virt::VMEmulator.demo, System::Emulator.new)
+
+      assert cache.cache('Ubuntu').guest_os.linux?
+      # The whole reason the declaration beats asking the guest: BASE is shut off.
+      assert_equal :shut_off, cache.state('BASE')
+      assert cache.cache('BASE').guest_os.linux?
+    end
   end
 
   context 'total_vm_rss_usage' do

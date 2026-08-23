@@ -27,6 +27,7 @@ loader.inflector.inflect(
   'vm_window' => 'VMWindow',
   'vm_emulator' => 'VMEmulator',
   'vm' => 'VM',
-  'ballooning_vm' => 'BallooningVM'
+  'ballooning_vm' => 'BallooningVM',
+  'guest_os' => 'GuestOS'
 )
 loader.setup

@@ -39,6 +39,11 @@ module Virt
       @sysinfo = sysinfo
       @cpu_count = @cpu_info.cpus
       @cache = Concurrent::Map.new
+      # Hash{String => GuestOS}: what each domain's definition declares, asked once. A
+      # static fact, so it never expires — edit a definition while virtui runs and it takes
+      # a restart to notice. Lives here rather than on {Virsh} because {#update} owns the
+      # only thread allowed to make that read.
+      @guest_os = {}
       # So that {#update} won't be run concurrently.
       @write_lock = Thread::Mutex.new
       update
@@ -133,28 +138,35 @@ module Virt
     #     looks like, even for a guest with gigabytes already parked in swap.
     # @!attribute [r] guest_swap
     #   @return [ResourceUsage, nil] how full the guest's swap device is, read from the guest
-    #     itself; `nil` for every VM that cannot be asked (see {GuestAgent#swap}) — which is
-    #     all of them unless the backend was given a {GuestAgent}
+    #     itself; `nil` for a VM that was not asked (its {#guest_os} does not declare Linux)
+    #     or could not answer (see {GuestAgent#swap}) — which is all of them unless the
+    #     backend was given a {GuestAgent}
     #
     #     The companion to {#swap_out_rate}, and the other half of the story: the rate says
     #     whether reclaim is hitting the device *now*, this says how much the guest is still
     #     carrying from earlier. Unlike everything else here it is not derived from
     #     {#data} — it arrives from a separate read of the guest's own `/proc/meminfo`.
-    class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds, :swap_out_rate, :guest_swap)
+    # @!attribute [r] guest_os
+    #   @return [GuestOS] the OS family this VM's definition declares. Asked once per domain
+    #     and carried on every tick after, so reading it costs nothing — and unlike
+    #     {#guest_swap} it is populated for a shut-off VM too
+    class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds, :swap_out_rate, :guest_swap,
+                                :guest_os)
       # Builds a cache entry by diffing the previous entry against the current snapshot
       # (for CPU usage, memory-data age and swap-out rate).
       #
       # @param prev_cache [VMCache, nil] previous entry for this VM, or `nil` on first sight
       # @param next_data [DomainData] current VM snapshot
       # @param guest_swap [ResourceUsage, nil] this tick's guest-agent swap level, if any
+      # @param guest_os [GuestOS] what this domain's definition declares
       # @return [VMCache] the derived cache entry
-      def self.diff(prev_cache, next_data, guest_swap = nil)
+      def self.diff(prev_cache, next_data, guest_swap = nil, guest_os = GuestOS::UNKNOWN)
         prev_data = prev_cache&.data
         # Age is wall-clock (sampled_at minus last_updated), never the delta between two
         # polls' last_updated — see DECISIONS.md D-wall-clock-mem-age.
         age = next_data.mem_stat.nil? ? nil : ((next_data.sampled_at / 1000) - next_data.mem_stat.last_updated)
         VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age,
-                    swap_out_rate(prev_cache, next_data), guest_swap)
+                    swap_out_rate(prev_cache, next_data), guest_swap, guest_os)
       end
 
       # Bytes-per-second at which the guest wrote to swap between the previous sample and
@@ -222,16 +234,20 @@ module Virt
         cache = Concurrent::Map.new(options: { initial_capacity: domain_data.length })
         domain_data.each do |did, data|
           prev_data = old_cache[did]&.data
+          # `||=` is the whole memo: no first-sighting edge to detect, and a read that failed
+          # is retried next tick rather than cached as a permanent `:unknown`. Safe only
+          # because {Virsh#guest_os} answers {GuestOS::UNKNOWN} instead of `nil`.
+          guest_os = (@guest_os[did] ||= @virt.guest_os(did))
           # Only running VMs, and one read each: a stopped VM has no agent to answer, and the
           # cost is per-VM rather than per-fleet (see {Virsh#guest_swap}).
           if data.running?
-            guest_swap = @virt.guest_swap(did)
+            guest_swap = guest_os.no_proc_meminfo? ? nil : @virt.guest_swap(did)
           else
             # Strikes burned during the shutdown must not greet the next boot.
             guest_swap = nil
             @virt.forget_guest(did)
           end
-          cache[did] = VMCache.diff(old_cache[did], data, guest_swap)
+          cache[did] = VMCache.diff(old_cache[did], data, guest_swap, guest_os)
           # A VM just (re)started: arm its guest mem-stat collection, or the balloon stats
           # stay frozen (see {Virsh#set_mem_stats_period}).
           @virt.set_mem_stats_period(did, STATS_PERIOD_SECONDS) if data.running? && !prev_data&.running?

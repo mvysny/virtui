@@ -25,6 +25,15 @@ module Virt
     # else becomes `:other`.
     @@states = { 3 => :paused, 1 => :running, 5 => :shut_off }
 
+    # The metadata namespace virt-manager and `virt-install --os-variant` declare the guest
+    # OS under (see {#guest_os}).
+    LIBOSINFO_URI = 'http://libosinfo.org/xmlns/libvirt/domain/1.0'
+
+    # Pulls the declared id out of a `virsh metadata` reply. Deliberately prefix-blind:
+    # `virsh` prints the element *without* the `libosinfo:` prefix the stored definition
+    # carries, so matching `<libosinfo:os` finds nothing.
+    OSINFO_ID = /<os\s+id="([^"]*)"/
+
     # @param runner [VirshSpawn, VirshSession] transport for every `virsh` invocation
     # @param guest_agent [GuestAgent, nil] the channel {#guest_swap} reads through, or `nil`
     #   for a backend that reports no swap levels at all
@@ -46,6 +55,36 @@ module Virt
     # @return [ResourceUsage, nil] swap used out of the guest's swap total, or `nil` if there
     #   is no guest agent to ask (see {GuestAgent#swap} for the other reasons)
     def guest_swap(domain_name) = @guest_agent&.swap(domain_name)
+
+    # The OS family the VM's definition declares, from its libosinfo metadata.
+    #
+    #   virsh.guest_os('win11')   # => windows (http://microsoft.com/win/11)
+    #   virsh.guest_os('BASE')    # => unknown — nothing declared, or an unknown vendor
+    #
+    # Works on a *shut-off* domain, and needs no guest agent — which is the whole reason
+    # virtui reads the declaration rather than asking the running guest (DECISIONS.md
+    # D-guest-os-from-xml). Cheap but not free: one `virsh` round-trip per call, so callers
+    # memoize it per domain ({Cache#update} does).
+    #
+    # Never raises. A domain that vanished mid-read, a `virsh` that refuses, metadata that
+    # is simply absent — all of it is a guest we cannot classify, which is
+    # {GuestOS::UNKNOWN}, not an error.
+    #
+    # @param domain_name [String] VM name
+    # @param metadata [String, nil] canned `virsh metadata` output for testing; runs the
+    #   real command when `nil`
+    # @return [GuestOS] the declared family; {GuestOS::UNKNOWN} if the domain declares
+    #   nothing, names a vendor {GuestOS::VENDORS} does not know, or could not be read
+    def guest_os(domain_name, metadata = nil)
+      metadata ||= @runner.query('metadata', domain_name, '--uri', LIBOSINFO_URI)
+      GuestOS.from_osinfo_id(metadata[OSINFO_ID, 1]).tap do |os|
+        # An unrecognised vendor is the one outcome worth a line: it is how VENDORS grows.
+        $log.debug("#{domain_name}: unknown guest OS #{os.osinfo_id}") if os.family == :unknown && !os.osinfo_id.nil?
+      end
+    rescue StandardError => e
+      $log.debug("#{domain_name}: no declared guest OS: #{e.message.lines.first&.strip}")
+      GuestOS::UNKNOWN
+    end
 
     # Drops what the guest agent remembers about a VM's failed samples.
     #

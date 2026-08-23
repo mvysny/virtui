@@ -4,6 +4,9 @@ module Virt
   # An in-memory fleet of simulated VMs, API-compatible with {Virsh}, for demo/test mode
   # without libvirt. Each VM is a {VMEmulator::VM}; see {.demo} for a ready-made fleet.
   class VMEmulator
+    # What {#guest_os} reports for every simulated VM.
+    LINUX = GuestOS.from_osinfo_id('http://ubuntu.com/ubuntu/25.10')
+
     # @param hostinfo [CpuInfo] the host CPU topology to report
     def initialize(hostinfo: CpuInfo.new('emulator', 1, 4, 2))
       @hostinfo = hostinfo
@@ -56,6 +59,14 @@ module Virt
     # @return [ResourceUsage, nil] the simulated guest's swap level (see {VMEmulator::VM#swap}),
     #   or `nil` for an unknown, stopped, or agent-less VM
     def guest_swap(name) = @vms[name]&.swap
+
+    # Always Linux: the simulated guests answer `/proc/meminfo` (see {VMEmulator::VM#swap}),
+    # so the emulated fleet is Linux by construction. Mirrors {Virsh#guest_os} so {Cache}
+    # can call it backend-agnostically.
+    #
+    # @param _name [String] VM name, ignored
+    # @return [GuestOS] a Linux declaration
+    def guest_os(_name) = LINUX
 
     # Sets a VM's current memory, unless {#allow_set_actual} is `false`.
     #

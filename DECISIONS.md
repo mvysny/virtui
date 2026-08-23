@@ -92,6 +92,113 @@ rejection is crowding out the live design.
 
 ---
 
+## D-guest-os-from-xml — the guest OS comes from the domain's libosinfo declaration, not from the running guest (2026-08-23)
+
+**Status:** Accepted; implemented as {Virt::GuestOS} and {Virt::Virsh#guest_os},
+memoized and gated in {Virt::Cache#update}.
+
+**Context.** {Virt::GuestAgent} reads the guest's swap level out of its
+`/proc/meminfo`, so the read is Linux-only — and virtui had no idea which of its
+guests were Linux. Two costs, the first of which arrived with
+D-guest-agent-backoff: a Windows guest's `guest-file-open` fails with a phrase
+matching none of {Virt::GuestAgent::EXPECTED_FAILURES}, so it produced one
+`warn` per VM boot for a guest that is merely not Linux; and it spent three
+doomed agent RPCs per tick until the write-off bounded it to one probe a minute,
+forever.
+
+**Decision.** Read what the domain *declares*. virt-manager and `virt-install
+--os-variant` write libosinfo metadata into the definition, and `virsh metadata
+--uri http://libosinfo.org/xmlns/libvirt/domain/1.0 <dom>` returns just that
+element:
+
+```
+Flow     running     <libosinfo>  <os id="http://ubuntu.com/ubuntu/25.10"/>  </libosinfo>
+Ayyah    shut off    <libosinfo>  <os id="http://ubuntu.com/ubuntu/25.10"/>  </libosinfo>
+BASE     shut off    <libosinfo>  <os id="http://ubuntu.com/ubuntu/25.10"/>  </libosinfo>
+win11    shut off    <libosinfo>  <os id="http://microsoft.com/win/11"/>     </libosinfo>
+```
+
+(Author's host, 2026-08-23, whitespace collapsed. Note the stripped
+`libosinfo:` prefix — the stored definition carries it, the reply does not.)
+
+{Virt::GuestOS} classifies the id by vendor host plus first path segment; the
+family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
+
+**Alternatives rejected.**
+
+- ***`guest-get-osinfo` through the guest agent*** — the live, *truthful*
+  source, and the first design. **Don't re-add it as the only source.** It needs
+  the agent up, and the agentless Windows guest is the *common* Windows guest:
+  `virtio-win` is a manual install, so the guest that caused this whole problem
+  is precisely the one an agent-based detector can never classify — it would
+  keep its three doomed RPCs per tick and its write-off forever. Beside that:
+  invisible for the 20–40s a guest takes to boot, invisible for a shut-off VM,
+  needs its own `--timeout` because it *can* wedge on a sick guest, and it drags
+  in the whole D-guest-agent-backoff machinery (does detection share the strike
+  count? what log level for a guest that cannot answer *yet*? what happens on a
+  pre-2.10 `qemu-ga` that refuses the RPC while the file read works fine?). The
+  XML answers with none of that. It remains the right *second* source — see
+  *Consequences*.
+- *`virsh guestinfo <dom> --os`.* Prettier output, in exactly the key=value shape
+  {Virt::Virsh} already parses — and no `--timeout` flag, which is the one thing
+  keeping a wedged agent from becoming a {Virt::VirshSession} read timeout that
+  kills and respawns the child. Moot now that the source is not the agent, but
+  it is the obvious command to reach for.
+- *`virsh dumpxml` plus a regex, or a real XML parser.* `metadata --uri` returns
+  the element alone, so there is no document to parse: one regex over three lines
+  rather than over sixty, and no first XML dependency in the project.
+- *Vendoring osinfo-db.* What virtui needs is a family, not a version tree.
+  {Virt::GuestOS::VENDORS} is ~15 hand-written entries, and an unrecognised id is
+  logged at `debug` so the table grows from sightings.
+- *Keying {Virt::GuestOS::VENDORS} on the vendor host alone.* Reads simpler and
+  is wrong: `microsoft.com` ships both `win/*` and `msdos/*`, so it needs a
+  second special-case structure for exactly those vendors. Every entry pays one
+  redundant-looking segment instead.
+- *A heuristic tier for definitions carrying no metadata* — `<clock
+  offset='localtime'>` and the `<hyperv>` enlightenment block are what
+  virt-manager writes for a Windows guest specifically. Not built: 4/4 VMs on the
+  measured host carry real metadata, so there was nothing to fix, and guessing a
+  family from device config would need its own justification.
+- *Gating on `windows? || freebsd?`, letting `:unknown` fall through to the read.*
+  Preserves today's behaviour exactly for a guest that declares nothing, at the
+  price of a family list that grows with every family added.
+  {Virt::GuestOS#no_proc_meminfo?} is the plain `!linux?` instead — see
+  *Consequences* for what that costs.
+- *Memoizing on {Virt::Virsh}, next to the lookup.* The natural place, and the
+  wrong thread: `Virsh` is reachable from the UI thread ({UI::VMWindow}'s power
+  keys, {Virt::Ballooning}'s `set_actual`), so mutable state there is state two
+  threads can reach — and a memoizing `Virsh#guest_os` invites a future OS column
+  to call it from the render path, taking {Virt::VirshSession}'s single mutex on
+  the UI thread. The memo lives in {Virt::Cache}, which already owns the timer
+  thread and is already the only thing the UI reads.
+
+**Consequences.**
+
+- **A domain that declares no OS reports no swap level.** `!linux?` puts
+  `:unknown` on the skip side, so a hand-written definition — or one from tooling
+  that writes no libosinfo metadata — loses a gauge it used to have. Invisible on
+  a virt-manager fleet, where nothing is `:unknown`; on a hand-rolled fleet it is
+  every VM. Hence the `README.md` line saying the swap level needs the domain to
+  declare its OS, not just `qemu-guest-agent`.
+- **The declaration can be stale.** It records what the *creator* said, so a
+  definition made `--os-variant win10` and then used to install Linux skips a
+  read that would have worked. Symptom: a missing swap gauge on a VM whose
+  declared family is wrong.
+- **Both of those are what the agent would fix**, which is the case for adding
+  `guest-get-osinfo` later as a *corroborating* source: when the agent is up it
+  outranks the declaration and can classify an `:unknown` guest live.
+- **{Virt::GuestAgent::EXPECTED_FAILURES} gained `no such file or directory`**,
+  amending D-guest-agent-backoff: a non-Linux guest that declared nothing still
+  reaches `guest-file-open` on a path that is not there, and that must not be a
+  `warn`. The exact libvirt phrasing is unverified — no Windows guest with
+  `qemu-guest-agent` was within reach to capture it — so the phrase is an
+  expectation, and a miss costs one `warn` line per boot of such a guest.
+- **The memo never expires.** Editing a domain's definition while virtui runs
+  takes a restart to notice. `Virt::GuestAgent#forget` stays about failure state
+  and does not touch it.
+
+---
+
 ## D-guest-agent-backoff — a mute guest is written off for 60s, probed once a minute, and logged only when the failure is one we did not foresee (2026-08-23)
 
 **Status:** Accepted; implemented as {Virt::GuestAgent::BACKOFF_SECONDS} and

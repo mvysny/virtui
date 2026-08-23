@@ -64,13 +64,16 @@ module Virt
     # keep them out of the log at `warn`. In order: the agent is not up (a guest mid-boot or
     # mid-shutdown, or one that never had `qemu-guest-agent`), it went away mid-command, the
     # RPC is blocked or absent (`guest-file-*` is in `BLOCK_RPCS` as RHEL/Fedora ship the
-    # agent), and the VM stopped between the `domstats` snapshot and this read.
+    # agent), the VM stopped between the `domstats` snapshot and this read, and the guest
+    # simply has no `/proc/meminfo` — a non-Linux guest whose definition never declared an
+    # OS, so {GuestOS} could not spare it this read (see {Cache#update}).
     #
     # Matching libvirt's error text is fragile on purpose-limited grounds: it picks the *log
     # level* only, never the write-off, so a miss costs one `warn` line and a new libvirt
     # phrasing cannot change what virtui does. See DECISIONS.md D-guest-agent-backoff.
     EXPECTED_FAILURES = ['guest agent is not responding', 'guest agent disappeared',
-                         'has not been found', 'domain is not running'].freeze
+                         'has not been found', 'domain is not running',
+                         'no such file or directory'].freeze
 
     # @param runner [VirshSession, VirshSpawn] transport for the `qemu-agent-command` calls
     # @param timeout_seconds [Integer] per-call agent timeout (see {TIMEOUT_SECONDS})

@@ -33,6 +33,16 @@ VIRSH_DOMSTATS_SWAPPING = <<~EOF
     balloon.rss=23068672
 EOF
 
+# What `virsh metadata --uri http://libosinfo.org/xmlns/libvirt/domain/1.0 <dom>` prints for
+# a domain virt-manager created. Content is as measured on the author's host (2026-08-23);
+# note the missing `libosinfo:` prefix, which virsh strips even though the stored definition
+# carries it.
+VIRSH_METADATA_WIN = <<~EOF
+  <libosinfo>
+    <os id="http://microsoft.com/win/11"/>
+  </libosinfo>
+EOF
+
 # Records what the runner was asked to do, so the assertions below read as argv lists.
 class RecordingRunner
   attr_reader :calls
@@ -64,6 +74,33 @@ describe Virt::Virsh do
       runner = RecordingRunner.new
       assert_nil Virt::Virsh.new(runner: runner, guest_agent: Virt::GuestAgent.new(runner: runner)).guest_swap('ubuntu')
       assert_equal 'qemu-agent-command', runner.calls.first[1]
+    end
+  end
+
+  context 'guest_os' do
+    before { Helpers.setup_dummy_logger }
+
+    it 'reads the declared family out of a virsh metadata reply' do
+      os = Virt::Virsh.new.guest_os('win11', VIRSH_METADATA_WIN)
+      assert_equal :windows, os.family
+      assert_equal 'http://microsoft.com/win/11', os.osinfo_id
+    end
+
+    it 'asks virsh for the libosinfo namespace' do
+      runner = RecordingRunner.new
+      Virt::Virsh.new(runner: runner).guest_os('win11')
+      assert_equal [:query, 'metadata', 'win11', '--uri', Virt::Virsh::LIBOSINFO_URI], runner.calls.first
+    end
+
+    it 'is UNKNOWN when the domain declares nothing' do
+      # A RecordingRunner replies with '', which is also what a domain with no metadata
+      # element looks like once virsh has had its say.
+      assert_equal Virt::GuestOS::UNKNOWN, Virt::Virsh.new(runner: RecordingRunner.new).guest_os('BASE')
+    end
+
+    it 'is UNKNOWN rather than an exception when virsh fails' do
+      runner = Class.new { def query(*_args) = raise('error: failed to get domain') }.new
+      assert_equal Virt::GuestOS::UNKNOWN, Virt::Virsh.new(runner: runner).guest_os('vanished')
     end
   end
 
