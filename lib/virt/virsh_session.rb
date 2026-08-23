@@ -14,9 +14,9 @@ module Virt
   # block every read behind it for ~800ms, and mutating commands additionally want the
   # exit status that only a dedicated process has.
   #
-  # Opt-in via `VIRTUI_VIRSH_SESSION=1` in `bin/virtui` while it is on trial. Why a
-  # session at all, and why the obvious framings do not work: DECISIONS.md
-  # D-virsh-session.
+  # The default transport in `bin/virtui`; {VirshSpawn} is the fallback you get by editing
+  # that file. Why a session at all, and why the obvious framings do not work:
+  # DECISIONS.md D-virsh-session.
   #
   # == Implementation details
   #
@@ -269,7 +269,8 @@ module Virt
     #
     # Only `error:` lines fail the call. libvirt's own log output also lands on stderr and
     # a warning must not turn a good read into an exception, so the remainder is logged —
-    # at `warn`, because during the opt-in trial that noise is the thing worth seeing.
+    # at `warn` rather than `debug`, because classifying stderr without an exit status is
+    # this design's weakest joint and misreading it must not be quiet.
     #
     # @param line [String] the command just run, for the message
     # @return [void]

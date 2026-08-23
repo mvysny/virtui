@@ -226,9 +226,9 @@ caption, not blank space.
 **Alternatives rejected.**
 
 - **Blank guest cell when the level is unavailable.** Blank reads as *an
-  empty swap device*, when it means *nobody could ask* — and that is the
-  default configuration, since the level needs `VIRTUI_VIRSH_SESSION=1`
-  plus an agent in the guest. The dashed cell says unknown in the same
+  empty swap device*, when it means *nobody could ask* — and that is an
+  ordinary configuration, since the level needs an agent running in the
+  guest. The dashed cell says unknown in the same
   idiom the row already uses for an unknown rate (`-/s`) on a first sample.
 - **Fall back to the old layout when there is no level** (rate in the guest
   cell, host cell empty). Denser, and it changes nothing for today's users
@@ -588,11 +588,22 @@ nothing interpolated.
 - {Virt::VirshSession.quote} is now the only quoting code in the project,
   and it has exactly one target: `virsh`'s tokenizer.
 
-## D-virsh-session — a persistent `virsh` REPL as an opt-in transport for reads (2026-08-21)
+## D-virsh-session — a persistent `virsh` REPL serves the reads (2026-08-21, default since 2026-08-23)
 
-**Status:** On trial. {Virt::VirshSession} is opt-in behind
-`VIRTUI_VIRSH_SESSION=1`; {Virt::VirshSpawn} remains the default. Revisit
-after a few days of real-host observation.
+**Status:** Accepted. {Virt::VirshSession} is what `bin/virtui` builds;
+{Virt::VirshSpawn} still serves every mutating command, and is the
+fallback both the degrade path and a source edit reach for. The
+`VIRTUI_VIRSH_SESSION=1` opt-in that gated the trial is gone — a fallback
+that needs a one-line source edit is cheap enough to keep, an environment
+variable that has to keep working is not.
+
+The trial concluded on real-host observation rather than on the
+daemon-side measurement this entry set as its deciding test (below). That
+measurement was never a risk, only unbooked upside: the connect and
+disconnect a spawn pays every 2s cost the *daemon* CPU too, so measuring
+them can only widen the gap the dev box already showed. Days of a real
+fleet not hitting the degrade path answered the question that was actually
+open — whether the REPL holds outside the test driver.
 
 **Context.** {Virt::Cache#update} polls `virsh domstats` every 2s for the
 whole fleet, and each poll re-execs a binary that dynamically links 61
@@ -614,8 +625,7 @@ child resident instead.
 **Decision.** Introduce a *runner* seam — `query`/`sync`/`async`, where a
 subcommand excludes the word `virsh` — and give it two implementations.
 Only `query`, the read path, may be served from a session; every mutating
-command keeps its own process and its own exit status. Reads are opt-in for
-now.
+command keeps its own process and its own exit status.
 
 **Alternatives rejected.**
 
@@ -675,12 +685,18 @@ now.
   so treating a *command* failure as a broken child would respawn forever.
 - Without an exit status, deciding whether stderr means failure or chatter
   is a prefix test on `error:`. This is the design's weakest joint, and the
-  reason the unclassified remainder is logged at `warn` rather than `debug`
-  during the trial.
-- Still unmeasured, and the thing that should decide whether this becomes
-  the default: the *daemon-side* cost of the connect/disconnect the current
-  path pays every 2s. `test:///default` has no daemon, so the dev box cannot
-  see it.
+  reason the unclassified remainder stays at `warn` rather than `debug` now
+  that every run is a session run: a misclassification must not be quiet.
+- The *daemon-side* cost of the connect/disconnect a spawn pays every 2s is
+  still unmeasured — `test:///default` has no daemon, so the dev box cannot
+  see it. It stopped being the deciding measurement when the field trial
+  answered the question (Status above); it is now only a number nobody has
+  put on the win.
+- Two gotchas the dev box could not reach remain unverified against a real
+  host: a genuinely wedged `qemu-ga` under `qemu-agent-command --timeout`,
+  and libvirtd restarting under a live session. Both land in the transport
+  failure path, which degrades to spawning — the floor is today's
+  behaviour, which is why they did not block the promotion.
 
 ## D-virsh-cli — drive libvirt by shelling out to `virsh`, not the ruby-libvirt binding (2025-11-11)
 

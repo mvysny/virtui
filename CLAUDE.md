@@ -49,7 +49,7 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt, built on the
 [tuile](https://github.com/mvysny/tuile) TUI gem and organized into three
 namespaces plus a handful of shared top-level classes.
 
-**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `Virt::Cache#update` (one `domstats` for the fleet, plus one `Virt::GuestAgent` swap-level read per *running* VM when a session serves reads) → submits a block to tuile's `EventQueue` → UI thread runs `Virt::Ballooning#update` then `layout.update_data` → dirty components repaint.
+**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `Virt::Cache#update` (one `domstats` for the fleet, plus one `Virt::GuestAgent` swap-level read per *running* VM) → submits a block to tuile's `EventQueue` → UI thread runs `Virt::Ballooning#update` then `layout.update_data` → dirty components repaint.
 
 ### Class index
 
@@ -59,8 +59,8 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 **`lib/virt/` → `Virt::`** — the libvirt backend: domain model and clients.
 
 - `Virt::Virsh` — the real backend: parses `virsh` text output; owns no transport
-- `Virt::VirshSpawn` — default transport: one `virsh` process per command
-- `Virt::VirshSession` — opt-in transport: one long-lived `virsh` REPL serves the reads
+- `Virt::VirshSpawn` — fallback/mutating transport: one `virsh` process per command
+- `Virt::VirshSession` — default transport: one long-lived `virsh` REPL serves the reads
 - `Virt::GuestAgent` — reads a guest's own `/proc/meminfo` (its swap level) via `qemu-guest-agent`
 - `Virt::Cache` — thread-safe cache of every VM's runtime data; the UI reads only this
 - `Virt::Ballooning` — fans one `BallooningVM` out per VM, once per update

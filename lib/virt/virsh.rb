@@ -6,12 +6,17 @@ module Virt
   #
   # Not the ruby-libvirt binding — see DECISIONS.md D-virsh-cli.
   #
-  # Every call to the outside world goes through a *runner* ({VirshSpawn} by default,
-  # {VirshSession} for a persistent child), so this class holds nothing but parsing:
+  # Every call to the outside world goes through a *runner* ({VirshSession} for a
+  # persistent child, {VirshSpawn} for a process per command), so this class holds nothing
+  # but parsing:
   #
-  #   Virsh.new                                   # a process per command
-  #   Virsh.new(runner: VirshSession.new)         # reads served from one long-lived child
-  #   Virsh.new(runner: session, guest_agent: GuestAgent.new(runner: session))  # + swap levels
+  #   Virsh.new(runner: session, guest_agent: GuestAgent.new(runner: session))  # what the app builds
+  #   Virsh.new(runner: VirshSpawn.new)           # a process per command
+  #   Virsh.new                                   # ditto, and the parser-spec default
+  #
+  # The constructor default stays {VirshSpawn} even though the app runs a session: a
+  # default that spawns a persistent child would leave one behind for every `Virsh.new`
+  # that is never closed, which is most of the specs. `bin/virtui` picks the transport.
   #
   # Stateless apart from the runner; the read methods accept fixture parameters for
   # testing, which bypass the runner entirely.

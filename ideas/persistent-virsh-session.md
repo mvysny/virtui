@@ -1,10 +1,12 @@
 # A persistent `virsh` session as a spawn-free libvirt transport
 
-**Status:** **built and opt-in** (2026-08-21) as a second `virsh` transport, on
-host-load grounds — see *Is it worth it for the O(1) poll?* and *Built, opt-in*.
-On trial behind `VIRTUI_VIRSH_SESSION=1`; the page stays alive until the trial
-concludes and the daemon-side measurement below exists. Spun out of
-`swap-via-qemu-guest-agent.md` on 2026-08-21, where it appeared as a footnote.
+**Status:** **built, and the default transport since 2026-08-23** — the trial
+concluded on real-host observation and the `VIRTUI_VIRSH_SESSION=1` opt-in is
+gone (DECISIONS.md D-virsh-session). Everything decided has graduated; what
+keeps this page alive is the *evidence* below plus the two gotchas a daemon-less
+box cannot reach (wedged `qemu-ga`, libvirtd restart under a live session). Spun
+out of `swap-via-qemu-guest-agent.md` on 2026-08-21, where it appeared as a
+footnote.
 
 **Verified 2026-08-21 against `virsh` 12.0.0 (Ubuntu `libvirt-clients`
 12.0.0-1ubuntu5.3) on the dev box.** The dev box has no libvirt daemon, so the
@@ -406,14 +408,14 @@ Mitigation stands and is now cheap to state: route only machine-shaped output
 (`qemu-agent-command`'s JSON) through the session; leave human-formatted
 commands on `Run.sync`, where an exit code still exists.
 
-## Built, opt-in (2026-08-21)
+## Built (2026-08-21), default (2026-08-23)
 
-Landed as {Virt::VirshSpawn} and {Virt::VirshSession} behind the runner seam, with
-`VIRTUI_VIRSH_SESSION=1` selecting the session. The recipe and the file plan that used
-to sit here are now the code and its yardoc; the decision and its rejected alternatives
-are DECISIONS.md D-virsh-session. What stays on this page is the *evidence* — the
-measurements above and the gotcha verdicts — plus the open questions below, because the
-trial is not over.
+Landed as {Virt::VirshSpawn} and {Virt::VirshSession} behind the runner seam, opt-in
+behind `VIRTUI_VIRSH_SESSION=1` for the trial and the unconditional read transport in
+`bin/virtui` since. The recipe and the file plan that used to sit here are now the code
+and its yardoc; the decision and its rejected alternatives are DECISIONS.md
+D-virsh-session. What stays on this page is the *evidence* — the measurements above and
+the gotcha verdicts — plus the two open questions below that need a real host.
 
 End-to-end through the real {Virt::Virsh} parser, 100 `domstats` reads against
 `test:///default`: **7.79 ms/read spawning, 0.121 ms/read in-session — 64x**.
@@ -432,8 +434,9 @@ from a daemon-less box:
 
 1. **Daemon-side connection cost** — total system CPU for
    connect+`domstats`+disconnect versus an in-session `domstats`, on a real
-   `qemu:///system`. This is the one that could flip the verdict for the
-   *existing* poll; see the O(1) section above.
+   `qemu:///system`. No longer a decider (the session is the default on field
+   evidence, and this can only widen the win, never narrow it); just a number
+   nobody has put on it. See the O(1) section above.
 2. **A wedged `qemu-ga`** — does `qemu-agent-command --timeout N` really return
    control to the session, or does the child need killing? (gotcha 5)
 3. **libvirtd restarting under a live session** — does the session notice, and
@@ -488,8 +491,9 @@ That is still a much smaller heuristic than the one the earlier verdict rejected
 — it classifies a *dedicated error channel* rather than sniffing failure out of
 the data stream, and stdout reaches the parser byte-identical either way. But it
 is a heuristic, and it is the single weakest joint in the design. Logging the
-unclassified remainder at `warn` rather than `debug` is deliberate: the opt-in
-period is exactly when that noise should be visible.
+unclassified remainder at `warn` rather than `debug` is deliberate, and stayed
+that way when the session became the default: a misclassification here must not
+be quiet.
 
 What is left is a bounded optimisation on the one call that runs 30 times a
 minute for hours, whose output is byte-identical to what it replaces.
@@ -531,7 +535,8 @@ Still owed, and deliberately not written yet:
 - **the no-raw-control-bytes rule** including the `JSON.generate` DEL hole. The
   session carries no caller-supplied payload today, so nothing can carry a control
   byte; this lands with the first guest-agent command, not before
-- **the daemon-side connection cost**, the measurement that decides whether the
-  session becomes the default (see *Is it worth it for the O(1) poll?*)
+- **the daemon-side connection cost** — was billed as the measurement deciding
+  whether the session becomes the default; the field trial decided that first
+  (see *Is it worth it for the O(1) poll?*)
 - the 31.16 ms / 57 % host baseline and the dev-box figures are evidence and live
   here; they die with this file

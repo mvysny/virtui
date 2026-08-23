@@ -117,13 +117,10 @@ in two halves, like the CPU and RAM rows above it:
 The row itself stays whether or not the guest is swapping, so the VMs below it don't shift
 around. A guest that reports no swap counters at all gets no row.
 
-**To see the level,** virtui has to ask the guest, which needs two things: `qemu-guest-agent`
-running in the guest (the same package the ballooning section asks for), and virtui started
-with `VIRTUI_VIRSH_SESSION=1`, which keeps one `virsh` session open instead of spawning a
-process per command — reading the level is three agent calls per running VM every 2 seconds,
-and that is only affordable without the spawns. Guests that cannot answer (no agent, Windows,
-or a distro that blocks the agent's file-read commands) show `-` and are asked again every
-five minutes.
+**To see the level,** virtui has to ask the guest, so it needs `qemu-guest-agent` running in
+the guest — the same package the ballooning section asks for. Guests that cannot answer (no
+agent, Windows, or a distro that blocks the agent's file-read commands) show `-` and are
+asked again every five minutes.
 
 More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/).
 

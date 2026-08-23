@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
 module Virt
-  # The default `virsh` transport: one process per command.
+  # The plain `virsh` transport: one process per command. Every mutating command goes
+  # through it whatever the app's read transport is, and reads fall back to it when a
+  # {VirshSession} has degraded — or when `bin/virtui` is edited to run one of these
+  # instead of a session.
   #
   #   runner = VirshSpawn.new
   #   runner.query('domstats')                  # => "Domain: 'vm1'\n  state.state=1\n…"
