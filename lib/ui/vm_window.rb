@@ -30,6 +30,21 @@ module UI
     # every VM's gauge is the same length and the bars stay comparable down the list.
     SWAP_TOTALS_WIDTH = 6
 
+    # The guest-OS marker drawn between a VM's state glyph and its name, keyed by
+    # {Virt::GuestOS#family}. Emoji, because the overview line is already read by its glyphs
+    # (▶/⏹/🎈/🐢), and a family with no entry here — `:unknown` — falls through to the
+    # dim `?` {#format_guest_os} draws instead. See DECISIONS.md D-guest-os-glyph.
+    GUEST_OS_GLYPHS = {
+      linux: "\u{1F427}",   # 🐧
+      windows: "\u{1FA9F}", # 🪟
+      freebsd: "\u{1F608}"  # 😈 — the BSD daemon
+    }.freeze
+
+    # Display width every guest-OS marker is padded to. All of {GUEST_OS_GLYPHS} measure 2
+    # (tuile sizes rows via `unicode/display_width`), so a narrower marker — or a blank one —
+    # would pull that row's VM name a column left and cost the list its name column.
+    GUEST_OS_WIDTH = 2
+
     # @param virt_cache [Virt::Cache] the runtime cache to read VM data from and act through
     # @param ballooning [Virt::Ballooning] the ballooning controller toggled from the memory menu
     def initialize(virt_cache, ballooning)
@@ -295,13 +310,21 @@ module UI
       end
     end
 
-    # Builds a VM's overview line: state glyph, name, and (when running) a balloon emoji
-    # with a ballooning-direction indicator and a "stale data" turtle.
+    # Builds a VM's overview line: state glyph, guest-OS marker, name, and (when running) a
+    # balloon emoji with a ballooning-direction indicator and a "stale data" turtle.
+    #
+    #     ▶ 🐧 Ubuntu 🎈↑────
+    #     ⏹ ?  BASE───────
+    #
+    # What sits on which side of the name is the rule to keep: left of it goes what the VM
+    # *is* — facts that hold still while the user reads — and right of it what it is *doing*
+    # right now. A live indicator on the left would shift the name column on every tick.
     #
     # @param cache [Virt::Cache::VMCache] the VM's cache entry
     # @return [String] the rendered overview line
     def format_vm_overview_line(cache)
-      line = "#{format_domain_state(cache.data.state)} #{screen.theme.vm_name(cache.info.name)}"
+      line = "#{format_domain_state(cache.data.state)} #{format_guest_os(cache.guest_os)} " \
+             "#{screen.theme.vm_name(cache.info.name)}"
       if cache.data.running?
         if cache.data.balloon?
           line += " \u{1F388}"
@@ -322,6 +345,22 @@ module UI
         line += " \u{1F422}" if cache.stale?
       end
       header(line)
+    end
+
+    # The guest-OS marker for a VM's overview line: what the VM's definition declares, as one
+    # {GUEST_OS_GLYPHS} emoji padded to {GUEST_OS_WIDTH} cells.
+    #
+    # An undeclared OS draws a dim `?` rather than blank space, because `:unknown` is not a
+    # neutral state here: {Virt::GuestOS#no_proc_meminfo?} is `!linux?`, so such a VM is never
+    # asked for its swap level and quietly loses the guest half of its SWAP row — this marker
+    # is the only thing on screen that says why. Same argument as {#swap_level_bar}'s dashes:
+    # blank reads as *nothing there* when it means *nobody asked*.
+    #
+    # @param guest_os [Virt::GuestOS] what this VM's definition declares
+    # @return [String] the marker, {GUEST_OS_WIDTH} cells wide, styling not counted
+    def format_guest_os(guest_os)
+      glyph = GUEST_OS_GLYPHS[guest_os.family] || screen.theme.frame('?')
+      glyph + (' ' * (GUEST_OS_WIDTH - StyledString.parse(glyph).display_width).clamp(0, nil))
     end
 
     # The swap row, one per running VM that reports swap counters. Two cells, two questions:

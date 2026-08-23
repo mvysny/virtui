@@ -92,6 +92,63 @@ rejection is crowding out the live design.
 
 ---
 
+## D-guest-os-glyph — the guest-OS marker is a two-cell emoji, and an undeclared OS draws a dim `?` rather than a blank (2026-08-23)
+
+**Status:** Accepted; implemented in {UI::VMWindow#format_guest_os}.
+
+**Context.** Once {Virt::GuestOS} shipped (D-guest-os-from-xml), every VM
+carried a declared OS family that nothing on screen showed — while that
+same declaration silently decides whether the VM is asked for a swap level
+at all. The VM list's overview line is one row of glyphs and a name in a
+20-to-200-column window, so the marker had a budget of two or three cells.
+
+**Decision.** The family is drawn between the state glyph and the name:
+🐧 Linux, 🪟 Windows, 😈 FreeBSD, and a `?` in the frame (dim) color for
+`:unknown`. Every marker is padded to {UI::VMWindow::GUEST_OS_WIDTH} = 2
+cells, which is what the emoji measure under `unicode/display_width` — the
+same measure tuile lays rows out with.
+
+Placement follows a rule worth keeping in the row: **left of the name is
+what the VM *is*, right of it is what it is *doing*.** The OS declaration
+never changes while virtui runs, so it can sit left of the name without the
+name column moving; the balloon, its direction arrow and the staleness
+turtle stay on the right, where a tick-by-tick change costs nothing.
+
+**Alternatives rejected.**
+
+- *A blank cell for `:unknown`.* The original proposal, and the tidier
+  list. Rejected because `:unknown` is not a neutral state here:
+  {Virt::GuestOS#no_proc_meminfo?} is `!linux?`, so an undeclared VM is
+  never asked for its swap level and shows the same `-` as a guest with no
+  agent. Blank in the marker column reads as *nothing to say* when it means
+  *nobody asked* — the identical argument that made
+  {UI::VMWindow#swap_level_bar} draw dashes instead of spaces. A dim `?`
+  costs one cell already reserved by the padding and is the only thing on
+  screen that explains the missing level. It also keeps Windows and
+  undeclared visually distinct, which a blank would not.
+- *Mixed-width glyphs — e.g. ⊞ (1 cell) for Windows next to 🐧 (2).* Every
+  such row pulls its VM name one column left, and the name column is what
+  the eye scans down. Uniform width is the constraint, not the glyph set:
+  **don't add a marker without padding it to `GUEST_OS_WIDTH`.**
+- *Letters instead of emoji (`L`/`W`/`B`).* Renders in any font, which is
+  the one real argument for it (see Consequences). Rejected because the
+  overview line is already an emoji vocabulary — ▶/⏹/🎈/🐢 — and a
+  bare letter next to them reads as a truncated word, not a marker.
+- *A `guest_os.glyph` method on {Virt::GuestOS}.* Would spare
+  {UI::VMWindow} a lookup table, at the price of a presentation decision
+  living in `Virt::`. Dependencies point toward data, never toward UI; the
+  table stays in the window.
+
+**Consequences.** 🪟 is Unicode 14 (2021) and the coverage risk of the set:
+a terminal font without it draws a tofu box, and a tofu box is usually one
+cell, so that row's name shifts a column — the failure is cosmetic but it
+is exactly the misalignment the padding exists to prevent. Accepted
+knowingly; the fallback if it bites is a padded `W ` in that one entry of
+{UI::VMWindow::GUEST_OS_GLYPHS}, no other change. 😈 is drawn for FreeBSD but
+no demo VM declares it, so it is the one glyph never seen in demo mode.
+
+---
+
 ## D-guest-os-from-xml — the guest OS comes from the domain's libosinfo declaration, not from the running guest (2026-08-23)
 
 **Status:** Accepted; implemented as {Virt::GuestOS} and {Virt::Virsh#guest_os},

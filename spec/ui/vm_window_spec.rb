@@ -56,17 +56,18 @@ module Tuile
 
     it 'has the right content' do
       content = window.content.items.map(&:to_s)
-      assert_equal '⏹ BASE──────────', content[0]
+      # BASE declares no OS, so it gets the dim '?' where Fedora gets a penguin
+      assert_equal '⏹ ?  BASE───────', content[0]
       assert_equal '    vda: 50%   64G   128G │', content[1]
-      assert_equal '⏹ Fedora────────', content[2]
+      assert_equal '⏹ 🐧 Fedora─────', content[2]
       assert_equal '    vda: 50%   64G   128G │', content[3]
-      assert_equal '▶ Ubuntu 🎈─────', content[4]
+      assert_equal '▶ 🐧 Ubuntu 🎈──', content[4]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[5]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[6]
       # Ubuntu swaps: 15M written in the 5s since boot, so a level to show and a live rate
       assert_equal '   SWAP:  0%   15M     4G │       3M/s  ↕  15M', content[7]
       assert_equal '    vda: 50%   64G   128G │', content[8]
-      assert_equal '▶ win11 🎈──────', content[9]
+      assert_equal '▶ 🪟 win11 🎈───', content[9]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[10]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[11]
       # win11 is at rest and reports no level at all, so its guest cell is the '-' placeholder
@@ -283,6 +284,20 @@ module Tuile
         window.update
         line = window.content.items.map(&:to_s)[ubuntu]
         assert line.include?("\u{1F388}x"), line
+      end
+
+      it 'marks each VM with what its definition declares' do
+        content = window.content.items.map(&:to_s)
+        assert_includes content[ubuntu], "\u{1F427} Ubuntu" # declared Linux
+        assert_includes content[win11], "\u{1FA9F} win11" # declared Windows
+        assert_includes content[base], '?  BASE' # declares nothing
+      end
+
+      it 'pads every guest-OS marker to the same width, so the name column holds' do
+        markers = %i[linux windows freebsd unknown].map do |family|
+          window.send(:format_guest_os, Virt::GuestOS.new(family, nil))
+        end
+        assert_equal [2], markers.map { |m| StyledString.parse(m).display_width }.uniq
       end
 
       it 'maps paused and unknown states to their glyphs' do

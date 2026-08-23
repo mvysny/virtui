@@ -37,6 +37,7 @@ module Virt
         @swap_out_base = 0
         @swap_out_since = Time.now
         @swap_total = 4.GiB
+        @guest_os = VMEmulator::LINUX
         @startup_seconds = 10
         @shutdown_seconds = 5
         # How many seconds it will take for the VM to decrease its active memory.
@@ -62,6 +63,11 @@ module Virt
       # @return [Integer] bytes per second the simulated guest writes to swap; 0 (the
       #   default) is a guest with a swap device it isn't touching
       attr_reader :swap_out_rate
+
+      # @return [GuestOS] what this simulated VM's definition declares ({VMEmulator::LINUX} by
+      #   default, matching the guest that answers `/proc/meminfo` in {#swap}); set it to
+      #   {VMEmulator::WINDOWS} or {GuestOS::UNKNOWN} to simulate a guest {Cache} won't ask
+      attr_accessor :guest_os
 
       # @return [Integer, nil] size of the simulated guest's swap device (4 GiB by default);
       #   `nil` simulates a guest whose level cannot be read at all — no guest agent, or no

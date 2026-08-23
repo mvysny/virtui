@@ -76,9 +76,9 @@ describe Virt::Cache do
       cache = Virt::Cache.new(Virt::VMEmulator.demo, System::Emulator.new)
 
       assert cache.cache('Ubuntu').guest_os.linux?
-      # The whole reason the declaration beats asking the guest: BASE is shut off.
-      assert_equal :shut_off, cache.state('BASE')
-      assert cache.cache('BASE').guest_os.linux?
+      # The whole reason the declaration beats asking the guest: Fedora is shut off.
+      assert_equal :shut_off, cache.state('Fedora')
+      assert cache.cache('Fedora').guest_os.linux?
     end
   end
 

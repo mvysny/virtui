@@ -80,4 +80,16 @@ describe Virt::VMEmulator do
     assert_equal :shut_off, dd['BASE'].state
     assert_equal :shut_off, dd['Fedora'].state
   end
+
+  it 'demo declares three different guest OS families' do
+    e = Virt::VMEmulator.demo
+    assert e.guest_os('Ubuntu').linux?
+    assert e.guest_os('Fedora').linux?
+    assert e.guest_os('win11').windows?
+    assert_equal Virt::GuestOS::UNKNOWN, e.guest_os('BASE')
+  end
+
+  it 'guest_os answers UNKNOWN for a VM it does not know' do
+    assert_equal Virt::GuestOS::UNKNOWN, Virt::VMEmulator.new.guest_os('nope')
+  end
 end

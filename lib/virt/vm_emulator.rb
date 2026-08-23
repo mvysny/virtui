@@ -4,8 +4,12 @@ module Virt
   # An in-memory fleet of simulated VMs, API-compatible with {Virsh}, for demo/test mode
   # without libvirt. Each VM is a {VMEmulator::VM}; see {.demo} for a ready-made fleet.
   class VMEmulator
-    # What {#guest_os} reports for every simulated VM.
+    # What a simulated VM declares unless told otherwise (see {VMEmulator::VM#guest_os}).
     LINUX = GuestOS.from_osinfo_id('http://ubuntu.com/ubuntu/25.10')
+
+    # A ready-made non-Linux declaration, for a fleet that needs one — {.demo} gives it to
+    # win11 so the UI's guest-OS marker has more than one family to draw.
+    WINDOWS = GuestOS.from_osinfo_id('http://microsoft.com/win/11')
 
     # @param hostinfo [CpuInfo] the host CPU topology to report
     def initialize(hostinfo: CpuInfo.new('emulator', 1, 4, 2))
@@ -60,13 +64,13 @@ module Virt
     #   or `nil` for an unknown, stopped, or agent-less VM
     def guest_swap(name) = @vms[name]&.swap
 
-    # Always Linux: the simulated guests answer `/proc/meminfo` (see {VMEmulator::VM#swap}),
-    # so the emulated fleet is Linux by construction. Mirrors {Virsh#guest_os} so {Cache}
-    # can call it backend-agnostically.
+    # What the VM declares — {LINUX} unless its {VMEmulator::VM#guest_os} was set. Mirrors
+    # {Virsh#guest_os} so {Cache} can call it backend-agnostically, including the part where
+    # a domain that declares nothing answers {GuestOS::UNKNOWN} rather than `nil`.
     #
-    # @param _name [String] VM name, ignored
-    # @return [GuestOS] a Linux declaration
-    def guest_os(_name) = LINUX
+    # @param name [String] VM name
+    # @return [GuestOS] the declaration; {GuestOS::UNKNOWN} for an unknown VM
+    def guest_os(name) = @vms[name]&.guest_os || GuestOS::UNKNOWN
 
     # Sets a VM's current memory, unless {#allow_set_actual} is `false`.
     #
@@ -96,7 +100,8 @@ module Virt
     def forget_guest(name); end
 
     # Builds a ready-made demo fleet: BASE (shut off), Ubuntu (running), win11 (running),
-    # Fedora (shut off).
+    # Fedora (shut off). Three OS declarations between them, so the guest-OS marker in
+    # {UI::VMWindow} has a penguin, a window and an undeclared `?` to draw.
     #
     # @return [VMEmulator] a {Virsh}-compatible emulator pre-populated with four VMs
     def self.demo
@@ -110,8 +115,12 @@ module Virt
       # Ubuntu swaps, win11 doesn't, so the demo shows both halves of the swap indicator.
       e.vm('Ubuntu').swap_out_rate = 3.MiB
       # And win11 reports no level at all — the guest-agent read is the half that plenty of
-      # real guests cannot answer, so the demo has to show that state too.
+      # real guests cannot answer, so the demo has to show that state too. Declaring it
+      # Windows is the same state arrived at one step earlier: {Cache} won't even ask.
       e.vm('win11').swap_total = nil
+      e.vm('win11').guest_os = WINDOWS
+      # BASE is the hand-written definition that names no OS at all.
+      e.vm('BASE').guest_os = GuestOS::UNKNOWN
       e
     end
 

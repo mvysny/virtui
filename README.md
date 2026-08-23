@@ -121,10 +121,12 @@ around. A guest that reports no swap counters at all gets no row.
 
 1. `qemu-guest-agent` running in the guest — the same package the ballooning section asks for.
 2. The VM's definition saying which OS it runs. virtui only asks a guest declared as Linux,
-   because the level comes from the guest's `/proc/meminfo`. virt-manager and
+   because the level comes from the guest's `/proc/meminfo`. The marker left of each VM's
+   name is what your definition declares — 🐧 Linux, 🪟 Windows, 😈 FreeBSD, or a dim `?`
+   for a definition that names no OS at all; only 🐧 gets asked. virt-manager and
    `virt-install --os-variant` write that declaration; a hand-written domain XML often does
    not, and `virsh metadata <vm> --uri http://libosinfo.org/xmlns/libvirt/domain/1.0` shows
-   whether yours has it.
+   whether yours has it (`virsh edit <vm>` is where you add one).
 
 Guests that cannot answer — no agent, not declared Linux, or a distro that blocks the
 agent's file-read commands — show `-` and are asked again a minute later.
