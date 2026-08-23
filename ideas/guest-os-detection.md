@@ -113,27 +113,43 @@ already the right and only backstop. Nothing new to tune.
 
 ## Classification: the vendor host of the osinfo URI
 
-The id is a URI whose host is the vendor:
+The id is a URI, and the key is its **host plus first path segment** — not the
+host alone, and not a glob:
 
-| URI | family | |
+| key | family | |
 |---|---|---|
-| `microsoft.com/win/11` | `:windows` | measured |
-| `ubuntu.com/ubuntu/25.10` | `:linux` | measured |
-| `debian.org/…`, `redhat.com/…`, `fedoraproject.org/…`, `opensuse.org/…`, `archlinux.org/…`, … | `:linux` | from osinfo-db |
-| `freebsd.org/freebsd/14.0` | `:freebsd` | from osinfo-db |
+| `microsoft.com/win` | `:windows` | measured (`…/win/11`) |
+| `ubuntu.com/ubuntu` | `:linux` | measured (`…/ubuntu/25.10`) |
+| `debian.org/debian`, `redhat.com/rhel`, `fedoraproject.org/fedora`, `opensuse.org/opensuse`, `archlinux.org/archlinux`, … | `:linux` | from osinfo-db |
+| `freebsd.org/freebsd` | `:freebsd` | from osinfo-db |
 | anything unrecognised, and a definition with no metadata | `:unknown` | |
 
-The vendor host is the key — `ubuntu.com`, `microsoft.com` — not the path. That
-is what makes this a table rather than the substring match over
-`os.pretty-name` prose the agent draft was stuck with.
+**Why host *plus* segment, when the host alone reads simpler.** Some vendors ship
+more than one family: `microsoft.com/msdos` against `microsoft.com/win`,
+`oracle.com/solaris` against `oracle.com/linux`. A host-only map needs a second
+special-case structure for exactly those; host+segment handles every vendor with
+one flat Hash and no wildcard matching — parse the URI, take
+`"#{host}/#{path_segments.first}"`, look it up. The redundancy in
+`ubuntu.com/ubuntu` is the price of not having two lookup paths.
+
+**Not osinfo-db, just a table.** ~15 hand-written entries covering what people
+actually run; there is no need to vendor the database, and no wildcards to match.
+It lives as a frozen constant with a `GuestOS.from_osinfo_id` factory **on
+`Virt::GuestOS`** — the value object owning its own classification. A separate
+class earns its own file when the table is loaded from data or runs to hundreds of
+rows; at this size it is one constant. Log the unrecognised id at `debug`, so the
+table grows from real sightings instead of guesses.
+
+Either way it is a table rather than the substring match over `os.pretty-name`
+prose the agent draft was stuck with.
 
 **`:unknown` is a real member, not an error.** It is what an unrecognised vendor
-and a *missing* metadata element both produce, and it means "attempt the read" —
-which keeps the negative-gate principle intact: only a *positive* not-Linux answer
-skips anything. Enumerate the Linux vendors we know rather than treating
-"not Windows" as Linux; an unrecognised vendor is then honestly unknown instead of
-being mislabelled, and it costs nothing, because unknown behaves exactly like
-Linux at the gate.
+and a *missing* metadata element both produce, and it is a value rather than a
+`nil` so the memo can cache it and the caller never nil-checks. Enumerate the
+Linux vendors we know rather than treating "not Windows" as Linux, so an
+unrecognised vendor is honestly unknown instead of being mislabelled — and note
+that `:unknown` is on the *skip* side of the gate (§ *The gate*), which is what
+makes keeping this table current load-bearing rather than cosmetic.
 
 **FreeBSD folds in cleanly, and does gate.** FreeBSD's own `/proc` carries no
 `meminfo`, and linprocfs is conventionally mounted at `/compat/linux/proc` — so
@@ -145,75 +161,129 @@ for them in wave 1, since anything not-Linux already skips.)
 ## Where it lives
 
 Not on `{Virt::GuestAgent}` — this has nothing to do with the agent any more. It
-is a `virsh` read plus a classification, so:
+is a `virsh` read, a classification, and a memo, and the three land in three
+different places:
 
-- **`Virt::GuestOS`** — a `Data.define(:family, :osinfo_id)`, plus the one
-  behavioural predicate the gate reads (§ *The gate must not ask `linux?`*).
-  Keeping the raw `osinfo_id` alongside the family means wave 2 (and the log
-  line) can say *what* was declared, not just which bucket it fell in. Needs an
-  `inflector.inflect` line in `lib/virtui.rb` for `GuestOS`; `GuestOs` would need
-  none but reads worse.
-- **`Virt::Virsh`** — owns the lookup and the per-domain memo, because it already
-  owns both the transport and `#guest_swap`. So the gate lands exactly where the
-  delegation already is:
+- **`Virt::GuestOS`** — a `Data.define(:family, :osinfo_id)`, the vendor table,
+  the `from_osinfo_id` factory, and the family predicates (§ *The gate*). Keeping the raw `osinfo_id` alongside the family means
+  wave 2 (and the log line) can say *what* was declared, not just which bucket it
+  fell in. Needs an `inflector.inflect` line in `lib/virtui.rb` for `GuestOS`;
+  `GuestOs` would need none but reads worse.
+- **`Virt::Virsh#guest_os(domain_name)`** — the lookup, and **nothing else**: one
+  `virsh metadata` call, one regex, `GuestOS.from_osinfo_id`. **Stateless**, like
+  every other method on `Virsh`.
+- **`Virt::Cache`** — the per-domain memo, and the carrier.
 
-  ```ruby
-  def guest_swap(domain_name)
-    return nil if guest_os(domain_name).no_proc_meminfo?
-    @guest_agent&.swap(domain_name)
-  end
-  ```
+### The memo belongs to `Cache`, not `Virsh`
 
-  `Cache#update` does not change; neither does `GuestAgent`.
+The first draft put the memo on `Virsh`, next to the lookup. That is the wrong
+object, and the reason is the thread map. `Virsh` is *not* timer-thread-confined:
+`{UI::VMWindow}` calls `start` / `shutdown` / `force_off` / `reboot` / `reset` on
+it from the **UI thread**, and `{Virt::Ballooning}` calls `set_actual` there too.
+Mutable state on `Virsh` is therefore state two threads can reach, and — worse —
+a `Virsh#guest_os` that memoizes invites wave 2's OS column to call it from the
+render path, taking `{Virt::VirshSession}`'s single mutex on the UI thread. That
+is what CLAUDE.md's threading rule forbids, and no test would catch it.
 
-The memo is a plain `Hash{String => GuestOS}` — a static fact, read once, no
-expiry, no `forget` interaction (`{Virt::GuestAgent#forget}` stays about failure
-state and never sees this). Documented limit: edit a domain's definition while
-virtui runs and it needs a restart to notice.
-
-## The gate must not ask `linux?`
-
-The natural reading is that the swap code asks `linux?(domain)`. It is the one
-mistake in this design that testing on a well-tooled host cannot catch, so it gets
-its own section.
-
-With a four-member family, **`linux?` is not a lie** — `:unknown` answers `false`,
-which is accurate: we do not know it is Linux. (The earlier agent draft *did* need
-a lie, because a nullable boolean had nowhere to put "unknown"; the family symbol
-removed that, so there is no wave-1 fib and no TODO to carry.) The problem is not
-honesty, it is which question the gate is asking:
+`{Virt::Cache}` already is the timer-thread-owned object with the write lock, and
+it already is the only thing the UI reads. So:
 
 ```ruby
-return nil unless os.linux?           # WRONG — :unknown skips the read
-return nil if     os.no_proc_meminfo? # right — only :windows / :freebsd skip
+# in Cache#update, per domain — outside the `if data.running?` branch
+guest_os = (@guest_os[did] ||= @virt.guest_os(did))
+cache[did] = VMCache.diff(old_cache[did], data, guest_swap, guest_os)
 ```
 
-`linux?` gates on *proof of Linux*; the read needs *absence of proof against it*.
-The two differ exactly on `:unknown` — which is 0/4 VMs on the author's host and
-**every VM** on a host whose definitions are hand-written or built by tooling that
-writes no libosinfo metadata. There, `linux?`-gating silently removes the swap
-gauge from the entire fleet, and nothing local would ever show it.
+Three things fall out of that placement:
 
-So:
+- **`||=` is the whole memo.** No "have we seen this domain before" edge to detect
+  — which matters, because `DomainInfo` is `Data.define(:name, :cpus,
+  :max_memory)` rebuilt by the domstats parser on *every* tick, so there is no
+  new-domain event to hang the read on. `||=` also self-heals a first read that
+  failed, which an explicit first-sighting hook would not. It is safe only because
+  `guest_os` never answers `nil` (§ *Error handling*) — one more reason `:unknown`
+  is a member rather than an absence.
+- **Outside the `running?` branch**, unlike `guest_swap`. The XML answers for a
+  shut-off domain, which is the entire point of the pivot, and reading it for
+  stopped VMs hands wave 2 their OS for free.
+- **The field rides on `VMCache`**, exactly as `guest_swap` already does — so the
+  UI reads `cache.guest_os` as a plain field, never calls into `Virsh`, and never
+  blocks. `VMCache.diff` gains one parameter; nothing else in the class changes.
+
+**And the gate moves with the memo.** An earlier draft put it in
+`Virsh#guest_swap`, one line above the delegation to the agent — but `Virsh` no
+longer holds the memo, so it cannot ask. `Cache#update` can, because it already
+has both values in hand:
 
 ```ruby
-# Families known to have no /proc/meminfo, so no point asking the agent for one.
-WITHOUT_PROC_MEMINFO = %i[windows freebsd].freeze
-
-# @return [Boolean] true only for a family we *know* has none; an unrecognised or
-#   undeclared guest answers false, so it is still attempted.
-def no_proc_meminfo? = WITHOUT_PROC_MEMINFO.include?(family)
+guest_swap = data.running? && !guest_os.no_proc_meminfo? ? @virt.guest_swap(did) : nil
 ```
 
-`:unknown` lands on the safe side by construction, wave 2 adds OS/2 and DOS to one
-constant, and the double negative is confined to the single call site above.
+Which is arguably where it belonged anyway: the one place that knows both the OS
+and the running state is the one place that decides, `Virsh#guest_swap` stays the
+dumb delegation it is today, and `{Virt::GuestAgent}` is still untouched.
+`{Virt::VMEmulator}` needs a `guest_os` answering `:linux` to stay
+`Cache`-compatible — one line, since the emulated fleet is Linux by construction.
 
-**`windows?` / `linux?` / `freebsd?` wait for a caller.** `family` is public, so
-`os.family == :windows` already serves anyone who needs it, and nothing in wave 1
-does. They are one line each the moment wave 2's UI wants them — shipping three
-unused predicates now is the abstraction CLAUDE.md's *Readable, not obfuscated*
-rule is aimed at. What must **not** happen is `linux?` existing with no caller and
-then being reached for by the gate later, which is the whole hazard above.
+### Lifetime
+
+A static fact, read once, no expiry, no `forget` interaction
+(`{Virt::GuestAgent#forget}` stays about failure state and never sees this).
+Documented limit: edit a domain's definition while virtui runs and it needs a
+restart to notice. Entries for undefined domains linger, which is one small object
+per domain ever seen — prune with `@guest_os.select! { |k, _| domain_data.key?(k) }`
+if it ever looks untidy, but it is not a leak worth code today.
+
+## The gate
+
+**Decided.** All three family predicates are honest — `:unknown` answers **false**
+to `windows?`, `freebsd?` *and* `linux?`, because unknown is unknown — and the
+gate is the plain negation:
+
+```ruby
+def windows? = family == :windows
+def freebsd? = family == :freebsd
+def linux?   = family == :linux
+
+# Only a guest we positively know to be Linux is worth asking for /proc/meminfo.
+def no_proc_meminfo? = !linux?
+```
+
+So **`:unknown` skips the read**, alongside `:windows` and `:freebsd`. Author's
+call, taken with the alternative on the table (`windows? || freebsd?`, which lets
+`:unknown` fall through to the read), because one negation beats a family list
+that grows with every wave-2 addition.
+
+What that buys and what it costs:
+
+| family | read attempted? | |
+|---|---|---|
+| `:linux` | yes | unchanged from today |
+| `:windows`, `:freebsd` | no | the win — 3 doomed RPCs/tick → none |
+| `:unknown` | **no** | **the cost — see below** |
+
+The `:unknown` row is the trade. A guest whose definition carries no libosinfo
+metadata — hand-written XML, `virsh define` of a hand-rolled file, older tooling —
+is never asked for its swap level, so **it loses the swap gauge it has today**.
+Zero of the author's four VMs are in that state, so this is invisible here; on a
+host built without virt-manager it would be the whole fleet.
+
+That makes it the one part of wave 1 a *user* can notice, which has consequences
+for where it gets written down:
+
+- it is a documented behaviour, not a bug to be surprised by later — so the
+  DECISIONS.md entry carries it as the accepted cost, and `no_proc_meminfo?`'s
+  yardoc says in a line that `:unknown` deliberately falls on the skip side;
+- **wave 1 is no longer "changes no pixel"** — README's ballooning guide gains a
+  line: the guest swap level needs the domain to declare its OS (libosinfo
+  metadata, which virt-manager and `virt-install --os-variant` write), not just
+  `qemu-guest-agent`;
+- and it gives wave 2's agent corroboration a second job it did not have before:
+  an `:unknown` guest whose agent *is* up can still be classified live, which
+  recovers the gauge for exactly the guests this trade gave up.
+
+Wave 2 adding `:os2` / `:dos` needs no change here — they are already not
+`:linux`.
 
 ## The cost of trusting a declaration
 
@@ -269,18 +339,24 @@ charged a pre-2.10 agent one per tick forever.
 
 ## Error handling
 
-`virsh metadata` can fail two ways, and only one is interesting:
+`virsh metadata` can fail two ways: **metadata not present** (the normal state for
+a hand-written definition) and **the domain is gone** (the `list`→`metadata` race,
+on a VM shutting down). The exact reply for the first is unmeasured — every VM on
+the author's host has metadata — so an earlier draft of this section wanted the
+strings before deciding.
 
-- **metadata not present** — the normal state for a hand-written definition. Not a
-  failure: `:unknown`, memoized, silent (or `debug`). Depends on the exact error
-  text, hence the measurement.
-- **the domain is gone** — the `list`→`metadata` race, on a VM shutting down.
-  Rescue, do **not** memoize (so the next tick re-asks), `debug`.
+It does not need them. **One rescue, `:unknown`, memoized, `debug`** covers both,
+because the worst case is benign: a domain raced during shutdown is memoized
+`:unknown` for the rest of the process, and `:unknown` behaves *exactly as virtui
+does today* — attempt the read, let the write-off bound it. So the cost of not
+distinguishing is that one VM keeps today's behaviour after a shutdown race.
+Compare the alternative, which is a fragile match on libvirt prose deciding
+whether to memoize — the same licence-spending `EXPECTED_FAILURES` is careful not
+to do (see D-guest-agent-backoff).
 
-Anything else is a genuine surprise and can be loud, since unlike the agent path
-there is no recurring expected-failure population to drown the log in. Whether
-that is worth distinguishing in wave 1, or whether one rescue at `debug` covers
-it, is a five-line decision to take with the real error strings in hand.
+This is the last thing that looked like a blocker and is not one. Loud failure is
+not wanted here either: unlike the agent path, being unable to classify costs
+nothing a user can see.
 
 ## Wave 2's shopping list
 
@@ -313,19 +389,18 @@ Explicitly not wave 1. Recorded so wave 1 does not accidentally half-build it.
 prefix stripped; 4/4 VMs carry metadata; `microsoft.com/win/11` is a measured
 Windows id.
 
-Left, neither blocking:
+Left, none of it blocking:
 
-1. **The exact reply when the metadata is absent** — every VM on the host has it,
-   so this one cannot be measured here. Whether it is an error exit or empty
-   output decides how the `:unknown` path is written; both must land on
-   `:unknown` rather than raising, so a wrong guess is a small correction, not a
-   redesign. Easiest capture: `virsh metadata <dom> --uri http://example.com/nope`.
-2. The exact `guest-file-open` error text for a missing path — the phrase that goes
+1. The exact `guest-file-open` error text for a missing path — the phrase that goes
    into `EXPECTED_FAILURES` (`No such file or directory` is the expectation,
-   unverified). Needs a running Windows guest with the agent installed.
-3. A FreeBSD osinfo id (`freebsd.org/freebsd/…` expected) — from osinfo-db, not
-   measured. Only affects one table row.
-4. `virsh domstats --balloon <a-windows-vm>`: does the virtio-win balloon driver
+   unverified). Needs a **running Windows guest with `qemu-ga` installed**, which
+   is the one capture that would sharpen wave 1; guessing wrong costs one `warn`
+   per boot of that specific guest, i.e. today's bug persisting in a narrower
+   case. Booting `win11` with the agent would also settle item 3 below.
+2. A FreeBSD osinfo id (`freebsd.org/freebsd/…` expected) — from osinfo-db, not
+   measured. Only affects one table row, and a wrong host string degrades to
+   `:unknown`, which is today's behaviour.
+3. `virsh domstats --balloon <a-windows-vm>`: does the virtio-win balloon driver
    populate `balloon.swap_in` / `swap_out`? If it does, the SWAP row's *rate* half
    already works on Windows today and only the level is Linux-only. A wave-2
    question, but the measurement can be taken any time.
@@ -336,11 +411,13 @@ Left, neither blocking:
   forever, vendor-host classification, only not-Linux gates) → yardoc on
   `Virt::GuestOS` and on `Virsh#guest_os`, including the stripped-prefix note next
   to the regex, since that is the thing a reader would "fix" back;
-- **why the gate asks `no_proc_meminfo?` and not `linux?`** → the yardoc on
-  `WITHOUT_PROC_MEMINFO`, in a line: `:unknown` must be attempted, because a host
-  whose definitions carry no libosinfo metadata would otherwise lose every swap
-  gauge. This is the one invariant a later refactor could undo without any test
-  failing, so it also earns a line in the DECISIONS.md entry below;
+- **that `no_proc_meminfo?` is `!linux?`, so `:unknown` skips the read** → the
+  yardoc on that method, plus the accepted cost in the DECISIONS.md entry: a
+  domain with no libosinfo metadata gets no swap level (§ *The gate*);
+- **the memo lives on `Cache`, not `Virsh`, because `Virsh` is reachable from the
+  UI thread** → CLAUDE.md's *Threading* bullet already owns this rule; a clause
+  naming `guest_os` keeps the next person from memoizing on `Virsh` for
+  convenience;
 - **why the XML and not the agent** — the agentless Windows guest, the boot
   window, and what it deletes — plus the cost accepted in return (a declaration
   can be stale) and why `:unknown` must not gate → one new `DECISIONS.md` entry
@@ -350,6 +427,8 @@ Left, neither blocking:
 - the `EXPECTED_FAILURES` addition → amends D-guest-agent-backoff;
 - `Virt::GuestOS` → one line in CLAUDE.md's class index, plus the
   `inflector.inflect` entry;
-- **nothing user-facing** — wave 1 changes no pixel. README waits for wave 2.
+- **one user-facing line** — README's ballooning guide notes that the guest swap
+  level needs the domain to declare its OS, not just `qemu-guest-agent` (§ *The
+  gate*). Everything else waits for wave 2.
 - this note survives wave 1, trimmed to § *Wave 2's shopping list* and the
   unchecked measurements.
