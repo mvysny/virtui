@@ -34,10 +34,27 @@ module UI
     # {Virt::GuestOS#family}. Emoji, because the overview line is already read by its glyphs
     # (▶/⏹/🎈/🐢), and a family with no entry here — `:unknown` — falls through to the
     # dim `?` {#format_guest_os} draws instead. See DECISIONS.md D-guest-os-glyph.
+    #
+    # One entry per {Virt::GuestOS::FAMILIES} key, so every declaration osinfo-db can express
+    # draws something. Where a project has a mascot the mascot wins (🐧 Tux, 😈 Beastie,
+    # 🐡 Puffy, 🚩 NetBSD's flag, 🍎 Apple, 🌞 Sun, 🍃 Haiku's leaf); the rest are the
+    # nearest recognisable stand-in, because Unicode has no dragonfly and no gnu. Every glyph
+    # here measures {GUEST_OS_WIDTH} — checked against `unicode/display_width`, not assumed:
+    # the obvious ☀️ for Solaris and 🕸️ for NetWare measure **1**, being variation sequences,
+    # and are why those two rows are 🌞 and 🌐.
     GUEST_OS_GLYPHS = {
-      linux: "\u{1F427}",   # 🐧
-      windows: "\u{1FA9F}", # 🪟
-      freebsd: "\u{1F608}"  # 😈 — the BSD daemon
+      linux: "\u{1F427}",        # 🐧 Tux
+      windows: "\u{1FA9F}",      # 🪟
+      freebsd: "\u{1F608}",      # 😈 Beastie, the BSD daemon
+      openbsd: "\u{1F421}",      # 🐡 Puffy the pufferfish
+      netbsd: "\u{1F6A9}",       # 🚩 the flag of its logo
+      dragonflybsd: "\u{1F409}", # 🐉 no dragonfly in Unicode; the dragon is the near miss
+      macos: "\u{1F34E}",        # 🍎
+      solaris: "\u{1F31E}",      # 🌞 Sun Microsystems
+      illumos: "\u{1F4A1}",      # 💡 *illuminare*, which is where the name comes from
+      haiku: "\u{1F343}",        # 🍃 the leaf of its logo
+      dos: "\u{1F4BE}",          # 💾
+      netware: "\u{1F310}"       # 🌐 Novell's networking-first pitch
     }.freeze
 
     # Display width every guest-OS marker is padded to. All of {GUEST_OS_GLYPHS} measure 2

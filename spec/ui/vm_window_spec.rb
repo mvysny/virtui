@@ -293,11 +293,17 @@ module Tuile
         assert_includes content[base], '?  BASE' # declares nothing
       end
 
+      # The whole set, not a sample: a glyph whose emoji presentation needs a variation
+      # selector measures 1 (☀️, 🕸️), and one such row shifts its VM name a column left.
       it 'pads every guest-OS marker to the same width, so the name column holds' do
-        markers = %i[linux windows freebsd unknown].map do |family|
-          window.send(:format_guest_os, Virt::GuestOS.new(family, nil))
-        end
-        assert_equal [2], markers.map { |m| StyledString.parse(m).display_width }.uniq
+        families = Virt::GuestOS::FAMILIES.keys + [:unknown]
+        markers = families.map { |family| window.send(:format_guest_os, Virt::GuestOS.new(family, nil)) }
+        assert_equal [UI::VMWindow::GUEST_OS_WIDTH],
+                     markers.map { |m| StyledString.parse(m).display_width }.uniq
+      end
+
+      it 'draws a glyph for every family a definition can declare' do
+        assert_equal Virt::GuestOS::FAMILIES.keys.sort, UI::VMWindow::GUEST_OS_GLYPHS.keys.sort
       end
 
       it 'maps paused and unknown states to their glyphs' do

@@ -102,11 +102,20 @@ same declaration silently decides whether the VM is asked for a swap level
 at all. The VM list's overview line is one row of glyphs and a name in a
 20-to-200-column window, so the marker had a budget of two or three cells.
 
-**Decision.** The family is drawn between the state glyph and the name:
-🐧 Linux, 🪟 Windows, 😈 FreeBSD, and a `?` in the frame (dim) color for
-`:unknown`. Every marker is padded to {UI::VMWindow::GUEST_OS_WIDTH} = 2
+**Decision.** The family is drawn between the state glyph and the name, one
+glyph per {Virt::GuestOS::FAMILIES} key, with a `?` in the frame (dim) color
+for `:unknown`. Every marker is padded to {UI::VMWindow::GUEST_OS_WIDTH} = 2
 cells, which is what the emoji measure under `unicode/display_width` — the
 same measure tuile lays rows out with.
+
+Where a project has a mascot, the mascot wins — 🐧 Tux, 😈 Beastie, 🐡 Puffy,
+🚩 NetBSD's flag, 🍎 Apple, 🌞 Sun, 🍃 Haiku's leaf — because those are
+the marks their users already recognise. 🐉, 💡, 💾 and 🌐 are stand-ins:
+Unicode has no dragonfly, and illumos/DOS/NetWare have no mascot to draw.
+The glyph set was chosen *after* the family list, not alongside it: the list
+comes from osinfo-db (D-guest-os-from-xml), so there is exactly one row to
+fill per family a definition can express, and a spec asserts
+{UI::VMWindow::GUEST_OS_GLYPHS} covers {Virt::GuestOS::FAMILIES} exactly.
 
 Placement follows a rule worth keeping in the row: **left of the name is
 what the VM *is*, right of it is what it is *doing*.** The OS declaration
@@ -129,7 +138,12 @@ turtle stay on the right, where a tick-by-tick change costs nothing.
 - *Mixed-width glyphs — e.g. ⊞ (1 cell) for Windows next to 🐧 (2).* Every
   such row pulls its VM name one column left, and the name column is what
   the eye scans down. Uniform width is the constraint, not the glyph set:
-  **don't add a marker without padding it to `GUEST_OS_WIDTH`.**
+  **don't add a marker without padding it to `GUEST_OS_WIDTH`.** The trap
+  this rule catches is not exotic — the *obvious* pick for two families was
+  a variation sequence that measures **1**: ☀️ (U+2600 U+FE0F) for Solaris
+  and 🕸️ (U+1F578 U+FE0F) for NetWare. 🌞 and 🌐 replace them, and the
+  width spec now walks the whole family list rather than a sample of it, so
+  the next such glyph fails a test instead of shifting a name column.
 - *Letters instead of emoji (`L`/`W`/`B`).* Renders in any font, which is
   the one real argument for it (see Consequences). Rejected because the
   overview line is already an emoji vocabulary — ▶/⏹/🎈/🐢 — and a
@@ -139,13 +153,21 @@ turtle stay on the right, where a tick-by-tick change costs nothing.
   living in `Virt::`. Dependencies point toward data, never toward UI; the
   table stays in the window.
 
-**Consequences.** 🪟 is Unicode 14 (2021) and the coverage risk of the set:
-a terminal font without it draws a tofu box, and a tofu box is usually one
-cell, so that row's name shifts a column — the failure is cosmetic but it
-is exactly the misalignment the padding exists to prevent. Accepted
-knowingly; the fallback if it bites is a padded `W ` in that one entry of
-{UI::VMWindow::GUEST_OS_GLYPHS}, no other change. 😈 is drawn for FreeBSD but
-no demo VM declares it, so it is the one glyph never seen in demo mode.
+**Consequences.** 🪟 is the font-coverage risk of the set, and the only
+one: every other glyph is Emoji 1.0 (2015), while 🪟 is Emoji 13 (2020). A
+terminal font without it draws a tofu box, and a tofu box is usually one
+cell, so that row's name shifts a column — the failure is cosmetic but it is
+exactly the misalignment the padding exists to prevent. Accepted knowingly;
+the fallback if it bites is a padded `W ` in that one entry of
+{UI::VMWindow::GUEST_OS_GLYPHS}, no other change.
+
+Ten of the twelve glyphs are unseen in demo mode, which declares only Linux,
+Windows and nothing — and unseen on a real host too: the author has no
+macOS, Haiku, DOS or NetWare guest to boot, and said so. What *is* verified
+is the half that can break the layout: a spec measures every glyph's width,
+and every family is reachable from an id read out of osinfo-db. A
+wrong-looking mascot is a one-character fix; a wrong-width one silently
+shifts a name column, which is why the testing effort went there.
 
 ---
 
@@ -204,9 +226,31 @@ family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
 - *`virsh dumpxml` plus a regex, or a real XML parser.* `metadata --uri` returns
   the element alone, so there is no document to parse: one regex over three lines
   rather than over sixty, and no first XML dependency in the project.
-- *Vendoring osinfo-db.* What virtui needs is a family, not a version tree.
-  {Virt::GuestOS::VENDORS} is ~15 hand-written entries, and an unrecognised id is
-  logged at `debug` so the table grows from sightings.
+- *Vendoring osinfo-db, or shelling out to `osinfo-query`.* What virtui needs
+  is a family, not a version tree, and not a build-time dependency on a
+  database that ships separately from libvirt. {Virt::GuestOS::FAMILIES}
+  instead holds a *one-time extraction* of it: every `<os id>` in
+  `gitlab.com/libosinfo/osinfo-db` reduced to its `vendor-host/short-id` key
+  and tagged with that entry's own `<family>` — 980 entries collapsing to 76
+  keys and 12 families (`main`, 2026-08-23). The whole point of the reduction
+  is that the part virtui reads barely moves: osinfo-db gains OS *versions*
+  constantly and OS *vendors* rarely, and a new vendor costs one row plus a
+  `debug` line that names the id nobody matched.
+
+  It is worth saying what the first table cost by *not* doing this. Wave 1
+  hand-wrote ~15 rows from the osinfo-db naming scheme, and three of them were
+  wrong in ways nothing on the author's host could reveal:
+  `alpinelinux.org/alpine` (the real short-id is `alpinelinux`, so every Alpine
+  guest silently fell to `:unknown` and lost its swap level), plus
+  `linuxmint.com/linuxmint` and `kali.org/kali` — vendors osinfo-db has never
+  had. That is a 3-in-15 error rate on rows that *looked* obvious, which is the
+  argument for extracting the set rather than pattern-matching it. Two smaller
+  facts the extraction settled at the same time: **OS/2 is not in osinfo-db at
+  all** (there is no `ibm.com` vendor, so it cannot be declared and cannot be
+  detected — an earlier note claiming otherwise was wrong), and
+  `libosinfo.org/unknown` is a real declarable id meaning *unknown*, deliberately
+  left out of {Virt::GuestOS::FAMILIES} so it lands where an undeclared domain
+  lands.
 - *Keying {Virt::GuestOS::VENDORS} on the vendor host alone.* Reads simpler and
   is wrong: `microsoft.com` ships both `win/*` and `msdos/*`, so it needs a
   second special-case structure for exactly those vendors. Every entry pays one
@@ -253,6 +297,16 @@ family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
 - **The memo never expires.** Editing a domain's definition while virtui runs
   takes a restart to notice. `Virt::GuestAgent#forget` stays about failure state
   and does not touch it.
+- **`:unknown` now means what it says.** With the table complete, an id reaching
+  `:unknown` is a definition declaring something outside osinfo-db — not a gap in
+  virtui's list. That is what makes the `debug` log for an unmatched id a signal
+  worth acting on rather than routine noise, and it is the premise the dim `?`
+  marker leans on (D-guest-os-glyph).
+- **Growing {Virt::GuestOS::FAMILIES} is free** precisely because
+  {Virt::GuestOS#no_proc_meminfo?} is `!linux?`: nine families were added without
+  touching the gate, the cache or the agent. A `windows? || freebsd?` gate would
+  have needed editing once per family — the rejected alternative above, and the
+  bill it would have run up.
 
 ---
 

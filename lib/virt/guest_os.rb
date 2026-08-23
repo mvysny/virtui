@@ -15,39 +15,74 @@ module Virt
   # actually booted: DECISIONS.md D-guest-os-from-xml.
   #
   # @!attribute [r] family
-  #   @return [Symbol] `:windows`, `:linux`, `:freebsd`, or `:unknown` — the last for both an
-  #     unrecognised vendor and a definition that declared nothing
+  #   @return [Symbol] one of {FAMILIES}' keys, or `:unknown` for both an id no vendor in
+  #     {VENDORS} matches and a definition that declared nothing
   # @!attribute [r] osinfo_id
   #   @return [String, nil] what was declared, e.g. `http://microsoft.com/win/11`; `nil` if
   #     nothing was. Kept even when unrecognised, so a log line can name it
   class GuestOS < Data.define(:family, :osinfo_id)
-    # Maps an osinfo id's vendor host *plus first path segment* to a family.
+    # Every osinfo id vendor, grouped by the family virtui sorts it into.
     #
-    # Not the host alone: `microsoft.com` ships both `win/*` and `msdos/*`, so a host-only
-    # map needs a second structure for exactly those vendors. Every entry pays one
-    # redundant-looking segment (`ubuntu.com/ubuntu`) to keep one flat lookup.
+    # Each entry is an osinfo id's vendor host *plus first path segment* — not the host alone,
+    # because `microsoft.com` ships both `win/*` and `msdos/*`, so a host-only map would need a
+    # second structure for exactly those vendors. Every key pays one redundant-looking segment
+    # (`ubuntu.com/ubuntu`) to keep {VENDORS} one flat lookup.
     #
-    # `microsoft.com/win` and `ubuntu.com/ubuntu` are measured; the rest follow osinfo-db's
-    # `vendor-host/short-id` scheme. {Virsh#guest_os} logs an id that matches nothing, which
-    # is how this table is meant to grow.
-    VENDORS = {
-      'microsoft.com/win' => :windows,
-      'freebsd.org/freebsd' => :freebsd,
-      'ubuntu.com/ubuntu' => :linux,
-      'debian.org/debian' => :linux,
-      'redhat.com/rhel' => :linux,
-      'fedoraproject.org/fedora' => :linux,
-      'centos.org/centos' => :linux,
-      'almalinux.org/almalinux' => :linux,
-      'rockylinux.org/rocky' => :linux,
-      'opensuse.org/opensuse' => :linux,
-      'suse.com/sles' => :linux,
-      'archlinux.org/archlinux' => :linux,
-      'linuxmint.com/linuxmint' => :linux,
-      'alpinelinux.org/alpine' => :linux,
-      'gentoo.org/gentoo' => :linux,
-      'kali.org/kali' => :linux
+    # **This is the complete set**, extracted from osinfo-db's own `<os id>` and `<family>`
+    # elements (`gitlab.com/libosinfo/osinfo-db`, `main`, 2026-08-23: 980 OS entries, 76
+    # distinct keys). virt-manager and `virt-install --os-variant` can only write an id that
+    # exists there, so an id reaching `:unknown` means the definition declared something
+    # outside osinfo-db — or that osinfo-db grew a vendor since. {Virsh#guest_os} logs such an
+    # id at `debug`, which is how this table is meant to grow.
+    #
+    # Three entries are hand-corrections to what osinfo-db says, and stay that way on purpose:
+    #
+    # - `elementary.io/elementary` carries no `<family>` element at all — an osinfo-db
+    #   omission; elementary OS is Ubuntu-derived, so `:linux`.
+    # - `guix.gnu.org/guix-system` is the one key with *two* families in osinfo-db (`linux`
+    #   and `hurd`, for the Hurd port). Keyed `:linux` for the overwhelmingly common variant;
+    #   the cost of guessing wrong is that a Hurd guest is asked for a `/proc/meminfo` it may
+    #   not have, which fails the same way an agentless guest does.
+    # - `libosinfo.org/unknown` is a real declared id meaning *unknown*, so it is deliberately
+    #   **absent** here and falls through to {UNKNOWN} like an undeclared domain.
+    FAMILIES = {
+      linux: %w[
+        almalinux.org/almalinux almalinux.org/almalinux-kitten alpinelinux.org/alpinelinux
+        altlinux.org/alt altlinux.org/altlinux android-x86.org/android-x86 archlinux.org/archlinux
+        asianux.com/asianux cclinux.org/circle centos.org/centos centos.org/centos-stream
+        cirros-cloud.net/cirros clearlinux.org/clearlinux debian.org/debian
+        elementary.io/elementary endlessos.com/eos euro-linux.com/eurolinux
+        fedoraproject.org/coreos fedoraproject.org/fedora fedoraproject.org/silverblue
+        freenix.net/freenix gentoo.org/gentoo getsol.us/solus gnome.org/gnome
+        gnome.org/gnome-continuous guix.gnu.org/guix-system hyperbola.info/hyperbola
+        libosinfo.org/linux mageia.org/mageia mandriva.com/mandrake mandriva.com/mandriva
+        mandriva.com/mbs mandriva.com/mes manjaro.org/manjaro miraclelinux.com/miraclelinux
+        nixos.org/nixos openanolis.cn/anolis opensuse.org/opensuse oracle.com/oel oracle.com/ol
+        pureos.net/pureos redhat.com/rhel redhat.com/rhel-atomic redhat.com/rhl
+        rockylinux.org/rocky scientificlinux.org/scientificlinux slackware.com/slackware
+        slackware.com/slackwarearm suse.com/caasp suse.com/sle suse.com/sled suse.com/slem
+        suse.com/sles system76.com/popos trisquel.info/trisquel ubuntu.com/ubuntu
+        univention.de/ucs voidlinux.org/voidlinux
+      ],
+      # osinfo-db splits these into `winnt`, `win9x` and `win16`; virtui needs none of that.
+      windows: %w[microsoft.com/win microsoft.com/winnt],
+      freebsd: %w[freebsd.org/freebsd],
+      openbsd: %w[openbsd.org/openbsd],
+      netbsd: %w[netbsd.org/netbsd],
+      dragonflybsd: %w[dragonflybsd.org/dragonflybsd],
+      # osinfo-db calls this family `darwin`; `:macos` is what the marker means to a reader.
+      macos: %w[apple.com/macosx],
+      solaris: %w[oracle.com/solaris sun.com/opensolaris sun.com/solaris],
+      illumos: %w[omnios.org/bloody openindiana.org/hipster smartos.org/smartos],
+      haiku: %w[haiku-os.org/haiku],
+      dos: %w[freedos.org/freedos microsoft.com/msdos],
+      netware: %w[novell.com/netware]
     }.freeze
+
+    # {FAMILIES} inverted: the flat `vendor-host/first-segment => family` lookup
+    # {.from_osinfo_id} actually reads. Grouped in the source because 12 families read better
+    # than 75 near-identical `=> :linux` rows; flat here because the lookup is per-domain.
+    VENDORS = FAMILIES.flat_map { |family, keys| keys.map { |key| [key, family] } }.to_h.freeze
 
     # Splits an osinfo id into the `host/first-segment` key {VENDORS} holds. A regex rather
     # than `URI.parse` because this runs on whatever a definition happens to contain, and a
@@ -60,10 +95,11 @@ module Virt
     # Classifies a declared osinfo id.
     #
     #   GuestOS.from_osinfo_id('http://ubuntu.com/ubuntu/25.10')   # => linux
-    #   GuestOS.from_osinfo_id('http://haiku-os.org/haiku/r1')     # => unknown, id kept
+    #   GuestOS.from_osinfo_id('http://haiku-os.org/haiku/r1')     # => haiku
+    #   GuestOS.from_osinfo_id('http://example.com/os/1')          # => unknown, id kept
     #
     # @param osinfo_id [String, nil] the id from the domain's libosinfo metadata
-    # @return [GuestOS] `family` is `:unknown` for an unrecognised id, with `osinfo_id`
+    # @return [GuestOS] `family` is `:unknown` for an id outside {VENDORS}, with `osinfo_id`
     #   preserved so the caller can log what it saw
     def self.from_osinfo_id(osinfo_id)
       id = osinfo_id&.strip
@@ -85,12 +121,12 @@ module Virt
     # Whether asking this guest for `/proc/meminfo` is pointless — the gate on the
     # guest-agent swap read in {Cache#update}.
     #
-    # `!linux?`, so **`:unknown` skips the read** along with Windows and FreeBSD: a domain
+    # `!linux?`, so **`:unknown` skips the read** along with every other family: a domain
     # declaring no OS reports no swap level, where before this class existed it would have
     # been asked and answered. Deliberate, and the reason a `windows? || freebsd?` gate —
-    # which lets `:unknown` fall through — was not taken; the trade is invisible on a fleet
-    # built by virt-manager, where nothing is `:unknown`. See DECISIONS.md
-    # D-guest-os-from-xml.
+    # which lets `:unknown` fall through, and which every family added to {FAMILIES} would
+    # have to be threaded into — was not taken; the trade is invisible on a fleet built by
+    # virt-manager, where nothing is `:unknown`. See DECISIONS.md D-guest-os-from-xml.
     #
     # @return [Boolean] `true` for every family except `:linux`
     def no_proc_meminfo? = !linux?

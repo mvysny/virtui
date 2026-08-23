@@ -1,13 +1,17 @@
-# Guest OS detection, wave 2: show it, and corroborate the declaration
+# Guest OS detection, wave 3: corroborate the declaration with the agent
 
-**Status:** wave 1 shipped (2026-08-23) — `{Virt::GuestOS}` classifies what a
-domain's definition *declares*, and that gates the `/proc/meminfo` swap read. The
-argument, the measurements and the roads not taken are in **DECISIONS.md
-D-guest-os-from-xml**; this note is only what wave 1 deliberately left out.
+**Status:** waves 1 and 2 shipped (2026-08-23). Wave 1: `{Virt::GuestOS}`
+classifies what a domain's definition *declares*, gating the `/proc/meminfo` swap
+read. Wave 2: the family list is now the complete osinfo-db extraction (76 keys,
+12 families) and every family draws a marker in the VM list. The arguments and
+the roads not taken are in **DECISIONS.md D-guest-os-from-xml** and
+**D-guest-os-glyph**.
 
-Nothing here is decided.
+Nothing below is decided. The live topic is the agent as a *second* source —
+everything the declaration cannot fix (a stale `--os-variant`, a guest that
+declares nothing) needs an observation of what is actually booted.
 
-## Wave 2's shopping list
+## What is still open
 
 - **The agent as a corroborating second source.** `guest-get-osinfo` (`qemu-ga`
   >= 2.10) when the agent is up: it observes what is *actually* booted, so it
@@ -27,15 +31,6 @@ Nothing here is decided.
   - the one real trap — on a pre-2.10 agent `guest-get-osinfo` is refused while
     `guest-file-*` works fine, so corroboration must not cost such a guest its
     swap level.
-- **The full family list.** osinfo-db has OS/2, DOS, macOS, Solaris, Haiku;
-  `{Virt::GuestOS::VENDORS}` just grows rows. Wave 1 stopped at the three families
-  that change behaviour.
-- **Shown in the VM list.** This is where the XML source pays off twice: it works
-  with the VM shut off, so there is no blank cell on a stopped VM. Read
-  `cache.guest_os` — already populated for every domain, running or not. Do **not**
-  call `{Virt::Virsh#guest_os}` from the render path (CLAUDE.md § *Threading*).
-  - Open: what to render for `:unknown`. Blank is honest; "Linux" would be a lie,
-    since `:unknown` is exactly the guest nobody classified.
 - **The SWAP row for a known non-Linux guest.** It currently shows the rate half
   with an empty level. Knowing the family, it could say *why* the level is missing
   instead of showing `-`.
@@ -56,5 +51,17 @@ Nothing here is decided.
    populate `balloon.swap_in` / `swap_out`? If it does, the SWAP row's *rate* half
    already works on Windows and only the level is Linux-only — which decides
    whether that row should say "no level" or "not applicable".
-3. A FreeBSD osinfo id (`freebsd.org/freebsd/...` expected). From osinfo-db's
-   scheme, not measured; a wrong host string degrades to `:unknown`.
+3. ~~A FreeBSD osinfo id.~~ Settled by wave 2 without a host: every key now comes
+   from osinfo-db's own `<os id>` elements, so `freebsd.org/freebsd` is measured,
+   not guessed. (Three wave-1 guesses were not so lucky — see D-guest-os-from-xml.)
+
+## What wave 2 did *not* verify, and can't be
+
+Ten of the twelve markers have never rendered on a real host, because the author
+has no macOS/Haiku/DOS/NetWare/BSD guest and is not going to install one to check
+a mascot. The layout-breaking half is covered by specs (every glyph's width is
+measured; every family is reachable from a real osinfo id). What is *not* covered
+is whether a given terminal font actually has 🐡 or 💾 — a missing glyph draws
+tofu at one cell and shifts that row's name a column. If that ever shows up, the
+fix is a padded two-cell ASCII string in that one
+`{UI::VMWindow::GUEST_OS_GLYPHS}` row; nothing else changes.
