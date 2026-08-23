@@ -260,12 +260,12 @@ module Virt
       write_line("#{line}\n#{sentinel}\n")
 
       raw = read_until(@stdout, "#{nonce}#{@prompt}")
-      raise Desync, "expected an echo of #{line.inspect}" unless raw.start_with?("#{line}\n")
+      raise Desync, "expected an echo of #{line.inspect}, got #{raw[0, 200].inspect}" unless raw.start_with?("#{line}\n")
 
       body = raw[(line.bytesize + 1)..]
       tail = "#{@prompt}#{sentinel}\n#{nonce}#{@prompt}"
       cut = body.rindex(tail)
-      raise Desync, 'sentinel did not close the reply' if cut.nil?
+      raise Desync, "sentinel did not close the reply; it ends #{(body[-200..] || body).inspect}" if cut.nil?
 
       check_stderr(line)
       body[0, cut]
