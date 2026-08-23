@@ -19,8 +19,8 @@ What this page is still for, and why it is not deleted yet:
 
 Graduated and cut from here: the transport question (D-guest-swap-level), the GVL
 finding (D-virsh-cli, which now carries it as an argument against the binding),
-the persistent-session idea (`ideas/persistent-virsh-session.md`, then
-D-virsh-session), and the four gotchas' *contract* (the yardoc on
+the persistent-session idea (D-virsh-session, whose own
+note has since graduated and been deleted), and the four gotchas' *contract* (the yardoc on
 {Virt::GuestAgent#read_file}).
 
 Sibling to `swap-despite-ballooning.md`: that note diagnoses *why* a ballooned

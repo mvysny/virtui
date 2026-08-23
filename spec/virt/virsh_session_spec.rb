@@ -114,6 +114,21 @@ describe Virt::VirshSession do
   end
 end
 
+# No virsh needed: quoting is pure string work.
+describe 'Virt::VirshSession.quote' do
+  it 'wraps an apostrophe the way virsh echo --shell does' do
+    assert_equal %('it'\\''s'), Virt::VirshSession.quote("it's")
+  end
+
+  # Readline acts on these as editing keys before the tokenizer sees them, which would
+  # corrupt the command and misattribute every reply after it. Quoting cannot help.
+  it 'refuses a control byte rather than quoting it' do
+    ["tab\there", "kill\x15me", "del\x7f", "nul\0"].each do |hostile|
+      assert_raises(RuntimeError, "#{hostile.inspect} should be refused") { Virt::VirshSession.quote(hostile) }
+    end
+  end
+end
+
 describe Virt::VirshSpawn do
   it 'prefixes the subcommand with virsh' do
     skip 'virsh not installed' unless Virt::Virsh.available?

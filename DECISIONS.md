@@ -646,7 +646,9 @@ command keeps its own process and its own exit status.
   mutex, a per-call `--timeout` bounds the damage a wedged guest can do, and
   {Virt::GuestAgent}'s own write-off is the circuit breaker, at no
   multi-process cost. Revisit only if a wedged guest is measured delaying
-  the fleet poll. The fleet-wide `domstats` poll still needs exactly one
+  the fleet poll — the price of that revisit is measured: ~2.8 MB PSS per
+  extra child (8.2 MB for one, 34.9 MB for ten), so quote PSS and not the
+  ~6.5x larger summed RSS, almost all of which is shared pages. The fleet-wide `domstats` poll still needs exactly one
   child; conflating the two is what made this look more expensive than it is.
 - *The `ruby-libvirt` binding, to avoid subprocesses altogether.* Rejected
   separately and for a harder reason — see D-virsh-cli, whose GVL paragraph

@@ -52,7 +52,14 @@ module Virt
     # caps the length of a command line that survives intact — readline re-wraps (and
     # re-emits, non-deterministically) anything it thinks is wider than the terminal, so
     # this is a line-length limit and not merely a cosmetic hint.
+    #
+    # Not replaceable by a `virsh` flag, which is the first thing a reader tidying this up
+    # will look for: `-q` silences the banner but not the prompt or the echo, and 12.0.0
+    # has no `-f`/`--file` clean-stream mode at all.
     CHILD_ENV = { 'TERM' => 'dumb', 'COLUMNS' => '1000000' }.freeze
+
+    # Bytes {.quote} refuses, because readline acts on them instead of passing them along.
+    CONTROL_BYTES = /[\x00-\x1f\x7f]/
 
     # How long to wait for one reply. Generously above the 2s poll: a read still
     # outstanding after this many ticks means the child is wedged, not slow, and killing
@@ -141,9 +148,21 @@ module Virt
     #
     #   quote("it's")   # => "'it'\\''s'"
     #
+    # Quoting cannot rescue a *control* byte, so one raises here instead of being wrapped:
+    # readline reads the child's stdin (see {CHILD_ENV}) and acts on C0 and DEL as editing
+    # keys — TAB completes, `\x15` kills the line — before the tokenizer ever sees them,
+    # which corrupts the command and hands every later reply to the wrong call. Nothing
+    # feeds one in today (`JSON.generate` escapes every C0 byte, though notably *not* DEL,
+    # and the guest paths are literals), so this guards the next payload, not a live bug.
+    #
     # @param str [String] one argument, as the caller means it to arrive
     # @return [String] the argument wrapped so the tokenizer reproduces it byte for byte
-    def self.quote(str) = "'#{str.gsub("'") { "'\\''" }}'"
+    # @raise [RuntimeError] if the argument contains a C0 byte or DEL
+    def self.quote(str)
+      raise "cannot pass #{str.inspect} to virsh: readline reads a control byte as a key" if str.match?(CONTROL_BYTES)
+
+      "'#{str.gsub("'") { "'\\''" }}'"
+    end
 
     # @param args [Array<String>] a `virsh` subcommand and its arguments, one per element
     # @return [String] the command's stdout
@@ -266,6 +285,9 @@ module Virt
     #
     # Sound without any waiting: `virsh` wrote stderr before the sentinel's stdout, and
     # the sentinel has already been read, so anything stderr holds is already there.
+    #
+    # Stderr is the only failure signal there is: empty *stdout* is not one, because a host
+    # with no VMs returns an empty `domstats` legitimately.
     #
     # Only `error:` lines fail the call. libvirt's own log output also lands on stderr and
     # a warning must not turn a good read into an exception, so the remainder is logged —
