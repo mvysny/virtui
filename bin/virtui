@@ -35,6 +35,9 @@ screen.theme_def = UI::Theme::THEME_DEF
 screen.on_error = ->(e) { $log.fatal('Uncaught event loop exception', e) }
 layout = UI::AppLayout.new(virt_cache, ballooning)
 screen.content = layout
+# Tuile owns no status bar; the layout draws its own bottom row and this is what
+# keeps it current (tuile DECISIONS.md `D-status-bar`).
+screen.on_focus_changed = -> { layout.refresh_status }
 screen.focused = layout.vms
 
 # 2s: fast enough that ballooning can ramp a VM up before it starts swapping. Polling

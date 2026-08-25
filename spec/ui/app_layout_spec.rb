@@ -44,12 +44,23 @@ module Tuile
       end
     end
 
-    it 'rect= tiles VMs on top, system + log along the bottom' do
+    it 'rect= tiles VMs on top, system + log along the bottom, status on the last row' do
       layout.rect = Rect.new(0, 0, 100, 40)
-      # system width = (100/2).clamp(0,60) = 50; system height = 13; VMs take the rest.
-      assert_equal [0, 0, 100, 27], rect_of(layout.vms)
-      assert_equal [0, 27, 50, 13], rect_of(layout.system)
-      assert_equal [50, 27, 50, 13], rect_of(layout.log)
+      # The status line takes the last row, leaving 39; system width =
+      # (100/2).clamp(0,60) = 50; system height = 13; VMs take the rest.
+      assert_equal [0, 0, 100, 26], rect_of(layout.vms)
+      assert_equal [0, 26, 50, 13], rect_of(layout.system)
+      assert_equal [50, 26, 50, 13], rect_of(layout.log)
+      assert_equal [0, 39, 100, 1], rect_of(layout.status)
+    end
+
+    it 'refresh_status advertises quit plus the focused window\'s own hint' do
+      layout.rect = Rect.new(0, 0, 100, 40)
+      layout.vms.focus
+      layout.refresh_status
+      text = layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
+      assert_includes text, 'quit'
+      assert_includes text, 'Power', text
     end
 
     it 'rect= clamps the system window width to 60 on a wide screen' do

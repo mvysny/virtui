@@ -6,7 +6,9 @@ ruby '>= 3.3'
 gem 'concurrent-ruby'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
-gem 'tuile', '>= 0.12.0'
+# CO-DEVELOPMENT: tracking ../tuile master for the status-bar deletion.
+# Restore on release: gem 'tuile', '>= 0.13.0'
+gem 'tuile', path: '../tuile'
 gem 'zeitwerk', '~> 2.7'
 
 group :development do

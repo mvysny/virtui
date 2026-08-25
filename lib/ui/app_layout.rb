@@ -2,9 +2,13 @@
 
 module UI
   # The top-level screen layout, orchestrating the three windows: {VMWindow} (VM
-  # list/controls), {SystemWindow} (host CPU/RAM/disk) and a log window. Also redirects
-  # `$log`'s console output into the log window and owns the `1`/`2`/`3` focus keys
-  # (see {#handle_key}).
+  # list/controls), {SystemWindow} (host CPU/RAM/disk) and a log window, over a
+  # one-row status line. Also redirects `$log`'s console output into the log window
+  # and owns the `1`/`2`/`3` focus keys (see {#handle_key}).
+  #
+  # Tuile draws no status bar and reserves no row (see its DECISIONS.md
+  # `D-status-bar`), so the bottom line is ours: {#refresh_status} rebuilds it and
+  # `bin/virtui` hangs it off `Tuile::Screen#on_focus_changed=`.
   #
   # UI-thread-confined.
   class AppLayout < Tuile::Component::Layout::Absolute
@@ -18,9 +22,10 @@ module UI
       @system = SystemWindow.new(virt_cache)
       @vms = VMWindow.new(virt_cache, ballooning)
       @log = Component::LogWindow.new
+      @status = Component::Label.new
       $log.remove_handler :console
       $log.add_handler [:console, { output: Component::LogWindow::IO.new(@log), enable_color: true }]
-      add([@vms, @system, @log])
+      add([@vms, @system, @log, @status])
       # {Hash<String, Tuile::Component::Window>}: the focus keys {#handle_key} dispatches.
       @focus_keys = { '1' => @vms, '2' => @system, '3' => @log }
       # Advertise each key in its window's caption — tuile doesn't render it for us.
@@ -33,6 +38,8 @@ module UI
     attr_reader :system
     # @return [Tuile::Component::LogWindow] the log window
     attr_reader :log
+    # @return [Tuile::Component::Label] the bottom status line
+    attr_reader :status
 
     # Focuses the window bound to `key`: `1` the VMs, `2` the host metrics, `3` the log.
     # As the scope root, this is the last rung of the key bubble — the focused component
@@ -47,6 +54,22 @@ module UI
 
       window.focus
       true
+    end
+
+    # Rebuilds the status line: the global quit key, then the hint of whichever
+    # window the focus chain runs through. Walking *up* from the focused component
+    # mirrors the direction a key bubbles, so the row describes the keys that will
+    # actually be delivered — the focused search field consumes `/` and `ESC` before
+    # {VMWindow} sees them, and its hint says so.
+    #
+    # `keyboard_hint` is virtui's own method on virtui's own windows; Tuile has no
+    # such seam, and nothing calls this but the screen's focus hook.
+    #
+    # @return [void]
+    def refresh_status
+      cursor = screen.focused
+      cursor = cursor.parent until cursor.nil? || cursor.respond_to?(:keyboard_hint)
+      @status.text = ["q #{screen.theme.hint('quit')}", cursor&.keyboard_hint].compact.reject(&:empty?).join('  ')
     end
 
     # Refreshes every window's contents from the cache and repaints. Call when new data is
@@ -68,11 +91,14 @@ module UI
       super
       system_window_width = (rect.width / 2).clamp(0, 60)
       system_height = 13
-      vms_height = rect.height - system_height
+      # One row goes to the status line; the windows share what is left.
+      body_height = [rect.height - 1, 0].max
+      vms_height = [body_height - system_height, 0].max
       @system.rect = Rect.new(rect.left, rect.top + vms_height, system_window_width, system_height)
       @vms.rect = Rect.new(rect.left, rect.top, rect.width, vms_height)
       @log.rect = Rect.new(rect.left + system_window_width, rect.top + vms_height, rect.width - system_window_width,
                            system_height)
+      @status.rect = Rect.new(rect.left, rect.top + body_height, rect.width, 1)
     end
   end
 end
