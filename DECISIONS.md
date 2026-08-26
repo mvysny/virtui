@@ -546,16 +546,21 @@ this makes the two agree rather than adding a second convention.
 - **Store both a wall and an uptime deadline and require both.** Makes the Timecop path
   diverge from production — the uptime half never moves under Timecop — so the specs
   would exercise a path production never takes. A test that lies is worse than the bug.
-- **Have {Virt::GuestAgent} use {Cooldown}.** Tempting now that the clocks agree, and
-  still not a fit: its deadlines are per-domain in a Hash and its `backing_off?` deletes
-  on lapse, which is what makes a still-mute guest spend one probe rather than three
-  (D-guest-agent-backoff). A value object does not model that.
-
 **Consequences.**
 
 - A writable class attribute in production code, load-bearing for tests only. The
   yardoc names its one legitimate caller; anything in `lib/` assigning `Cooldown.clock`
   is a bug.
+- {Virt::GuestAgent} was ported onto {Cooldown} once the clocks agreed, so there is one
+  implementation of "suppressed until it lapses" in the tree rather than two. Its
+  deadlines stay per-domain in a `Hash{String => Cooldown}`, which the value object
+  models fine; what looked like an obstacle — `backing_off?` deleting the entry on lapse
+  — turned out to be bookkeeping, since a lapsed {Cooldown} answers `false` for ever.
+  The load-bearing half is that the *strike count* is untouched there
+  (D-guest-agent-backoff), and that is unchanged.
+- Injecting the clock rather than the durations paid off immediately: the write-off's
+  shipped `BACKOFF_SECONDS` now has a spec that watches it lapse, which the
+  `backoff_seconds: 0` injection it was tested with could never assert.
 - `Uptime.travel` and `Timecop.freeze` now both exist and mean different things. Which
   one a spec wants is decided by what it needs to move: a cooldown, or an
   {Interpolator} ramp (the emulator, wall clock by design — animation follows the clock

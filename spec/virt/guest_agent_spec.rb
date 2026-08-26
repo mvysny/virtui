@@ -114,6 +114,19 @@ describe Virt::GuestAgent do
     assert_equal 4, runner.calls.size, 'a lapsed write-off must let the next poll through'
   end
 
+  it 'waits out the shipped BACKOFF_SECONDS, not merely some write-off' do
+    runner = ScriptedAgentRunner.new(HEALTHY_AGENT.merge('guest-file-open' => RuntimeError.new('error: nope')))
+    agent = Virt::GuestAgent.new(runner: runner) # the real 60s, not a spec's 0
+    Virt::GuestAgent::FAILURES_BEFORE_BACKOFF.times { agent.swap('win11') }
+    written_off_at = runner.calls.size
+
+    Uptime.travel(Virt::GuestAgent::BACKOFF_SECONDS - 1) { assert_nil agent.swap('win11') }
+    assert_equal written_off_at, runner.calls.size, 'a second before the write-off lapses, still not asked'
+
+    Uptime.travel(Virt::GuestAgent::BACKOFF_SECONDS) { assert_nil agent.swap('win11') }
+    assert_equal written_off_at + 1, runner.calls.size, 'asked once more the moment it lapses'
+  end
+
   it 'spends one probe per lapse, not a fresh three strikes' do
     runner = ScriptedAgentRunner.new('guest-file-open' => RuntimeError.new('error: nope'))
     agent = Virt::GuestAgent.new(runner: runner, backoff_seconds: 0)

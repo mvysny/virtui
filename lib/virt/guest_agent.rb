@@ -84,8 +84,8 @@ module Virt
       @runner = runner
       @timeout_seconds = timeout_seconds
       @backoff_seconds = backoff_seconds
-      # Hash{String => Integer} consecutive failures, and Hash{String => Float} monotonic
-      # clock readings at which a written-off guest is tried again.
+      # Hash{String => Integer} consecutive failures, and Hash{String => Cooldown} how long
+      # each written-off guest stays unasked.
       @failures = {}
       @retry_at = {}
     end
@@ -104,7 +104,7 @@ module Virt
       return nil if backing_off?(domain)
 
       level = System::MemoryStat.parse(read_file(domain, MEMINFO_PATH)).swap
-      @failures.delete(domain)
+      forget(domain) # a good sample clears the strike count and any lapsed write-off alike
       level
     rescue StandardError => e
       note_failure(domain, e)
@@ -216,19 +216,13 @@ module Virt
       raise "#{domain}: #{execute} gave an unparseable reply (#{e.message}): #{raw[0, 200].inspect}"
     end
 
+    # A lapsed write-off simply answers `false` and the next call goes through. Note what is
+    # *not* touched: the strike count, which is what makes a still-mute guest re-arm on that
+    # single probe instead of spending three (see {FAILURES_BEFORE_BACKOFF}).
+    #
     # @param domain [String] VM name
-    # @return [Boolean] whether this guest is currently written off; a lapsed write-off is
-    #   cleared here, so the next call goes through
-    private def backing_off?(domain)
-      retry_at = @retry_at[domain]
-      return false if retry_at.nil?
-      return true if Process.clock_gettime(Process::CLOCK_MONOTONIC) < retry_at
-
-      # Only @retry_at: leaving the strike count standing is what makes a still-mute guest
-      # re-arm on this one probe instead of spending three (see {FAILURES_BEFORE_BACKOFF}).
-      @retry_at.delete(domain)
-      false
-    end
+    # @return [Boolean] whether this guest is currently written off
+    private def backing_off?(domain) = @retry_at[domain]&.active? || false
 
     # @param error [StandardError] the failure to classify
     # @return [Boolean] whether this is a failure a healthy host produces on its own (see
@@ -249,7 +243,7 @@ module Virt
       if count < FAILURES_BEFORE_BACKOFF
         $log.debug("#{domain}: no swap level (#{count}/#{FAILURES_BEFORE_BACKOFF}): #{reason}")
       else
-        @retry_at[domain] = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @backoff_seconds
+        @retry_at[domain] = Cooldown.of(@backoff_seconds)
         # Exactly at the write-off, so an unforeseen failure is announced once per episode:
         # earlier is a blip that may yet clear, later is a re-arm of something already said.
         unforeseen = count == FAILURES_BEFORE_BACKOFF && !expected?(error)
