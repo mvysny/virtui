@@ -13,13 +13,16 @@
 #     back_off.active?                      # => true
 #     back_off.remaining.round(1)           # => 10.0
 #
-# Immutable, and reads the wall clock on every call — two calls a second apart disagree.
+# Immutable, and reads the **wall clock** on every call — so two calls a second apart
+# disagree, and a clock step moves every live deadline with it. A forward step lapses
+# cooldowns early, a backward one holds them long; both cost one control decision, which
+# the next poll re-makes 2s later. That is an accepted limitation, not an oversight —
+# {Virt::GuestAgent} runs the same pattern on `CLOCK_MONOTONIC` precisely because it can,
+# and see DECISIONS.md D-cooldown-wall-clock for why this one can't.
 #
-# Two things it deliberately is *not*. It is not an {Interpolator}: that module ramps
-# numeric quantities for the emulator, and a latch needs {#remaining} and the never-shorten
-# rule, neither of which is an interpolation. And it is not monotonic — wall-clock keeps it
-# testable with Timecop, which is why {Virt::GuestAgent}, whose write-off must survive an
-# NTP step, keeps its own `CLOCK_MONOTONIC` deadlines instead of using this.
+# Not an {Interpolator}, either: that module ramps numeric quantities for the emulator, and
+# a latch needs {#remaining} and the never-shorten rule, neither of which is an
+# interpolation.
 #
 # @!attribute [r] deadline
 #   @return [Time] when the cooldown ends; in the past for one that already has
