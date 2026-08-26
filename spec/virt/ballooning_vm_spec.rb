@@ -221,9 +221,11 @@ describe Virt::BallooningVM do
     end
   end
 
+  # The veto itself has its own specs; these cover the wiring — that a veto reaches the
+  # decrease branch and nothing else.
   context 'the swap veto (the guest was seen writing to swap)' do
     # A guest that wrote 100 MiB to swap over the 5s between its two samples: 20 MiB/s,
-    # far above the 1 MiB/s noise floor.
+    # far above the vetoer's 1 MiB/s noise floor.
     def swapping_ballooner(percent, **)
       ballooner(mem_at(percent, swap_out: 100.MiB), prev_mem: mem_at(percent, at: now_secs - 5), **)
     end
@@ -246,14 +248,6 @@ describe Virt::BallooningVM do
       assert_equal [1_932_735_283], cache.set_actuals
     end
 
-    it 'shrinks anyway when the rate is below the noise floor' do
-      # 4 MiB over 5s = 0.8 MiB/s: one aging pass, not pressure.
-      cache, b = ballooner(mem_at(40, swap_out: 4.MiB), prev_mem: mem_at(40, at: now_secs - 5))
-      Timecop.freeze(Time.now + 21) { b.update }
-      assert_equal(-10, b.status.memory_delta)
-      assert_equal [1_932_735_283], cache.set_actuals
-    end
-
     it 'still grows a swapping guest — the veto gates decreases only' do
       cache, b = swapping_ballooner(65)
       b.update
@@ -266,17 +260,6 @@ describe Virt::BallooningVM do
       Timecop.freeze(Time.now + 21) { b.update }
       assert_equal(-10, b.status.memory_delta)
       assert_equal [1_932_735_283], cache.set_actuals
-    end
-
-    it 'drops the veto when the VM stops' do
-      cache, b = swapping_ballooner(40)
-      b.update
-      stopped = BallooningFakeCache.new(mem: cache.instance_variable_get(:@mem),
-                                        info: Virt::DomainInfo.new('vm0', 1, 16.GiB))
-      def stopped.running?(_vmid) = false
-      b2 = Virt::BallooningVM.new(stopped, 'vm0')
-      b2.update
-      assert_equal 'vm stopped, doing nothing; d=0', b2.status.to_s
     end
   end
 

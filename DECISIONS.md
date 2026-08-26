@@ -494,7 +494,8 @@ boot.
 
 ## D-swap-shrink-veto — a guest seen writing to swap has its memory frozen for 60s, on the rate rather than the level (2026-08-26)
 
-**Status:** Accepted, shipped in {Virt::BallooningVM#update}.
+**Status:** Accepted, shipped in {Virt::BallooningVM::SwapOutShrinkVetoer}, consulted
+from {Virt::BallooningVM#update}.
 
 **Context.** `BallooningVM` steers by
 `percent_used = (MemTotal - MemAvailable) / MemTotal`, and evicting anon pages to
@@ -520,9 +521,10 @@ vetoed outright — the increase branch is untouched, so a swapping guest still
 grows. "Seen writing" means `Cache::VMCache#swap_out_rate` at or above a 1 MiB/s
 noise floor on any *guest sample* (not any poll: libvirt refreshes balloon data
 every ~5s while we poll every ~2s, so one sample arms the veto once), and it holds
-for 60 s from that sample. Both constants are documented next to their values in
-{Virt::BallooningVM#initialize}. A guest whose balloon reports no swap counters at
-all balloons exactly as before.
+for 60 s from that sample. Both constants are documented next to their values on the
+vetoer, which is where a decision of this kind keeps its state and thresholds — see
+*Consequences*. A guest whose balloon reports no swap counters at all balloons exactly
+as before.
 
 The choice of *rate* is what makes the veto finite, and that is the whole design:
 swap-used is a high-water scar, not a pressure gauge.
@@ -553,6 +555,15 @@ swap-used is a high-water scar, not a pressure gauge.
   this VM's memory, let it settle", the veto means "the guest is telling us it is
   short". The status line is the maintainer's only window into the decision, and it
   has to say which.
+- **Keep the state on `BallooningVM`** — where every other threshold lives — rather
+  than extracting a class for one veto. Rejected on trajectory rather than on this
+  change's own merits: the open work in `ideas/swap-despite-ballooning.md` is a queue
+  of further inputs (a grow trigger on the same signal, a shrink gate on
+  `pgsteal_*` deltas, a `disk_caches` floor), each with its own thresholds and its own
+  timer. Folded into one constructor those become a field soup where nothing says
+  which ivar belongs to which rule. One class per input, each owning its constants and
+  answering one question, keeps `update` a reader of opinions instead of a holder of
+  state.
 - **Tune `@trigger_decrease_at` down instead.** Doesn't touch the defect: the
   measured guest was pinned *at* 55% with swap climbing, so any threshold has a
   usage figure that satisfies it while the guest swaps. Prior art also says this knob
@@ -577,6 +588,13 @@ swap-used is a high-water scar, not a pressure gauge.
   may trickle benignly, and would need the floor raised; on such a guest a floor high
   enough to filter the trickle is also high enough to blind a *grow* trigger, which
   is why the grow half cannot simply reuse this constant.
+- **The shape this sets for what follows.** A veto is a small stateful object under
+  `lib/virt/ballooning_vm/` that is fed every sample via `observe` and answers
+  `veto_reason` — a `String` phrased to follow a "but", or `nil` for no objection. The
+  `nil`-or-reason return is deliberate: it makes the maintainer-facing status line fall
+  out of the same call that makes the decision, and it is what a future *collection* of
+  vetoers reduces over. There is one today, held in a plain ivar; the array arrives with
+  the second, not before.
 - `swap_out_rate` now has a second consumer (the first is the SWAP row,
   D-swap-row-two-cells), so its carry-forward-when-the-sample-is-stale behaviour is
   now load-bearing for a control decision, not just for a readable display.

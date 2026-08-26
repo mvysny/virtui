@@ -163,8 +163,10 @@ It is a floor under the worst case, not a cure — virtui still cannot *see* a g
 swapped a while ago and went quiet, so keep the guest configuration below in mind.
 
 At the moment you need to edit virtui sources to configure this: the thresholds and rates are
-instance variables set in the `Virt::BallooningVM` constructor (`lib/virt/ballooning_vm.rb`),
-each documented next to its value.
+instance variables set in a constructor, each documented next to its value — the triggers and
+step sizes in `Virt::BallooningVM` (`lib/virt/ballooning_vm.rb`), the swap veto's noise floor
+and quiet period in `Virt::BallooningVM::SwapOutShrinkVetoer`
+(`lib/virt/ballooning_vm/swap_out_shrink_vetoer.rb`).
 
 ## Guest Configuration
 
