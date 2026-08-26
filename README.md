@@ -151,6 +151,17 @@ If the memory usage goes below 55%, a memory is decreased by 10%, but this only 
 
 In other words, if VM needs memory, the memory is given immediately. Afterwards, the memory is slowly decreased as the usage goes down.
 
+**Except while the guest is swapping.** If the guest writes to its swap device, virtui
+stops taking memory away from it for the next minute — it can still be given more, but
+never less. This matters because a guest that swaps *looks* like a guest with memory to
+spare: pages moved out to disk count as available memory again, so the usage figure above
+drops exactly when the guest is short. Without the veto, a VM that started swapping under
+load could be shrunk while it was doing so. You will see this in the SWAP row (above): a
+non-zero rate on the right is what holds the memory.
+
+It is a floor under the worst case, not a cure — virtui still cannot *see* a guest that
+swapped a while ago and went quiet, so keep the guest configuration below in mind.
+
 At the moment you need to edit virtui sources to configure this: the thresholds and rates are
 instance variables set in the `Virt::BallooningVM` constructor (`lib/virt/ballooning_vm.rb`),
 each documented next to its value.

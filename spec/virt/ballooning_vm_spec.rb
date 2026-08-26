@@ -15,18 +15,26 @@ class BallooningFakeCache
   # @param info [Virt::DomainInfo] the VM's static config (drives max_memory)
   # @param data [Virt::DomainData, nil] snapshot for the staleness check; defaults to a
   #   fresh one built from `mem`
-  def initialize(mem:, info:, data: nil)
+  # @param prev_mem [Virt::MemoryStat, nil] the guest sample before `mem`, so the real
+  #   {Virt::Cache::VMCache} diff derives a swap-out rate from the pair; `nil` (the
+  #   default) leaves the rate unknown, as on a VM's first sighting
+  def initialize(mem:, info:, data: nil, prev_mem: nil)
     @mem = mem
     @info = info
     @data = data || Virt::DomainData.new(info, :running, mem.last_updated * 1000, 0, mem, [])
+    @prev = prev_mem.nil? ? nil : Virt::Cache::VMCache.diff(nil, snapshot(prev_mem))
     @set_actuals = []
   end
 
   def memstat(_vmid) = @mem
   def running?(_vmid) = true
   def info(_vmid) = @info
-  def cache(_vmid) = Virt::Cache::VMCache.diff(nil, @data)
+  def cache(_vmid) = Virt::Cache::VMCache.diff(@prev, @data)
   def set_actual(_vmid, actual) = @set_actuals << actual
+
+  private
+
+  def snapshot(mem) = Virt::DomainData.new(@info, :running, mem.last_updated * 1000, 0, mem, [])
 end
 
 describe Virt::BallooningVM do
@@ -39,12 +47,16 @@ describe Virt::BallooningVM do
   #
   # @param percent [Integer] guest usage to report, 1..99
   # @param actual [Integer] the VM's currently-configured memory, in bytes
+  # @param swap_out [Integer] the guest's since-boot bytes-written-to-swap counter
+  # @param at [Integer] guest-report time, epoch seconds
   # @return [Virt::MemoryStat]
-  def mem_at(percent, actual: 2.GiB)
+  def mem_at(percent, actual: 2.GiB, swap_out: 0, at: now_secs)
     available = actual - 128.MiB
     used = ((available * percent) + 99) / 100 # ceil, so percent_used == percent exactly
     usable = available - used
-    Virt::MemoryStat.new(actual, usable, available, usable, 0, 0, 0, actual, now_secs)
+    # The balloon reports both swap counters or neither, so swap_in tracks swap_out's presence.
+    swap_in = swap_out.nil? ? nil : 0
+    Virt::MemoryStat.new(actual, usable, available, usable, 0, swap_in, swap_out, actual, at)
   end
 
   # A BallooningVM over a fake cache holding `mem` for 'vm0'. `min_actual` defaults low so
@@ -52,8 +64,8 @@ describe Virt::BallooningVM do
   # test can inspect {BallooningFakeCache#set_actuals}.
   #
   # @return [Array(BallooningFakeCache, Virt::BallooningVM)]
-  def ballooner(mem, info: Virt::DomainInfo.new('vm0', 1, 16.GiB), min_actual: 128.MiB)
-    cache = BallooningFakeCache.new(mem: mem, info: info)
+  def ballooner(mem, info: Virt::DomainInfo.new('vm0', 1, 16.GiB), min_actual: 128.MiB, prev_mem: nil)
+    cache = BallooningFakeCache.new(mem: mem, info: info, prev_mem: prev_mem)
     b = Virt::BallooningVM.new(cache, 'vm0')
     b.min_actual = min_actual
     [cache, b]
@@ -206,6 +218,65 @@ describe Virt::BallooningVM do
       Timecop.freeze(Time.now + 21) { b.update }
       assert_equal 'New actual 2G is the same as current one 2G, doing nothing; d=0', b.status.to_s
       assert_equal [], cache.set_actuals
+    end
+  end
+
+  context 'the swap veto (the guest was seen writing to swap)' do
+    # A guest that wrote 100 MiB to swap over the 5s between its two samples: 20 MiB/s,
+    # far above the 1 MiB/s noise floor.
+    def swapping_ballooner(percent, **)
+      ballooner(mem_at(percent, swap_out: 100.MiB), prev_mem: mem_at(percent, at: now_secs - 5), **)
+    end
+
+    it 'refuses to shrink a guest that is swapping' do
+      cache, b = swapping_ballooner(40)
+      Timecop.freeze(Time.now + 21) { b.update } # past the 20s boot back-off
+      assert_equal 'only 40% memory used, but the guest swapped recently; holding its ' \
+                   'memory for 60.0s; d=0', b.status.to_s
+      assert_equal [], cache.set_actuals
+    end
+
+    it 'shrinks again once the veto lapses' do
+      cache, b = swapping_ballooner(40)
+      start = Time.now
+      Timecop.freeze(start + 21) { b.update }
+      assert_equal [], cache.set_actuals
+      Timecop.freeze(start + 82) { b.update } # 61s after that sample armed the veto
+      assert_equal 'VM reports 768M (40%), updating actual by -10% to 1.8G; d=-10', b.status.to_s
+      assert_equal [1_932_735_283], cache.set_actuals
+    end
+
+    it 'shrinks anyway when the rate is below the noise floor' do
+      # 4 MiB over 5s = 0.8 MiB/s: one aging pass, not pressure.
+      cache, b = ballooner(mem_at(40, swap_out: 4.MiB), prev_mem: mem_at(40, at: now_secs - 5))
+      Timecop.freeze(Time.now + 21) { b.update }
+      assert_equal(-10, b.status.memory_delta)
+      assert_equal [1_932_735_283], cache.set_actuals
+    end
+
+    it 'still grows a swapping guest — the veto gates decreases only' do
+      cache, b = swapping_ballooner(65)
+      b.update
+      assert_equal 'VM reports 1.2G (65%), updating actual by 30% to 2.6G; d=30', b.status.to_s
+      assert_equal [2_791_728_742], cache.set_actuals
+    end
+
+    it 'shrinks a guest whose balloon reports no swap counters at all' do
+      cache, b = ballooner(mem_at(40, swap_out: nil), prev_mem: mem_at(40, swap_out: nil, at: now_secs - 5))
+      Timecop.freeze(Time.now + 21) { b.update }
+      assert_equal(-10, b.status.memory_delta)
+      assert_equal [1_932_735_283], cache.set_actuals
+    end
+
+    it 'drops the veto when the VM stops' do
+      cache, b = swapping_ballooner(40)
+      b.update
+      stopped = BallooningFakeCache.new(mem: cache.instance_variable_get(:@mem),
+                                        info: Virt::DomainInfo.new('vm0', 1, 16.GiB))
+      def stopped.running?(_vmid) = false
+      b2 = Virt::BallooningVM.new(stopped, 'vm0')
+      b2.update
+      assert_equal 'vm stopped, doing nothing; d=0', b2.status.to_s
     end
   end
 

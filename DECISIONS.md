@@ -492,6 +492,97 @@ boot.
 
 ---
 
+## D-swap-shrink-veto — a guest seen writing to swap has its memory frozen for 60s, on the rate rather than the level (2026-08-26)
+
+**Status:** Accepted, shipped in {Virt::BallooningVM#update}.
+
+**Context.** `BallooningVM` steers by
+`percent_used = (MemTotal - MemAvailable) / MemTotal`, and evicting anon pages to
+swap *raises* `MemAvailable`. So the controller's one input falls exactly when the
+guest is suffering, and swap is an unmodelled second actuator competing with the
+balloon for the same variable. Two failures follow, and both were measured:
+
+- **Invisibility.** A guest sat at 61% used — mid-deadband, controller idle — with
+  2 GiB parked in swap. Under this metric a swapping VM and an idle VM are the same
+  VM.
+- **Inversion.** Watched live on 2026-08-26 while IntelliJ IDEA started, the figure
+  did not merely fall, it sat *pinned* at 55% — allocation and eviction cancelling —
+  for the whole ramp, while swap climbed ~2.5 GiB. 55% is `@trigger_decrease_at`
+  exactly: one percentage point more eviction and virtui would have **shrunk the VM
+  mid-burst**, taking memory from a guest that was already paying disk I/O for the
+  lack of it.
+
+Both measurements, and the three root causes behind them, are in
+`ideas/swap-despite-ballooning.md`.
+
+**Decision.** While the guest is seen writing to swap, the decrease branch is
+vetoed outright — the increase branch is untouched, so a swapping guest still
+grows. "Seen writing" means `Cache::VMCache#swap_out_rate` at or above a 1 MiB/s
+noise floor on any *guest sample* (not any poll: libvirt refreshes balloon data
+every ~5s while we poll every ~2s, so one sample arms the veto once), and it holds
+for 60 s from that sample. Both constants are documented next to their values in
+{Virt::BallooningVM#initialize}. A guest whose balloon reports no swap counters at
+all balloons exactly as before.
+
+The choice of *rate* is what makes the veto finite, and that is the whole design:
+swap-used is a high-water scar, not a pressure gauge.
+
+**Alternatives rejected.**
+
+- **Veto while the swap *level* is non-zero.** The obvious reading of "don't shrink
+  a swapping guest", and newly implementable since D-guest-swap-level put the real
+  level on screen. Rejected because the level is a scar: swap slots are freed by
+  write faults and process exit with no `swap_in`, and a page swapped out at boot can
+  sit there for hours. Gating on it means a VM that swapped once is never shrunk
+  again — a permanent ratchet dressed up as a safety check. **Don't re-add it when
+  the guest-agent level is right there in `VMCache#guest_swap`;** it answers "what
+  did this guest already pay?", not "is it paying now?".
+- **Veto only while the rate is non-zero this sample** (the shape first proposed).
+  Rejected on evidence: `swap-via-qemu-guest-agent.md` caught a shrink firing with
+  853 MiB in swap and `pswpout` flat. A guest that just swapped and went quiet is the
+  one that *least* wants shrinking — it has not yet faulted its working set back, so
+  its usage figure is still deflated by exactly the pages it is about to want. The
+  cooldown is the level-free proxy for the question the level would have answered:
+  when is it safe to shrink again.
+- **Use `swap_in` too, as "swap activity".** Inverted: `swap_in` advancing means
+  pages are being faulted *back*, i.e. the guest healing. A controller watching
+  activity in general would freeze — or grow — a VM in response to its recovery.
+- **Reuse the existing `back_off` timer** instead of a second clock. Mechanically
+  identical (it already suppresses decreases only, and extends rather than shortens),
+  but it would merge two unrelated reasons into one: `back_off` means "we just moved
+  this VM's memory, let it settle", the veto means "the guest is telling us it is
+  short". The status line is the maintainer's only window into the decision, and it
+  has to say which.
+- **Tune `@trigger_decrease_at` down instead.** Doesn't touch the defect: the
+  measured guest was pinned *at* 55% with swap climbing, so any threshold has a
+  usage figure that satisfies it while the guest swaps. Prior art also says this knob
+  is already over-tightened — MoM, Hyper-V and K8s VPA all reserve 15–20% where our
+  65% trigger reserves 35%, and the guest swapped anyway.
+
+**Consequences.**
+
+- **This fixes the inversion, not the invisibility, and the difference matters.**
+  The measured state — 61% used, controller idle, 2 GiB swapped — had no shrink in
+  flight at all, so the veto would never have fired. Veto-only leaves a stable bad
+  equilibrium: the guest trickles to disk, `percent_used` sits mid-deadband, nothing
+  is attempted, the trickle continues. **Only a grow trigger on `swap_out` closes
+  that half**, and its response shape (how far the swap signal alone may grow a VM,
+  and how to check the growth helped) is still open in
+  `ideas/swap-despite-ballooning.md`.
+- The 60 s cooldown costs density: a VM that swaps once an hour holds its memory a
+  minute longer each time. Deliberate, and bounded by being finite.
+- The noise floor is uncritical *on these guests* — Ubuntu desktop-ish,
+  `vm.swappiness=1`, disk swap, no zram — where the rate is exactly 0 at rest, so
+  non-zero is the event. A guest with zram, MGLRU or a systemd `MemoryHigh=` slice
+  may trickle benignly, and would need the floor raised; on such a guest a floor high
+  enough to filter the trickle is also high enough to blind a *grow* trigger, which
+  is why the grow half cannot simply reuse this constant.
+- `swap_out_rate` now has a second consumer (the first is the SWAP row,
+  D-swap-row-two-cells), so its carry-forward-when-the-sample-is-stale behaviour is
+  now load-bearing for a control decision, not just for a readable display.
+
+---
+
 ## D-swap-row-two-cells — the SWAP row splits into guest occupancy and host I/O (2026-08-21)
 
 **Status:** Accepted, shipped in {UI::VMWindow#format_swap_line}.

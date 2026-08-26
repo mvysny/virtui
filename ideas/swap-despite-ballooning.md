@@ -383,8 +383,13 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
 1. **Feed swap into the trigger.** virtio-balloon already reports `stat-swap-in` /
    `stat-swap-out` alongside the fields `MemoryStat` parses today. Proposal:
    - treat any advance in `swap_out` since the last sample as an **immediate growth
-     trigger**, independent of `percent_used`;
-   - **block the decrease branch entirely** while `swap_out` is advancing.
+     trigger**, independent of `percent_used`; **still open.**
+   - ~~**block the decrease branch entirely** while `swap_out` is advancing.~~
+     **Shipped 2026-08-26** as a 60 s veto armed by a 1 MiB/s noise floor — the
+     cooldown of correction 2, not the literal per-sample form. Rationale and the
+     roads not taken: `DECISIONS.md` D-swap-shrink-veto; constants and their
+     provenance: `Virt::BallooningVM#initialize`. Everything below about the veto is
+     kept only where it still argues the *grow* half.
 
    This is what makes a swapping VM visible to the controller at all, and it kills
    the shrink-after-swap inversion. **`swap_out` flat is what "at rest" looks
@@ -478,13 +483,9 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
       uncritical — and it cannot be the defence: the ratchet has to be stopped on the
       output side instead, with a bound on how far the swap signal alone may grow a VM
       plus a check that the growth actually helped.
-   2. **The shrink veto needs a cooldown, not per-sample "advancing".** Literal
-      per-sample unblocks on the first quiet tick, which is precisely the case
-      `swap-via-qemu-guest-agent.md` observed: a shrink fired with 853 MiB in swap and
-      `pswpout` flat. A guest that just swapped and went quiet is the one that least
-      wants shrinking — it hasn't had time to fault its working set back. Cooldown
-      from the last over-threshold sample also serves as the level-free proxy for the
-      one thing the swap *level* would have answered: when is it safe to shrink again.
+   2. ~~**The shrink veto needs a cooldown, not per-sample "advancing".**~~
+      **Graduated** — this is the shape that shipped, and the argument for it now
+      lives in `DECISIONS.md` D-swap-shrink-veto.
 
    **And the veto alone is not enough** — worth stating plainly because it is easy to
    conclude the opposite from "accept the swapping, just stop making it worse". The
@@ -494,11 +495,15 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    trickles to disk, `percent_used` sits mid-deadband, no shrink is attempted so the
    veto never fires, trickle continues. Only a grow trigger fixes what was observed.
 
-   Still open: the **shape of the response** — what actually happens when the rate is
-   non-zero, now that non-zero reliably means something — which is brainstormed in
-   its own section below ("The response shape"), the cooldown length, and how it
-   composes with `BallooningVM`'s existing grow/shrink branches. The threshold value
-   is no longer open: the observation above settles it as a noise floor.
+   Still open, and now the *whole* of what is open here: the **shape of the grow
+   response** — what actually happens when the rate is non-zero, now that non-zero
+   reliably means something — brainstormed in its own section below ("The response
+   shape"). The threshold value is not open (the observation above settles it as a
+   noise floor), the cooldown length is not open (60 s, shipped), and the veto's
+   composition with the existing branches is not open (it gates the decrease branch
+   and nothing else). What remains is the ratchet problem: a grow trigger needs a
+   bound on how far the swap signal alone may move a VM, plus a check that the growth
+   helped — neither of which the veto needed.
 2. **Buy headroom for the 5–7 s blind spot.** Drop `@trigger_increase_at` to
    ~50–55 (moving `@trigger_decrease_at` down to keep a deadband), and/or give the
    reserve an absolute floor instead of a purely proportional one. The invariant to
@@ -921,7 +926,10 @@ The intro to "Blocked on three fundamentals" covers the guideline's targets; thi
 is the rest, per the CLAUDE.md graduation map.
 
 - the response to a non-zero `swap_out` finally chosen, with the three rejected
-  shapes and the `HALF_LIFE` fork → **DECISIONS.md**; whatever constant survives
+  shapes and the `HALF_LIFE` fork → **DECISIONS.md**; the *shrink* half of this
+  landed on 2026-08-26 as D-swap-shrink-veto, so what is left to land is the grow
+  half, and that entry is where it goes (a new one — D-swap-shrink-veto is about
+  the veto, not the trigger). Whatever constant survives
   (noise floor, half-life, cooldown) carries its provenance in the yardoc next to
   it — the noise floor's being "the rate is 0 at rest on these guests", the
   half-life's being "corrects the phantom debt from slots freed without a
