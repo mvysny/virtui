@@ -51,9 +51,10 @@ module Virt
       # A percentage value; 10 means that the actual will be decreased to 90%.
       @decrease_memory_by = 10
 
-      # start by backing off. We don't know what state the VM is in - it could have been
-      # just started seconds ago.
-      back_off duration_seconds: @boot_back_off_seconds
+      # {Cooldown} suppresses memory *decreases*; increases ignore it entirely, since a VM
+      # that needs RAM needs it whatever we did last. Starts armed: we don't know what
+      # state the VM is in — it could have been started seconds ago.
+      @back_off = Cooldown.of(@boot_back_off_seconds)
 
       # {Boolean} if the VM was running during the last ballooning update
       @was_running = false
@@ -105,7 +106,8 @@ module Virt
     # @param enabled [Boolean] `true` to enable, `false` to disable
     def enabled=(enabled)
       @enabled = !!enabled
-      @back_off_until = nil # This is user manual action, user wants to see effects now.
+      # This is user manual action, user wants to see effects now.
+      @back_off = Cooldown::ELAPSED
     end
 
     # Runs one control step: reads the VM's current memory stats and increases, decreases,
@@ -116,7 +118,7 @@ module Virt
     def update
       unless @enabled
         @status = Status.new('ballooning disabled by user', 0)
-        @back_off_until = nil
+        @back_off = Cooldown::ELAPSED
         @last_update_at = nil
         @was_running = false
         @shrink_vetoer.forget
@@ -127,7 +129,7 @@ module Virt
       if mem_stat.nil? || !@virt_cache.running?(@vmid)
         # VM is shut off. Don't fiddle with the memory.
         # Mark as back_off - this way we'll back off from the VM until it boots up.
-        back_off duration_seconds: @boot_back_off_seconds
+        @back_off = @back_off.extended_by(@boot_back_off_seconds)
         @status = Status.new('vm stopped, doing nothing', 0)
         @was_running = false
         @last_update_at = nil
@@ -183,9 +185,9 @@ module Virt
           return
         end
         # decrease memory slowly. We use back_off period to slow down memory decrease.
-        if backing_off?
+        if @back_off.active?
           @status = Status.new(
-            "only #{percent_used}% memory used, but backing off for #{(@back_off_until - Time.now).round(1)}s", 0
+            "only #{percent_used}% memory used, but backing off for #{@back_off.remaining.round(1)}s", 0
           )
           return
         end
@@ -227,7 +229,7 @@ module Virt
         return
       end
 
-      back_off
+      @back_off = @back_off.extended_by(@back_off_seconds)
 
       @status = Status.new(
         "VM reports #{format_byte_size(used_mem)} (#{percent_used}%), updating actual by " \
@@ -235,23 +237,6 @@ module Virt
       )
       @last_update_at = mem_stat.last_updated
       @virt_cache.set_actual(@vmid, new_actual)
-    end
-
-    private
-
-    # Suppresses memory *decreases* until `duration_seconds` from now; extends an active
-    # back-off, never shortens it.
-    #
-    # @param duration_seconds [Integer] how long to stay off this VM
-    # @return [void]
-    def back_off(duration_seconds: @back_off_seconds)
-      back_off_until = Time.now + duration_seconds
-      @back_off_until = back_off_until if @back_off_until.nil? || @back_off_until < back_off_until
-    end
-
-    # @return [Boolean] true if we are backing off from issuing any further memory decrease commands.
-    def backing_off?
-      !@back_off_until.nil? && Time.now < @back_off_until
     end
   end
 end

@@ -89,6 +89,7 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 - `ResourceUsage` — a total/available byte pair; the currency of both `Virt::` and `System::`
 - `Run` — the only sanctioned way to spawn a subprocess (`sync` raises, `async` logs)
 - `Interpolator::Const`, `Interpolator::Linear` — time-varying values; the emulator's ramps
+- `Cooldown` — a deadline value object: suppressed until it lapses, and never shortened
 - `format_byte_size`, `Numeric#KiB/MiB/GiB` — `lib/core_ext/bytes.rb`
 
 ## Documentation kinds

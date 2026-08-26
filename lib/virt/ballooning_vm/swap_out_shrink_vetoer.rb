@@ -32,10 +32,10 @@ module Virt
         # would veto forever.
         @veto_seconds = 60
 
-        # {Time | nil} until when decreases are vetoed;
+        # {Cooldown} how long decreases stay vetoed;
         # {Integer | nil} {MemoryStat#last_updated} of the sample that armed it, so one
         # guest sample arms the veto once however many polls see it.
-        @veto_until = nil
+        @veto = Cooldown::ELAPSED
         @last_sample_at = nil
       end
 
@@ -57,16 +57,16 @@ module Virt
 
         @last_sample_at = mem_stat.last_updated
         rate = vm_cache.swap_out_rate
-        @veto_until = Time.now + @veto_seconds if !rate.nil? && rate >= @noise_floor
+        @veto = Cooldown.of(@veto_seconds) if !rate.nil? && rate >= @noise_floor
       end
 
       # @return [String, nil] why this VM's memory must not be decreased right now, phrased
       #   to follow a "but": `"the guest swapped recently; holding its memory for 58.3s"`.
       #   `nil` when there is no objection — the common case
       def veto_reason
-        return nil if @veto_until.nil? || Time.now >= @veto_until
+        return nil unless @veto.active?
 
-        "the guest swapped recently; holding its memory for #{(@veto_until - Time.now).round(1)}s"
+        "the guest swapped recently; holding its memory for #{@veto.remaining.round(1)}s"
       end
 
       # Drops the veto and the sample it was armed from, for a VM we are no longer watching
@@ -75,7 +75,7 @@ module Virt
       #
       # @return [void]
       def forget
-        @veto_until = nil
+        @veto = Cooldown::ELAPSED
         @last_sample_at = nil
       end
     end
