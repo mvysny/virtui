@@ -492,79 +492,77 @@ boot.
 
 ---
 
-## D-cooldown-wall-clock — {Cooldown} measures its deadline on the wall clock, and accepts what a clock step does to it (2026-08-26)
+## D-cooldown-monotonic — {Cooldown} counts uptime, and exposes a writable clock so specs can travel it (2026-08-26)
 
 **Status:** Accepted, shipped in {Cooldown}.
 
-**Context.** {Cooldown} holds the two suppression deadlines in the ballooning
-controller: {Virt::BallooningVM}'s back-off (10 s after a resize, 20 s after a VM
-starts) and {Virt::BallooningVM::SwapOutShrinkVetoer}'s 60 s veto. It reads
-`Time.now`, so any wall-clock step moves every live deadline with it — NTP
-correcting a large offset, a manual `date`, or the first sync after boot.
+**Context.** {Cooldown} holds the suppression deadlines in the ballooning controller:
+{Virt::BallooningVM}'s back-off (10 s after a resize, 20 s after a VM starts) and
+{Virt::BallooningVM::SwapOutShrinkVetoer}'s 60 s veto. What those mean is a *duration*
+— ten seconds is ten elapsed seconds — and nothing about them refers to a calendar.
+Measured on `Time.now` they would not deliver that: NTP correcting a large offset, the
+first sync after boot, or a manual `date` moves every live deadline with it.
 
-{Virt::GuestAgent} runs the same pattern — a deadline per written-off guest — on
-`Process::CLOCK_MONOTONIC`, and does not have this exposure. A split like that needs
-a reason, and *"the agent's write-off must survive an NTP step and a cooldown needn't"*
-is not one: both would rather be on a clock that only moves forward at the rate of
-real time. The actual reason is that one of them can be tested that way and the other
-cannot.
+The complication is that the project's time-travel tool is Timecop, which patches
+`Time.now` and — verified in this repo — moves
+`Process.clock_gettime(CLOCK_MONOTONIC)` by exactly zero. So the clock that is correct
+is the clock no spec can move, and the deadlines needing tests are 10–60 s long inside
+callers whose own specs travel 20–80 s.
 
-**Decision.** {Cooldown} stays on the wall clock, and the limitation is written into
-its yardoc rather than engineered away.
+**Decision.** {Cooldown} measures on `CLOCK_MONOTONIC`, and reads it through
+`Cooldown.clock` — a writable class-level callable, defaulting to the real thing.
+Production never assigns it. Specs travel time through `Uptime.travel`
+(`spec/spec_helper.rb`), which swaps in an offset clock and restores the default in an
+`ensure`, so a failing example cannot leak the shift.
 
-Timecop is the project's time-travel tool and is already a dependency; it patches
-`Time.now` and, verified in this repo, moves `Process.clock_gettime(CLOCK_MONOTONIC)`
-by exactly zero. What that buys is boundary tests: a cooldown active at +59 s and
-lapsed at +60 s, `BallooningVM` shrinking again 61 s after a veto armed, the 20 s boot
-back-off holding and then not. Those are the specs that make the never-shorten rule
-and the cooldown length real rather than asserted. On a monotonic clock none of them
-can be written without either stubbing a clock seam or sleeping in real time.
-
-**What the exposure actually costs**, since that is what makes it acceptable: a
-forward step lapses cooldowns early — at worst one premature 10% shrink per VM, and a
-boot back-off that ends before the guest's numbers mean anything, which {Cache::VMCache#stale?}
-independently guards. A backward step holds memory longer than intended, which is
-harmless. Either way the controller re-decides on the next 2 s poll, so the blast
-radius is one decision, not a stuck state. virtui is also an interactive foreground
-TUI rather than a daemon running for months, which is where clock steps accumulate.
-
-And for the clock jump a desktop KVM host actually sees — suspend/resume — the wall
-clock is the *better* reading. `CLOCK_MONOTONIC` excludes suspended time, so a
-monotonic 60 s veto armed before an 8-hour sleep would still have 60 s to run on
-wake, against a guest whose state has nothing to do with what armed it. `Time.now`
-says eight hours passed, because they did.
+An explicit, documented seam rather than a spec reaching in to redefine a method:
+the writability is then part of the class's contract, where the yardoc can say who may
+use it, instead of a monkey-patch that a later `private_class_method` would silently
+break. {Virt::GuestAgent} already runs the same clock for its per-guest write-offs, so
+this makes the two agree rather than adding a second convention.
 
 **Alternatives rejected.**
 
-- **Monotonic, with a `Cooldown.now` class-method seam the specs redefine.** Buys
-  correctness under a step at the cost of monkey-patching a constant in tests. The
-  project's test idiom is an injected fake ({Virt::VMEmulator}, {System::Emulator},
-  `ScriptedAgentRunner`), never a redefined method, and this would be a parallel
-  time-travel mechanism sitting next to the maintained gem that already does the job.
-- **Monotonic, with real `sleep`s in the specs.** Workable for {Cooldown}'s own
-  boundary tests at ~50 ms, impossible for the callers: `BallooningVM`'s specs travel
-  20-80 s. It would force the 10/20/60 s constants to become injectable purely to be
-  tested, which is a knob the app itself does not want.
-- **Store both clocks and require both to agree.** Robust to backward steps, still
-  wrong on forward ones, and it makes the Timecop tests diverge from production
-  behaviour — the monotonic half never moves under Timecop, so the specs would be
-  exercising a path production never takes. A test that lies is worse than the bug.
-- **Move {Virt::GuestAgent} onto {Cooldown} for consistency.** The tempting tidy-up,
-  and a straight regression: it would trade a correct clock for a convenient one in
-  the one place that has no reason to. Its deadlines are also per-domain in a Hash and
-  its `backing_off?` deletes on lapse to make a still-mute guest spend one probe rather
-  than three (D-guest-agent-backoff) — behaviour a value object does not model.
-  **Don't unify these two.**
+- **Measure on the wall clock and accept what a step does.** Briefly taken, and wrong:
+  it quietly redefines the contract from "ten seconds" to "until this wall-clock
+  instant", which is not what any caller means. The damage is admittedly bounded — one
+  premature 10% shrink or one veto lapsing early, re-decided on the next 2 s poll — but
+  a bounded wrong answer is still a wrong answer, and the only thing it bought was not
+  having to write `Uptime.travel`. Its one genuine argument is worth recording, because
+  it will come up again: for **suspend/resume**, the jump a desktop KVM host actually
+  sees, `CLOCK_MONOTONIC` excludes suspended time, so a 60 s veto armed before an
+  8-hour sleep still has 60 s to run on wake against a guest whose state has nothing to
+  do with what armed it. `CLOCK_BOOTTIME` is the clock that would fix that specific
+  case without reintroducing the NTP exposure; it is not worth the divergence from
+  {Virt::GuestAgent} today, and the cost is at most one stale decision on resume.
+- **Real `sleep`s in the specs.** Fine for {Cooldown}'s own sub-second boundaries,
+  impossible for the callers: `BallooningVM`'s specs travel 20–80 s.
+- **Make every duration a constructor parameter, so specs pass 0.** The
+  {Virt::GuestAgent} idiom (`backoff_seconds: 0`), and it does not reach: it needs five
+  new parameters across two classes, it stops the real 10/20/60 s values from being
+  exercised at all, and "does it lapse at 60 s" is precisely the assertion that would
+  be lost. Injecting the *clock* tests the shipped constants; injecting the
+  *constants* tests numbers no user will run.
+- **Store both a wall and an uptime deadline and require both.** Makes the Timecop path
+  diverge from production — the uptime half never moves under Timecop — so the specs
+  would exercise a path production never takes. A test that lies is worse than the bug.
+- **Have {Virt::GuestAgent} use {Cooldown}.** Tempting now that the clocks agree, and
+  still not a fit: its deadlines are per-domain in a Hash and its `backing_off?` deletes
+  on lapse, which is what makes a still-mute guest spend one probe rather than three
+  (D-guest-agent-backoff). A value object does not model that.
 
 **Consequences.**
 
-- Two clocks in the codebase for the same shape, on purpose. The yardoc on each says
-  which and why, because the next contributor's instinct will be to merge them.
-- If {Cooldown} ever holds something where one bad decision is *not* cheap — a
-  destructive action, a deadline measured in hours, or anything on a long-running
-  headless deployment — this entry is the thing to revisit, and the answer changes.
-- The never-shorten rule in {Cooldown#extended_by} is unaffected either way: it
-  compares two deadlines on the same clock, whichever clock that is.
+- A writable class attribute in production code, load-bearing for tests only. The
+  yardoc names its one legitimate caller; anything in `lib/` assigning `Cooldown.clock`
+  is a bug.
+- `Uptime.travel` and `Timecop.freeze` now both exist and mean different things. Which
+  one a spec wants is decided by what it needs to move: a cooldown, or an
+  {Interpolator} ramp (the emulator, wall clock by design — animation follows the clock
+  a human is watching). `spec/virt/ballooning_vm_spec.rb` uses both, a few lines apart,
+  and says so at the call site.
+- {Cooldown#remaining} and the never-shorten rule in {Cooldown#extended_by} are
+  clock-agnostic: both compare two readings of the same clock.
 
 ---
 

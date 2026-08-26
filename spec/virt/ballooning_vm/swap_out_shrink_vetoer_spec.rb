@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative '../../spec_helper'
-require 'timecop'
 
 describe Virt::BallooningVM::SwapOutShrinkVetoer do
   # Guest-report time (epoch seconds) of the first sample below.
@@ -36,13 +35,10 @@ describe Virt::BallooningVM::SwapOutShrinkVetoer do
 
   it 'objects for 60s once a sample crosses the noise floor' do
     v = vetoer
-    start = Time.now
-    # Frozen across the observe, so the deadline is exactly start + 60 and the boundary
-    # below is the real one rather than a sub-millisecond miss.
-    Timecop.freeze(start) { v.observe sample(20.0 * 1.MiB) }
-    Timecop.freeze(start) { assert_equal 'the guest swapped recently; holding its memory for 60.0s', v.veto_reason }
-    Timecop.freeze(start + 59) { assert_equal 'the guest swapped recently; holding its memory for 1.0s', v.veto_reason }
-    Timecop.freeze(start + 60) { assert_nil v.veto_reason }
+    v.observe sample(20.0 * 1.MiB)
+    assert_equal 'the guest swapped recently; holding its memory for 60.0s', v.veto_reason
+    Uptime.travel(59) { assert_equal 'the guest swapped recently; holding its memory for 1.0s', v.veto_reason }
+    Uptime.travel(60) { assert_nil v.veto_reason }
   end
 
   it 'objects at exactly the noise floor, not below it' do
@@ -69,30 +65,30 @@ describe Virt::BallooningVM::SwapOutShrinkVetoer do
 
   it 'arms once per guest sample, however many polls re-see it' do
     v = vetoer
-    start = Time.now
+    Time.now
     swapping = sample(20.0 * 1.MiB)
     v.observe swapping
     # libvirt refreshes balloon data every ~5s while we poll every ~2s: the next two polls
     # see the same sample and must not push the deadline out.
-    Timecop.freeze(start + 2) { v.observe swapping }
-    Timecop.freeze(start + 4) { v.observe swapping }
-    Timecop.freeze(start + 61) { assert_nil v.veto_reason }
+    Uptime.travel(2) { v.observe swapping }
+    Uptime.travel(4) { v.observe swapping }
+    Uptime.travel(61) { assert_nil v.veto_reason }
   end
 
   it 're-arms on a later swapping sample' do
     v = vetoer
-    start = Time.now
+    Time.now
     v.observe sample(20.0 * 1.MiB)
-    Timecop.freeze(start + 30) { v.observe sample(20.0 * 1.MiB, at: now_secs + 30) }
-    Timecop.freeze(start + 61) { refute_nil v.veto_reason } # would have lapsed on the first alone
-    Timecop.freeze(start + 91) { assert_nil v.veto_reason }
+    Uptime.travel(30) { v.observe sample(20.0 * 1.MiB, at: now_secs + 30) }
+    Uptime.travel(61) { refute_nil v.veto_reason } # would have lapsed on the first alone
+    Uptime.travel(91) { assert_nil v.veto_reason }
   end
 
   it 'holds the veto through quiet samples — the point of the cooldown' do
     v = vetoer
-    start = Time.now
+    Time.now
     v.observe sample(20.0 * 1.MiB)
-    Timecop.freeze(start + 30) do
+    Uptime.travel(30) do
       v.observe sample(0.0, at: now_secs + 30) # guest went quiet, working set still on disk
       refute_nil v.veto_reason
     end

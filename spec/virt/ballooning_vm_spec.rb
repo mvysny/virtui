@@ -79,7 +79,7 @@ describe Virt::BallooningVM do
     b = Virt::BallooningVM.new(virt_cache, 'vm0')
     b.update
     assert_equal 'vm stopped, doing nothing; d=0', b.status.to_s
-    Timecop.freeze(Time.now + 200) { b.update }
+    Uptime.travel(200) { b.update }
     assert_equal 'vm stopped, doing nothing; d=0', b.status.to_s
   end
 
@@ -143,6 +143,9 @@ describe Virt::BallooningVM do
       assert_equal 'only 0% memory used, but backing off for 20.0s; d=0', b.status.to_s
 
       virt.allow_set_actual = true
+      # Timecop, not Uptime: what has to advance here is the emulator's {Interpolator}
+      # start-up ramp, which is on the wall clock. The back-off stays armed throughout —
+      # which is the point of the test.
       Timecop.freeze(Time.now + 10) do
         # overshoot the used memory
         vm.memory_app = 4.GiB
@@ -190,7 +193,7 @@ describe Virt::BallooningVM do
   context 'decreasing memory (usage falls to the trigger)' do
     it 'decreases by 10% at exactly the 55% trigger, once past back-off' do
       cache, b = ballooner(mem_at(55))
-      Timecop.freeze(Time.now + 21) { b.update } # past the 20s boot back-off
+      Uptime.travel(21) { b.update } # past the 20s boot back-off
       assert_equal 'VM reports 1.0G (55%), updating actual by -10% to 1.8G; d=-10', b.status.to_s
       assert_equal [1_932_735_283], cache.set_actuals
     end
@@ -215,7 +218,7 @@ describe Virt::BallooningVM do
 
     it 'does nothing when the decrease would clamp back to the current size' do
       cache, b = ballooner(mem_at(40), min_actual: 2.GiB) # floor == current actual
-      Timecop.freeze(Time.now + 21) { b.update }
+      Uptime.travel(21) { b.update }
       assert_equal 'New actual 2G is the same as current one 2G, doing nothing; d=0', b.status.to_s
       assert_equal [], cache.set_actuals
     end
@@ -232,7 +235,7 @@ describe Virt::BallooningVM do
 
     it 'refuses to shrink a guest that is swapping' do
       cache, b = swapping_ballooner(40)
-      Timecop.freeze(Time.now + 21) { b.update } # past the 20s boot back-off
+      Uptime.travel(21) { b.update } # past the 20s boot back-off
       assert_equal 'only 40% memory used, but the guest swapped recently; holding its ' \
                    'memory for 60.0s; d=0', b.status.to_s
       assert_equal [], cache.set_actuals
@@ -240,10 +243,10 @@ describe Virt::BallooningVM do
 
     it 'shrinks again once the veto lapses' do
       cache, b = swapping_ballooner(40)
-      start = Time.now
-      Timecop.freeze(start + 21) { b.update }
+      Time.now
+      Uptime.travel(21) { b.update }
       assert_equal [], cache.set_actuals
-      Timecop.freeze(start + 82) { b.update } # 61s after that sample armed the veto
+      Uptime.travel(82) { b.update } # 61s after that sample armed the veto
       assert_equal 'VM reports 768M (40%), updating actual by -10% to 1.8G; d=-10', b.status.to_s
       assert_equal [1_932_735_283], cache.set_actuals
     end
@@ -257,7 +260,7 @@ describe Virt::BallooningVM do
 
     it 'shrinks a guest whose balloon reports no swap counters at all' do
       cache, b = ballooner(mem_at(40, swap_out: nil), prev_mem: mem_at(40, swap_out: nil, at: now_secs - 5))
-      Timecop.freeze(Time.now + 21) { b.update }
+      Uptime.travel(21) { b.update }
       assert_equal(-10, b.status.memory_delta)
       assert_equal [1_932_735_283], cache.set_actuals
     end

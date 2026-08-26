@@ -22,6 +22,25 @@ end
 # Every Screen.fake starts with VirTUI's theme, so components can read custom tokens.
 Tuile::ThemeDef.default = UI::Theme::THEME_DEF
 
+# The uptime-clock counterpart to Timecop, for specs that need a {Cooldown} to lapse.
+# Cooldowns are measured on {Cooldown.now} — uptime, deliberately not wall time (see
+# DECISIONS.md D-cooldown-monotonic) — which is exactly the clock Timecop does not move.
+module Uptime
+  # Runs `block` with {Cooldown}'s clock `seconds` further on, and puts it back afterwards
+  # even if the block raises, so a failing example cannot leak the shift into the next one.
+  # Nests: an inner travel is measured from the outer one.
+  #
+  # @param seconds [Numeric] how far ahead to jump
+  # @return [Object] whatever `block` returns
+  def self.travel(seconds)
+    real = Cooldown.clock
+    Cooldown.clock = -> { real.call + seconds }
+    yield
+  ensure
+    Cooldown.clock = real
+  end
+end
+
 module Helpers
   # Sets a logger to `$log` and returns a {StringIO} which captures logged stuff.
   # @return [StringIO] use {StringIO.string} to get logged stuff
