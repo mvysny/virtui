@@ -1,7 +1,15 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'bundler/setup'
+# Bundler finds the Gemfile by walking up from the *current* directory, and its setup is a
+# silent no-op when it finds none — so launched from anywhere outside the checkout (the XDG
+# desktop entry starts us in the session's cwd) the gems would be left to plain RubyGems and
+# the require below would fail. Pin the Gemfile to ours, and set up only the :default group:
+# `require 'bundler/setup'` insists on every gem in the lock, so a dev gem the developer
+# never installed (rubocop, yard) would stop the app from starting.
+ENV['BUNDLE_GEMFILE'] ||= File.expand_path('../Gemfile', __dir__)
+require 'bundler'
+Bundler.setup(:default)
 
 require 'tty-logger'
 require_relative '../lib/virtui'
