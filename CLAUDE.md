@@ -66,6 +66,7 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 - `Virt::Cache` — thread-safe cache of every VM's runtime data; the UI reads only this
 - `Virt::Ballooning` — fans one `BallooningVM` out per VM, once per update
 - `Virt::BallooningVM` — one VM's grow/shrink decision; owns the triggers and step sizes
+- `Virt::BallooningVM::SwapOutRaiseVoter` — votes to raise while the guest is swapping out
 - `Virt::BallooningVM::SwapOutShrinkVetoer` — blocks a shrink for 60s after the guest swaps
 - `Virt::DomainData`, `DomainInfo`, `MemoryStat`, `DiskStat`, `CpuInfo` — VM value objects
 - `Virt::VMEmulator` (+ `VMEmulator::VM`) — simulated fleet: demo mode and most specs

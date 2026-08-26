@@ -35,6 +35,19 @@ class BallooningFakeCache
   private
 
   def snapshot(mem) = Virt::DomainData.new(@info, :running, mem.last_updated * 1000, 0, mem, [])
+
+  public
+
+  # Pushes a new guest sample, keeping the current one as the diff baseline — what
+  # {Virt::Cache#update} does, so a test can walk a VM through a swap burst and out again.
+  #
+  # @param mem [Virt::MemoryStat] the new sample; its `last_updated` must be newer
+  # @return [void]
+  def next_sample(mem)
+    @prev = Virt::Cache::VMCache.diff(@prev, @data)
+    @mem = mem
+    @data = snapshot(mem)
+  end
 end
 
 describe Virt::BallooningVM do
@@ -224,41 +237,68 @@ describe Virt::BallooningVM do
     end
   end
 
-  # The veto itself has its own specs; these cover the wiring — that a veto reaches the
-  # decrease branch and nothing else.
-  context 'the swap veto (the guest was seen writing to swap)' do
+  # The voter and the vetoer have their own specs; these cover the wiring — that each of
+  # the two answers reaches the branch it belongs to, and nothing else.
+  context 'the swap-out counter' do
     # A guest that wrote 100 MiB to swap over the 5s between its two samples: 20 MiB/s,
-    # far above the vetoer's 1 MiB/s noise floor.
+    # far above either 1 MiB/s noise floor.
     def swapping_ballooner(percent, **)
       ballooner(mem_at(percent, swap_out: 100.MiB), prev_mem: mem_at(percent, at: now_secs - 5), **)
     end
 
-    it 'refuses to shrink a guest that is swapping' do
-      cache, b = swapping_ballooner(40)
-      Uptime.travel(21) { b.update } # past the 20s boot back-off
-      assert_equal 'only 40% memory used, but the guest swapped recently; holding its ' \
-                   'memory for 60.0s; d=0', b.status.to_s
-      assert_equal [], cache.set_actuals
+    # The sample after a burst: swap_out has stopped advancing, so the rate is 0 again.
+    #
+    # @param cache [BallooningFakeCache] the cache to push it onto
+    # @param percent [Integer] guest usage the quiet sample reports
+    # @return [void]
+    def go_quiet(cache, percent)
+      cache.next_sample(mem_at(percent, swap_out: 100.MiB, at: now_secs + 5))
     end
 
-    it 'shrinks again once the veto lapses' do
-      cache, b = swapping_ballooner(40)
-      Time.now
-      Uptime.travel(21) { b.update }
-      assert_equal [], cache.set_actuals
-      Uptime.travel(82) { b.update } # 61s after that sample armed the veto
-      assert_equal 'VM reports 768M (40%), updating actual by -10% to 1.8G; d=-10', b.status.to_s
-      assert_equal [1_932_735_283], cache.set_actuals
-    end
-
-    it 'still grows a swapping guest — the veto gates decreases only' do
-      cache, b = swapping_ballooner(65)
+    it 'raises a guest that is swapping, whatever its usage figure says' do
+      cache, b = swapping_ballooner(40) # 40% is deep in shrink territory
       b.update
-      assert_equal 'VM reports 1.2G (65%), updating actual by 30% to 2.6G; d=30', b.status.to_s
+      assert_equal 'VM reports 768M (40%), the guest is swapping out 20M/s, updating actual ' \
+                   'by 30% to 2.6G; d=30', b.status.to_s
       assert_equal [2_791_728_742], cache.set_actuals
     end
 
-    it 'shrinks a guest whose balloon reports no swap counters at all' do
+    it 'says so when the vote and the usage trigger agree' do
+      cache, b = swapping_ballooner(65)
+      b.update
+      assert_equal 'VM reports 1.2G (65%), the guest is swapping out 20M/s, updating actual ' \
+                   'by 30% to 2.6G; d=30', b.status.to_s
+      assert_equal [2_791_728_742], cache.set_actuals
+    end
+
+    it 'explains a vote it cannot act on, rather than blaming the usage figure' do
+      cache, b = swapping_ballooner(40, info: Virt::DomainInfo.new('vm0', 1, 2.GiB))
+      b.update
+      assert_equal 'I want to increase memory (the guest is swapping out 20M/s) but ' \
+                   "can't go over configured max mem 2G; d=0", b.status.to_s
+      assert_equal [], cache.set_actuals
+    end
+
+    it 'refuses to shrink a guest that stopped swapping less than a minute ago' do
+      cache, b = swapping_ballooner(40)
+      b.update # raises, and arms the veto
+      go_quiet(cache, 40)
+      Uptime.travel(21) { b.update } # past the 20s boot back-off, inside the 60s veto
+      assert_equal 'only 40% memory used, but the guest swapped recently; holding its ' \
+                   'memory for 39.0s; d=0', b.status.to_s
+      assert_equal 1, cache.set_actuals.size, 'the raise, and no shrink after it'
+    end
+
+    it 'shrinks once the veto lapses' do
+      cache, b = swapping_ballooner(40)
+      b.update
+      go_quiet(cache, 40)
+      Uptime.travel(61) { b.update }
+      assert_equal 'VM reports 768M (40%), updating actual by -10% to 1.8G; d=-10', b.status.to_s
+      assert_equal [2_791_728_742, 1_932_735_283], cache.set_actuals
+    end
+
+    it 'leaves a guest whose balloon reports no swap counters at all to the usage figure' do
       cache, b = ballooner(mem_at(40, swap_out: nil), prev_mem: mem_at(40, swap_out: nil, at: now_secs - 5))
       Uptime.travel(21) { b.update }
       assert_equal(-10, b.status.memory_delta)

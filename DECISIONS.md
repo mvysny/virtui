@@ -492,6 +492,80 @@ boot.
 
 ---
 
+## D-swap-raise-vote — a guest writing to swap is grown on the spot, by the same 30% the usage trigger uses (2026-08-26)
+
+**Status:** Accepted, shipped in {Virt::BallooningVM::SwapOutRaiseVoter}, consulted from
+{Virt::BallooningVM#update}. Deliberately the naive form — see *Consequences*.
+
+**Context.** D-swap-shrink-veto closed half of root cause 3 and said so: it stops the
+controller *taking* memory from a swapping guest, but the state actually measured —
+61% used, controller idle, 2 GiB parked in swap — had no shrink in flight at all, so
+the veto would never have fired. Nothing was ever going to grow that VM, because
+`percent_used` is the only thing that could ask and swapping is what stops it asking:
+evicting anon pages raises `MemAvailable`, so the figure falls exactly when the guest
+is short. Watched live on 2026-08-26 it did not even fall — allocation and eviction
+cancelled and it sat pinned at 55% while swap climbed 2.5 GiB.
+
+**Decision.** {Virt::BallooningVM::SwapOutRaiseVoter} votes to raise whenever the
+guest's swap-out rate is at or above a 1 MiB/s noise floor, and {Virt::BallooningVM}
+treats that vote exactly like the usage trigger firing: `+30%` of current `actual`, no
+back-off, one hop per guest sample. A guest writing pages to disk is making the
+plainest possible statement that it needs memory, so it gets the same answer a guest
+at 65% gets.
+
+Separate class from {Virt::BallooningVM::SwapOutShrinkVetoer}, though both read the
+same counter, because the questions differ in *time*: the veto asks "has this guest
+swapped recently" and holds for 60 s afterwards; the vote asks "is it swapping now" and
+goes quiet the moment the guest does. A vote that lingered like the veto would take a
+hop per sample for a minute after the burst — from 8 GiB that is ×3.7, in answer to
+something already over. They own separate noise floors for the same reason: on a guest
+that trickles to swap benignly, the two want to move in opposite directions.
+
+**Alternatives rejected.**
+
+- **One class answering both questions.** Its attraction is that the noise floor then
+  has one home and the two answers can never disagree about whether the guest is
+  swapping. Rejected: they *should* be able to disagree. On a guest with zram, MGLRU or
+  a systemd `MemoryHigh=` slice, a floor high enough to ignore the benign trickle is
+  high enough to blind this vote to a real burst, so the two constants have genuinely
+  different jobs and a shared one would have to serve the stricter. Keeping the
+  participants independent is also what lets a third arrive without touching either.
+- **Wait for the usage figure to catch up.** What the code did before, and the
+  measurement is the refutation: 2.5 GiB went to disk during a stretch where the figure
+  never moved off 55%. Whatever the trigger were lowered to, a *pinned* reading never
+  reaches it.
+- **A gentler hop for a swap-driven raise** — say +10%, on the grounds that the signal
+  is indirect. Backwards: the swap vote fires strictly later than the usage trigger
+  would have, because the guest has already started paying disk I/O by the time the
+  counter moves. Later evidence deserves at least as strong a response, not a weaker
+  one.
+
+**Consequences.**
+
+- **This is the naive form, and it is knowingly unbounded on one axis.** The vote
+  reasserts itself every guest sample for as long as reclaim keeps hitting the swap
+  device, so a burst that takes several samples to absorb takes several hops:
+  8 GiB → 10.4 → 13.5 → 17.6 → 22.8 in ~20 s, against a 3 GiB allocation. Two things
+  bound it and neither is a design: `max_memory` is a hard ceiling, and the veto lapses
+  60 s after the swapping stops, after which the ordinary −10% shrink unwinds the
+  overshoot at roughly 100 s per 8 GiB. The overshoot is real, costs host RAM for a
+  couple of minutes, and is still strictly better than the measured status quo, where
+  the VM was never grown at all and the guest kept swapping.
+- **The pathological guest parks at `max_memory`.** One that ticks `swap_out` forever —
+  cgroup-limited reclaim inside the guest, where more VM memory relieves nothing, or
+  MGLRU-style proactive aging of cold anon — is raised every sample and, while it keeps
+  ticking, never shrunk. It stops at `max_memory` rather than running away, but it stays
+  there. This fleet is not that: watched on 2026-08-21 the rate is exactly 0 at rest on
+  every VM. What closes it properly is on the output side, per
+  `ideas/swap-despite-ballooning.md` — a bound on how far the swap signal alone may
+  raise a VM, plus a check that the raise actually helped — and neither is here yet.
+- Ordering with the usage trigger is "either fires", not a precedence: when both are
+  true the status line names the rate as well, since at 40% used `+30%` otherwise reads
+  as a bug. The same string explains a raise that `max_memory` refuses, which used to
+  claim the usage figure was over a trigger it was nowhere near.
+
+---
+
 ## D-cooldown-monotonic — {Cooldown} counts uptime, and exposes a writable clock so specs can travel it (2026-08-26)
 
 **Status:** Accepted, shipped in {Cooldown}.
@@ -656,14 +730,12 @@ swap-used is a high-water scar, not a pressure gauge.
 
 **Consequences.**
 
-- **This fixes the inversion, not the invisibility, and the difference matters.**
-  The measured state — 61% used, controller idle, 2 GiB swapped — had no shrink in
-  flight at all, so the veto would never have fired. Veto-only leaves a stable bad
-  equilibrium: the guest trickles to disk, `percent_used` sits mid-deadband, nothing
-  is attempted, the trickle continues. **Only a grow trigger on `swap_out` closes
-  that half**, and its response shape (how far the swap signal alone may grow a VM,
-  and how to check the growth helped) is still open in
-  `ideas/swap-despite-ballooning.md`.
+- **This fixed the inversion, not the invisibility.** The measured state — 61% used,
+  controller idle, 2 GiB swapped — had no shrink in flight at all, so the veto would
+  never have fired. Veto-only left a stable bad equilibrium: the guest trickles to disk,
+  `percent_used` sits mid-deadband, nothing is attempted, the trickle continues. The
+  other half is **D-swap-raise-vote**, which grows on the same signal; what remains open
+  after it is the *bound* on that growth, in `ideas/swap-despite-ballooning.md`.
 - The 60 s cooldown costs density: a VM that swaps once an hour holds its memory a
   minute longer each time. Deliberate, and bounded by being finite.
 - The noise floor is uncritical *on these guests* — Ubuntu desktop-ish,
@@ -672,9 +744,9 @@ swap-used is a high-water scar, not a pressure gauge.
   may trickle benignly, and would need the floor raised; on such a guest a floor high
   enough to filter the trickle is also high enough to blind a *grow* trigger, which
   is why the grow half cannot simply reuse this constant.
-- **The shape this sets for what follows.** A veto is a small stateful object under
-  `lib/virt/ballooning_vm/` that is fed every sample via `observe` and answers
-  `veto_reason` — a `String` phrased to follow a "but", or `nil` for no objection. The
+- **The shape this sets for what follows**, and D-swap-raise-vote is the first to
+  follow it. An input is a small object under `lib/virt/ballooning_vm/` fed every sample
+  via `observe`, answering one question as a `String` reason or `nil` — the
   `nil`-or-reason return is deliberate: it makes the maintainer-facing status line fall
   out of the same call that makes the decision, and it is what a future *collection* of
   vetoers reduces over. There is one today, held in a plain ivar; the array arrives with

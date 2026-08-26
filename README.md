@@ -151,16 +151,22 @@ If the memory usage goes below 55%, a memory is decreased by 10%, but this only 
 
 In other words, if VM needs memory, the memory is given immediately. Afterwards, the memory is slowly decreased as the usage goes down.
 
-**Except while the guest is swapping.** If the guest writes to its swap device, virtui
-stops taking memory away from it for the next minute — it can still be given more, but
-never less. This matters because a guest that swaps *looks* like a guest with memory to
-spare: pages moved out to disk count as available memory again, so the usage figure above
-drops exactly when the guest is short. Without the veto, a VM that started swapping under
-load could be shrunk while it was doing so. You will see this in the SWAP row (above): a
-non-zero rate on the right is what holds the memory.
+**And separately, whenever the guest writes to its swap device**, virtui gives it the
+same +30% — whatever the usage figure says — and then refuses to take memory away from it
+for the next minute. Watch the SWAP row (above): a non-zero rate on the right is what
+drives both.
 
-It is a floor under the worst case, not a cure — virtui still cannot *see* a guest that
-swapped a while ago and went quiet, so keep the guest configuration below in mind.
+This matters because a swapping guest *looks* like a guest with memory to spare. Pages
+moved out to disk count as available memory again, so the usage figure above drops exactly
+when the guest is short — it can sit unmoved at 55% while gigabytes go to disk. Left to
+that figure alone a VM under load is never grown, and may even be shrunk while it swaps.
+
+Two things to expect from it. A burst usually takes a few rounds to absorb, so the VM can
+end up larger than it finally needs; the memory comes back over the following couple of
+minutes as the ordinary shrink unwinds it. And a guest that writes to swap *continuously*
+for reasons more memory cannot fix — a container or systemd slice with its own memory
+limit inside the VM — will be grown to its configured maximum and stay there. If that is
+your guest, turn ballooning off for that VM with `mb`.
 
 At the moment you need to edit virtui sources to configure this: the thresholds and rates are
 instance variables set in a constructor, each documented next to its value — the triggers and
