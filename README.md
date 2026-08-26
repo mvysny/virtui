@@ -168,11 +168,13 @@ for reasons more memory cannot fix — a container or systemd slice with its own
 limit inside the VM — will be grown to its configured maximum and stay there. If that is
 your guest, turn ballooning off for that VM with `mb`.
 
-At the moment you need to edit virtui sources to configure this: the thresholds and rates are
-instance variables set in a constructor, each documented next to its value — the triggers and
-step sizes in `Virt::BallooningVM` (`lib/virt/ballooning_vm.rb`), the swap veto's noise floor
-and quiet period in `Virt::BallooningVM::SwapOutShrinkVetoer`
-(`lib/virt/ballooning_vm/swap_out_shrink_vetoer.rb`).
+At the moment you need to edit virtui sources to configure this. Each decision above is a
+small class in `lib/virt/ballooning_vm/` holding its own threshold as an instance variable,
+documented next to its value: the 65% and 55% triggers in `MemLevelRaiseVoter` and
+`MemLevelShrinkVoter`, the swap rate that counts as swapping in `SwapOutRaiseVoter` and
+`SwapOutShrinkVetoer`, the quiet-period lengths in the latter and in `BackOffShrinkVetoer`.
+How far each change moves the memory — the 30% and the 10% — is set in `Virt::BallooningVM`
+(`lib/virt/ballooning_vm.rb`), which is what runs them all.
 
 ## Guest Configuration
 

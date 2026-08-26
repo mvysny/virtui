@@ -1,22 +1,38 @@
 # frozen_string_literal: true
 
 module Virt
-  # Auto-scales the memory of a single VM based on its guest memory usage. Asymmetric on
-  # purpose: {#update} grows the VM at once when the guest is running short, and shrinks it
-  # slowly and rate-limited when the guest is comfortable — a VM that needs RAM needs it
-  # now, a VM that has spare RAM can give it back at leisure.
+  # Auto-scales the memory of a single VM by polling a set of *inputs* and acting on what
+  # they say. Call {#update} every ~2s.
   #
-  # Two inputs sit alongside the usage figure, both reading the guest's swap-out counter and
-  # each answering its own question: {SwapOutRaiseVoter} votes to raise a guest that is
-  # swapping *now*, {SwapOutShrinkVetoer} keeps memory away from one that was swapping a
-  # minute ago. Every threshold either needs lives on it, not here — a new vote or veto
-  # arrives as its own class under `lib/virt/ballooning_vm/` rather than as more ivars on
-  # this one.
+  # == The inputs
   #
-  # Does nothing if the VM lacks ballooning support, is shut off, reports stale data, or
-  # the user has disabled it. Memory never drops below {#min_actual} nor rises above the
-  # VM's configured maximum. Every threshold and rate is an ivar set in the constructor,
-  # documented next to its value; `README.md` states the resulting behaviour for users.
+  # Each input is a small object under `lib/virt/ballooning_vm/`, fed this tick's
+  # {Cache::VMCache} via `observe` and asked one question, which it answers with a `String`
+  # reason or `nil` for "no opinion". There are two kinds:
+  #
+  # - a **voter** (`vote_reason`) asks for a change — {MemLevelRaiseVoter},
+  #   {SwapOutRaiseVoter} on the raise side, {MemLevelShrinkVoter} on the lower side;
+  # - a **vetoer** (`veto_reason`) blocks one — {SwapOutShrinkVetoer},
+  #   {BackOffShrinkVetoer}, both against lowering.
+  #
+  # The division of labour: **an input decides *whether* and says *why*; this class decides
+  # *how much*.** So every threshold lives on the input that reads it and every rate lives
+  # here, and a new consideration arrives as another class in one of the lists rather than
+  # as another branch in {#update}.
+  #
+  # == The rules
+  #
+  # 1. Any raise vote wins outright — a VM that needs RAM needs it now, and nothing vetoes
+  #    a raise.
+  # 2. Otherwise a lower needs a voter for it *and* no vetoer against it.
+  # 3. Otherwise nothing happens.
+  #
+  # Asymmetric on purpose, and rule 1 is where the asymmetry lives: raises are immediate and
+  # unopposed, lowering is voted, vetoable and rate-limited.
+  #
+  # Does nothing at all if the VM lacks ballooning support, is shut off, reports stale data,
+  # or the user has disabled it. Memory never drops below {#min_actual} nor rises above the
+  # VM's configured maximum. `README.md` states the resulting behaviour for users.
   #
   # UI-thread-confined.
   class BallooningVM
@@ -27,35 +43,35 @@ module Virt
       @vmid = vmid
       # 8 GiB: a healthy minimum for a desktop guest. See {#min_actual}.
       @min_actual = 8.GiB
-      # How long to leave a VM alone after decreasing its memory, in seconds. A Linux guest
+
+      # How much to raise by, as a percentage: 30 means the actual goes to 130%. No
+      # back-off gates it, so this is also a velocity — one hop per new guest sample, i.e.
+      # roughly one per 5s. See DECISIONS.md D-swap-raise-vote for what that costs.
+      @increase_memory_by = 30
+
+      # How much to lower by, as a percentage: 10 means the actual goes to 90%. Deliberately
+      # a third of the raise, and gated by {BackOffShrinkVetoer} on top.
+      @decrease_memory_by = 10
+
+      # How long to veto lowering after we change a VM's memory, in seconds. A Linux guest
       # applies a decrease gradually, over 5..15 seconds depending on how big it is;
       # stacking another decrease on top before it settles would compound blindly. 10s is
       # enough because we only ever decrease by 10%, which lands at the fast end.
       @back_off_seconds = 10
 
-      # Grace period after a VM starts, in seconds — booting takes ~15s, and the guest's
-      # memory figures mean nothing until it's up.
+      # Same, after a VM starts — booting takes ~15s, and the guest's memory figures mean
+      # nothing until it's up.
       @boot_back_off_seconds = 20
 
-      # When the guest mem usage (omitting cache) is above this value, increase guest memory.
-      # To prevent client swapping, set this lower than `100 - guest vm.swappiness`
-      @trigger_increase_at = 65
+      @back_off = BackOffShrinkVetoer.new
+      @raise_voters = [MemLevelRaiseVoter.new, SwapOutRaiseVoter.new]
+      @shrink_voters = [MemLevelShrinkVoter.new]
+      # The guest's own objection first: it says more than "we just did something".
+      @shrink_vetoers = [SwapOutShrinkVetoer.new, @back_off]
+      @inputs = @raise_voters + @shrink_voters + @shrink_vetoers
 
-      # When increasing memory, increase by how much.
-      # A percentage value; 30 means that the actual will be increased to 130%.
-      @increase_memory_by = 30
-
-      # When the guest mem usage (omitting cache) is below this, start decreasing guest memory
-      @trigger_decrease_at = 55
-
-      # When decreasing memory, decrease by how much.
-      # A percentage value; 10 means that the actual will be decreased to 90%.
-      @decrease_memory_by = 10
-
-      # {Cooldown} suppresses memory *decreases*; increases ignore it entirely, since a VM
-      # that needs RAM needs it whatever we did last. Starts armed: we don't know what
-      # state the VM is in — it could have been started seconds ago.
-      @back_off = Cooldown.of(@boot_back_off_seconds)
+      # We don't know what state the VM is in — it could have been started seconds ago.
+      @back_off.arm @boot_back_off_seconds
 
       # {Boolean} if the VM was running during the last ballooning update
       @was_running = false
@@ -63,11 +79,6 @@ module Virt
       # {Integer | nil} {MemoryStat#last_updated} of the data the last decision was made
       # on; guards against acting twice on the same guest sample.
       @last_update_at = nil
-
-      # The two opinions the guest's swap-out counter carries, deliberately separate: one
-      # asks for more memory, the other keeps what the VM has. Each owns its thresholds.
-      @shrink_vetoer = SwapOutShrinkVetoer.new
-      @raise_voter = SwapOutRaiseVoter.new
 
       # {Boolean} the user can manually disable ballooning for a VM.
       @enabled = true
@@ -102,42 +113,33 @@ module Virt
     # @return [Boolean] if the VM was running during the last ballooning update
     def was_running? = @was_running
 
-    # Enables or disables automatic ballooning for this VM. Clears any active back-off so
-    # the user's manual change takes effect on the next {#update}.
+    # Enables or disables automatic ballooning for this VM. Clears the back-off so the
+    # user's manual change takes effect on the next {#update}.
     #
     # @param enabled [Boolean] `true` to enable, `false` to disable
     def enabled=(enabled)
       @enabled = !!enabled
-      # This is user manual action, user wants to see effects now.
-      @back_off = Cooldown::ELAPSED
+      @back_off.forget # This is user manual action, user wants to see effects now.
     end
 
-    # Runs one control step: reads the VM's current memory stats and increases, decreases,
-    # or leaves its memory unchanged, recording the decision in {#status}. Call every ~2s.
+    # Runs one control step: feeds every input this tick's data, applies the rules above,
+    # and records what happened in {#status}.
     #
     # @return [void]
     # @raise [RuntimeError] if the VM is running but its {DomainInfo} can't be found
     def update
       unless @enabled
         @status = Status.new('ballooning disabled by user', 0)
-        @back_off = Cooldown::ELAPSED
-        @last_update_at = nil
-        @was_running = false
-        @shrink_vetoer.forget
-        @raise_voter.forget
+        reset
         return
       end
 
       mem_stat = @virt_cache.memstat(@vmid)
       if mem_stat.nil? || !@virt_cache.running?(@vmid)
-        # VM is shut off. Don't fiddle with the memory.
-        # Mark as back_off - this way we'll back off from the VM until it boots up.
-        @back_off = @back_off.extended_by(@boot_back_off_seconds)
+        # VM is shut off. Don't fiddle with the memory. Back off until it boots up.
         @status = Status.new('vm stopped, doing nothing', 0)
-        @was_running = false
-        @last_update_at = nil
-        @shrink_vetoer.forget
-        @raise_voter.forget
+        reset
+        @back_off.arm @boot_back_off_seconds
         return
       end
 
@@ -149,108 +151,103 @@ module Virt
         return
       end
 
-      # Don't act on stale guest data — e.g. just after the VM started, before it
-      # completes its first stats collection cycle, the numbers still reflect a nearly-empty
-      # boot-time guest. Resizing on those would wrongly shrink a VM that's actually busy.
-      if @virt_cache.cache(@vmid)&.stale?
+      # Don't act on stale guest data — e.g. just after the VM started, before it completes
+      # its first stats collection cycle, the numbers still reflect a nearly-empty boot-time
+      # guest. Resizing on those would wrongly shrink a VM that's actually busy.
+      vm_cache = @virt_cache.cache(@vmid)
+      if vm_cache&.stale?
         @status = Status.new('guest memory data is stale, doing nothing', 0)
         return
       end
 
-      # Ahead of every branch — see {SwapOutShrinkVetoer#observe}.
-      vm_cache = @virt_cache.cache(@vmid)
-      @shrink_vetoer.observe vm_cache
-      @raise_voter.observe vm_cache
+      # Ahead of the guards below: an input's clock must advance on every sample, not only
+      # on the ones whose decision reaches it.
+      @inputs.each { |it| it.observe vm_cache }
 
-      # Check whether we already did some action (mem increase/decrease) on
-      # this VM data.
+      # Check whether we already did some action (mem increase/decrease) on this VM data.
       if @last_update_at == mem_stat.last_updated
         @status = Status.new('no new data', 0)
         return
       end
 
-      # 0..100
-      percent_used = mem_stat.guest_mem.percent_used
-      used_mem = mem_stat.guest_mem.used
+      decide mem_stat
+    end
 
-      # {String, nil} the guest is writing to swap: memory it wanted and did not have, and
-      # the one thing percent_used cannot report, since swapping *lowers* it
-      # ({SwapOutRaiseVoter}).
-      raise_vote = @raise_voter.vote_reason
-      # Why a raise is happening, for the status line. The vote takes the wording when it
-      # fires, since "current usage of 40%" explains nothing at 40%.
-      grow_because = raise_vote || "current usage of #{percent_used}% is over trigger #{@trigger_increase_at}%"
+    private
 
-      # delta percent by which we'll modify the memory available to the VM.
-      # -10% means we'll decrease by 10%, +30% will increase by 30%.
-      memory_delta = 0
+    # Polls the inputs, applies the three rules and carries out whatever they call for.
+    #
+    # @param mem_stat [MemoryStat] this tick's guest memory stats
+    # @return [void]
+    # @raise [RuntimeError] if the VM's {DomainInfo} can't be found
+    def decide(mem_stat)
+      report = "VM reports #{format_byte_size(mem_stat.guest_mem.used)} (#{mem_stat.guest_mem.percent_used}%)"
 
-      if percent_used >= @trigger_increase_at || !raise_vote.nil?
-        # No back-off on the way up: we sample every 2s at best, so by the time a demand
-        # spike shows up here the guest may already be swapping — and where the vote is what
-        # fired, it already is. See DECISIONS.md D-swap-raise-vote.
-        memory_delta = @increase_memory_by
-      elsif percent_used <= @trigger_decrease_at
-        # A guest that has been swapping is the last one that should have memory taken
-        # away — and it is precisely the guest that asks for it, since evicting anon pages
-        # raises MemAvailable and so *lowers* percent_used ({SwapOutShrinkVetoer}).
-        veto = @shrink_vetoer.veto_reason
-        unless veto.nil?
-          @status = Status.new("only #{percent_used}% memory used, but #{veto}", 0)
-          return
-        end
-        # decrease memory slowly. We use back_off period to slow down memory decrease.
-        if @back_off.active?
-          @status = Status.new(
-            "only #{percent_used}% memory used, but backing off for #{@back_off.remaining.round(1)}s", 0
-          )
-          return
-        end
-        memory_delta = -@decrease_memory_by
+      raises = @raise_voters.filter_map(&:vote_reason)
+      # Only asked when nothing wants a raise, and the vetoers only when something wants a
+      # lower: a reason nobody acts on has no business in the status line.
+      lowers = raises.empty? ? @shrink_voters.filter_map(&:vote_reason) : []
+      veto = lowers.empty? ? nil : @shrink_vetoers.filter_map(&:veto_reason).first
+
+      if !raises.empty?
+        resize mem_stat, @increase_memory_by, report, raises
+      elsif !veto.nil?
+        @status = Status.new("#{report}, not lowering memory: #{veto}", 0)
+      elsif !lowers.empty?
+        resize mem_stat, -@decrease_memory_by, report, lowers
+      else
+        @status = Status.new("#{report}, nothing to do", 0)
       end
+    end
 
-      # Return early if nothing to do
-      if memory_delta.zero?
-        @status = Status.new("app memory in sweet spot (#{percent_used}%), doing nothing", 0)
-        return
-      end
-
+    # Applies one change of `memory_delta` percent, or explains why it can't be applied.
+    #
+    # @param mem_stat [MemoryStat] this tick's guest memory stats
+    # @param memory_delta [Integer] percentage change: positive raises, negative lowers
+    # @param report [String] what the guest reported, for the status line
+    # @param because [Array<String>] the reasons the voters gave
+    # @return [void]
+    # @raise [RuntimeError] if the VM's {DomainInfo} can't be found
+    def resize(mem_stat, memory_delta, report, because)
       info = @virt_cache.info(@vmid)
       raise 'unexpected: info is nil' if info.nil?
 
-      # calculate min/max memory
       max_memory = info.max_memory
       if @min_actual > max_memory
         @status = Status.new("VM max memory #{max_memory} is below min_actual #{@min_actual}, doing nothing", 0)
         return
       end
 
-      min_memory = @min_actual.clamp(nil, max_memory)
-      new_actual = mem_stat.actual * (memory_delta + 100) / 100
-      new_actual = new_actual.clamp(min_memory..max_memory)
+      new_actual = (mem_stat.actual * (memory_delta + 100) / 100).clamp(@min_actual.clamp(nil, max_memory)..max_memory)
       if new_actual == mem_stat.actual
         @status = if memory_delta.positive?
-                    Status.new(
-                      "I want to increase memory (#{grow_because}) but can't go over " \
-                      "configured max mem #{format_byte_size(new_actual)}", 0
-                    )
+                    Status.new("#{report}, want to raise memory (#{because.join(', ')}) but can't go over " \
+                               "configured max mem #{format_byte_size(new_actual)}", 0)
                   else
-                    Status.new(
-                      "New actual #{format_byte_size(new_actual)} is the same as current one " \
-                      "#{format_byte_size(mem_stat.actual)}, doing nothing", 0
-                    )
+                    Status.new("New actual #{format_byte_size(new_actual)} is the same as current one " \
+                               "#{format_byte_size(mem_stat.actual)}, doing nothing", 0)
                   end
         return
       end
 
-      @back_off = @back_off.extended_by(@back_off_seconds)
-
+      @back_off.arm @back_off_seconds
       @status = Status.new(
-        "VM reports #{format_byte_size(used_mem)} (#{percent_used}%)#{", #{raise_vote}" unless raise_vote.nil?}, " \
-        "updating actual by #{memory_delta}% to #{format_byte_size(new_actual)}", memory_delta
+        "#{report}, #{memory_delta.positive? ? 'raising' : 'lowering'} memory by #{memory_delta.abs}% to " \
+        "#{format_byte_size(new_actual)}: #{because.join(', ')}", memory_delta
       )
       @last_update_at = mem_stat.last_updated
       @virt_cache.set_actual(@vmid, new_actual)
+    end
+
+    # Forgets everything observed about a VM we are no longer steering — it is stopped, or
+    # the user switched ballooning off. Its guest's counters reset with it, so nothing seen
+    # before applies to the next boot.
+    #
+    # @return [void]
+    def reset
+      @inputs.each(&:forget)
+      @last_update_at = nil
+      @was_running = false
     end
   end
 end

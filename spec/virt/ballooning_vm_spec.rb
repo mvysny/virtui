@@ -130,14 +130,14 @@ describe Virt::BallooningVM do
     it 'increases by 30% at exactly the 65% trigger' do
       cache, b = ballooner(mem_at(65))
       b.update
-      assert_equal 'VM reports 1.2G (65%), updating actual by 30% to 2.6G; d=30', b.status.to_s
+      assert_equal 'VM reports 1.2G (65%), raising memory by 30% to 2.6G: usage is at or over the 65% trigger; d=30', b.status.to_s
       assert_equal [2_791_728_742], cache.set_actuals
     end
 
     it 'leaves memory alone just below the trigger (64%)' do
       cache, b = ballooner(mem_at(64))
       b.update
-      assert_equal 'app memory in sweet spot (64%), doing nothing; d=0', b.status.to_s
+      assert_equal 'VM reports 1.2G (64%), nothing to do; d=0', b.status.to_s
       assert_equal [], cache.set_actuals
     end
 
@@ -152,8 +152,10 @@ describe Virt::BallooningVM do
       b = Virt::BallooningVM.new(virt_cache, 'vm0')
       b.min_actual = 2.GiB
       b.update
-      # should issue no update - the VM is just starting
-      assert_equal 'only 0% memory used, but backing off for 20.0s; d=0', b.status.to_s
+      # should issue no update - the VM is just starting. Not the whole string: the
+      # emulator's used-memory ramp is on the wall clock, so the byte figure moves.
+      assert_equal 0, b.status.memory_delta
+      assert_includes b.status.to_s, 'not lowering memory: backing off for 20.0s'
 
       virt.allow_set_actual = true
       # Timecop, not Uptime: what has to advance here is the emulator's {Interpolator}
@@ -166,7 +168,8 @@ describe Virt::BallooningVM do
         # ballooning should issue the memory_resize command immediately
         b.update
 
-        assert_equal 'VM reports 1.9G (100%), updating actual by 30% to 2.6G; d=30', b.status.to_s
+        assert_equal 'VM reports 1.9G (100%), raising memory by 30% to 2.6G: usage is at or over ' \
+                     'the 65% trigger; d=30', b.status.to_s
         assert_equal 2_791_728_742, vm.to_mem_stat.actual
       end
     end
@@ -174,7 +177,7 @@ describe Virt::BallooningVM do
     it 'refuses to grow past the VM configured maximum' do
       cache, b = ballooner(mem_at(70, actual: 8.GiB), info: Virt::DomainInfo.new('vm0', 1, 8.GiB))
       b.update
-      assert_equal 'I want to increase memory (current usage of 70% is over trigger 65%) ' \
+      assert_equal 'VM reports 5.5G (70%), want to raise memory (usage is at or over the 65% trigger) ' \
                    "but can't go over configured max mem 8G; d=0", b.status.to_s
       assert_equal [], cache.set_actuals
     end
@@ -191,14 +194,14 @@ describe Virt::BallooningVM do
     it 'does nothing at 60% usage' do
       cache, b = ballooner(mem_at(60))
       b.update
-      assert_equal 'app memory in sweet spot (60%), doing nothing; d=0', b.status.to_s
+      assert_equal 'VM reports 1.1G (60%), nothing to do; d=0', b.status.to_s
       assert_equal [], cache.set_actuals
     end
 
     it 'does nothing just above the decrease trigger (56%)' do
       cache, b = ballooner(mem_at(56))
       b.update
-      assert_equal 'app memory in sweet spot (56%), doing nothing; d=0', b.status.to_s
+      assert_equal 'VM reports 1.1G (56%), nothing to do; d=0', b.status.to_s
       assert_equal [], cache.set_actuals
     end
   end
@@ -207,7 +210,7 @@ describe Virt::BallooningVM do
     it 'decreases by 10% at exactly the 55% trigger, once past back-off' do
       cache, b = ballooner(mem_at(55))
       Uptime.travel(21) { b.update } # past the 20s boot back-off
-      assert_equal 'VM reports 1.0G (55%), updating actual by -10% to 1.8G; d=-10', b.status.to_s
+      assert_equal 'VM reports 1.0G (55%), lowering memory by 10% to 1.8G: usage is at or under the 55% trigger; d=-10', b.status.to_s
       assert_equal [1_932_735_283], cache.set_actuals
     end
 
@@ -258,24 +261,24 @@ describe Virt::BallooningVM do
     it 'raises a guest that is swapping, whatever its usage figure says' do
       cache, b = swapping_ballooner(40) # 40% is deep in shrink territory
       b.update
-      assert_equal 'VM reports 768M (40%), the guest is swapping out 20M/s, updating actual ' \
-                   'by 30% to 2.6G; d=30', b.status.to_s
+      assert_equal 'VM reports 768M (40%), raising memory by 30% to 2.6G: the guest is ' \
+                   'swapping out 20M/s; d=30', b.status.to_s
       assert_equal [2_791_728_742], cache.set_actuals
     end
 
     it 'says so when the vote and the usage trigger agree' do
       cache, b = swapping_ballooner(65)
       b.update
-      assert_equal 'VM reports 1.2G (65%), the guest is swapping out 20M/s, updating actual ' \
-                   'by 30% to 2.6G; d=30', b.status.to_s
+      assert_equal 'VM reports 1.2G (65%), raising memory by 30% to 2.6G: usage is at or over the ' \
+                   '65% trigger, the guest is swapping out 20M/s; d=30', b.status.to_s
       assert_equal [2_791_728_742], cache.set_actuals
     end
 
     it 'explains a vote it cannot act on, rather than blaming the usage figure' do
       cache, b = swapping_ballooner(40, info: Virt::DomainInfo.new('vm0', 1, 2.GiB))
       b.update
-      assert_equal 'I want to increase memory (the guest is swapping out 20M/s) but ' \
-                   "can't go over configured max mem 2G; d=0", b.status.to_s
+      assert_equal 'VM reports 768M (40%), want to raise memory (the guest is swapping out 20M/s) ' \
+                   "but can't go over configured max mem 2G; d=0", b.status.to_s
       assert_equal [], cache.set_actuals
     end
 
@@ -284,8 +287,8 @@ describe Virt::BallooningVM do
       b.update # raises, and arms the veto
       go_quiet(cache, 40)
       Uptime.travel(21) { b.update } # past the 20s boot back-off, inside the 60s veto
-      assert_equal 'only 40% memory used, but the guest swapped recently; holding its ' \
-                   'memory for 39.0s; d=0', b.status.to_s
+      assert_equal 'VM reports 768M (40%), not lowering memory: the guest swapped recently; ' \
+                   'holding its memory for 39.0s; d=0', b.status.to_s
       assert_equal 1, cache.set_actuals.size, 'the raise, and no shrink after it'
     end
 
@@ -294,7 +297,7 @@ describe Virt::BallooningVM do
       b.update
       go_quiet(cache, 40)
       Uptime.travel(61) { b.update }
-      assert_equal 'VM reports 768M (40%), updating actual by -10% to 1.8G; d=-10', b.status.to_s
+      assert_equal 'VM reports 768M (40%), lowering memory by 10% to 1.8G: usage is at or under the 55% trigger; d=-10', b.status.to_s
       assert_equal [2_791_728_742, 1_932_735_283], cache.set_actuals
     end
 

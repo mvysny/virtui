@@ -492,6 +492,80 @@ boot.
 
 ---
 
+## D-ballooning-voters — {Virt::BallooningVM} runs a list of voters and vetoers instead of a chain of `if`s (2026-08-26)
+
+**Status:** Accepted, shipped in {Virt::BallooningVM#decide} and the input classes under
+`lib/virt/ballooning_vm/`.
+
+**Context.** The controller began as two thresholds and one back-off timer, which is
+three `if`s and four ivars — a size at which a branch chain is the right answer. It did
+not stay there. D-swap-shrink-veto added a third consideration, D-swap-raise-vote a
+fourth, and each arrived as another clause spliced into `update` plus more ivars in a
+constructor where nothing said which ivar served which rule. The two originals were the
+worst offenders precisely because they looked innocent: `@trigger_increase_at` and
+`@trigger_decrease_at` were votes wearing an `if`, and being inline is what let their
+thresholds sit next to a swap noise floor and a back-off length as though the four were
+one family of knobs. The queue in `ideas/swap-despite-ballooning.md` — a bound on the
+swap raise, a shrink gate on `pgsteal_*` deltas, a `disk_caches` floor — is more of the
+same, and `update` was already the longest method in the tree.
+
+**Decision.** Every consideration is a small object under `lib/virt/ballooning_vm/`, fed
+this tick's {Cache::VMCache} through `observe` and asked one question it answers with a
+`String` reason or `nil`. A **voter** (`vote_reason`) asks for a change; a **vetoer**
+(`veto_reason`) blocks one. {Virt::BallooningVM} holds three lists — raise voters, lower
+voters, lower vetoers — and applies three rules: any raise vote wins outright, otherwise
+a lower needs a voter for it and no vetoer against it, otherwise nothing happens.
+
+The line that makes it work: **an input decides *whether* and says *why*; the framework
+decides *how much*.** So each threshold lives on the input that reads it, both rates live
+on the framework, and the reasons compose straight into the status line — the same call
+that makes the decision produces the sentence explaining it, which is what the maintainer
+reads for every VM on every poll.
+
+**Alternatives rejected.**
+
+- **Extract the swap inputs only and leave the two thresholds inline**, on the grounds
+  that they are the *primary* rule and the others are exceptions to it. Rejected because
+  it is not true: {SwapOutRaiseVoter} fires on evidence {MemLevelRaiseVoter} is
+  structurally blind to, so they are peers, not rule-and-exception. Leaving one peer as an
+  `if` also keeps `update` shaped around it, which is exactly what makes adding the next
+  input a surgery rather than an append.
+- **Leave {BackOffShrinkVetoer} inline** because it observes nothing about the guest — it
+  is the controller's memory of its own actions, so it is not "an input" in the same
+  sense. True, and still not worth a special case: it answers the same question the swap
+  vetoer answers, and hoisting it into the list is what makes *all* lowering suppression
+  live in one place instead of one list plus one `if`. Its `arm` is the seam that
+  admission costs.
+- **Weighted votes, or a vote that carries a size.** The obvious next step, and premature:
+  nothing today wants a different-sized answer to a different input, and the one place it
+  might (a gentler hop for a swap-driven raise) was argued down in D-swap-raise-vote. A
+  vote that carried a size would also put a tuning number on every input class, which is
+  the field soup this refactor exists to undo.
+- **Raise vetoes, for symmetry.** Nothing needs one, and rule 1 says why: nothing should
+  stand between a VM that needs RAM and the RAM. Adding the list "for completeness" would
+  invite a use.
+
+**Consequences.**
+
+- The status line changed shape for every decision a VM can reach, from five ad-hoc
+  formats to one: what the guest reported, what is being done, and the reasons —
+  `VM reports 1.2G (65%), raising memory by 30% to 2.6G: usage is at or over the 65%
+  trigger, the guest is swapping out 20M/s`. Two of the old strings were also actively
+  wrong: a raise refused by `max_memory` claimed the usage figure was over a trigger it
+  was nowhere near, and a vetoed lower reported only the veto.
+- **The deadband is now split across two classes with nothing enforcing it.**
+  {MemLevelRaiseVoter}'s trigger must stay above {MemLevelShrinkVoter}'s or both vote on
+  the same sample and rule 1 makes the VM hunt. It was implicit before too, but two
+  constants in one constructor at least sat next to each other; each yardoc now carries
+  the constraint.
+- Adding an input is: write the class, add it to a list. Removing one is deleting it from
+  the list. Neither touches {Virt::BallooningVM#decide}.
+- Every input has a `forget`, and the framework calls it on stop and on the user disabling
+  ballooning — so a new input that holds state gets its lifecycle for free, and one that
+  forgets to implement `forget` fails loudly rather than leaking state across a reboot.
+
+---
+
 ## D-swap-raise-vote — a guest writing to swap is grown on the spot, by the same 30% the usage trigger uses (2026-08-26)
 
 **Status:** Accepted, shipped in {Virt::BallooningVM::SwapOutRaiseVoter}, consulted from
@@ -744,8 +818,9 @@ swap-used is a high-water scar, not a pressure gauge.
   may trickle benignly, and would need the floor raised; on such a guest a floor high
   enough to filter the trickle is also high enough to blind a *grow* trigger, which
   is why the grow half cannot simply reuse this constant.
-- **The shape this sets for what follows**, and D-swap-raise-vote is the first to
-  follow it. An input is a small object under `lib/virt/ballooning_vm/` fed every sample
+- **The shape this sets for what follows**, generalised a day later into
+  D-ballooning-voters, which turned the two original thresholds into inputs of the same
+  kind. An input is a small object under `lib/virt/ballooning_vm/` fed every sample
   via `observe`, answering one question as a `String` reason or `nil` — the
   `nil`-or-reason return is deliberate: it makes the maintainer-facing status line fall
   out of the same call that makes the decision, and it is what a future *collection* of
