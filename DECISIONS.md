@@ -558,6 +558,11 @@ this makes the two agree rather than adding a second convention.
   — turned out to be bookkeeping, since a lapsed {Cooldown} answers `false` for ever.
   The load-bearing half is that the *strike count* is untouched there
   (D-guest-agent-backoff), and that is unchanged.
+- {Virt::VirshSession}'s read deadline is on it too, which is the one consumer not
+  confined to a single thread. `Uptime.travel` swaps a process-global, so it must not be
+  used while another thread holds a live {Cooldown}; its yardoc says so. No spec wants to
+  anyway — a deadline enforced by a blocking `wait_readable` can only be tested by waiting,
+  which is why those specs inject a short `read_timeout` and always did.
 - Injecting the clock rather than the durations paid off immediately: the write-off's
   shipped `BACKOFF_SECONDS` now has a spec that watches it lapse, which the
   `backoff_seconds: 0` injection it was tested with could never assert.

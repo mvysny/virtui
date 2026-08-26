@@ -30,6 +30,11 @@ module Uptime
   # even if the block raises, so a failing example cannot leak the shift into the next one.
   # Nests: an inner travel is measured from the outer one.
   #
+  # Single-threaded only. The clock is process-global, so travelling while another thread
+  # holds a live {Cooldown} moves that one too — {Virt::VirshSession}'s read deadline being
+  # the one in this tree that runs off the calling thread. Those specs wait out a real
+  # short `read_timeout` instead, which is what a blocking `wait_readable` needs anyway.
+  #
   # @param seconds [Numeric] how far ahead to jump
   # @return [Object] whatever `block` returns
   def self.travel(seconds)

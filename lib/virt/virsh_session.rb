@@ -322,10 +322,12 @@ module Virt
     # @raise [TransportError] on timeout or if the child closed the stream
     private def read_until(io, pattern)
       buf = +''
-      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @read_timeout
+      deadline = Cooldown.of(@read_timeout)
       loop do
-        left = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        raise Timeout, "no reply within #{@read_timeout}s" if left <= 0 || !io.wait_readable(left)
+        # {Cooldown#remaining} floors at zero, so a lapsed deadline reads as "no time left"
+        # rather than as a negative timeout `wait_readable` would take for non-blocking.
+        left = deadline.remaining
+        raise Timeout, "no reply within #{@read_timeout}s" if left.zero? || !io.wait_readable(left)
 
         begin
           buf << io.read_nonblock(65_536)

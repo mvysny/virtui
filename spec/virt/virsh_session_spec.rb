@@ -130,6 +130,52 @@ describe Virt::VirshSession do
 end
 
 # No virsh needed: quoting is pure string work.
+# The read deadline, without virsh. The wedged-child specs above cover it end to end, but
+# only on a machine that has virsh installed — which left the timeout path unexercised
+# exactly where a regression is easiest to miss. `allocate` because
+# {Virt::VirshSession#initialize} always spawns a child, and this loop needs nothing from
+# the object but `@read_timeout`.
+describe 'Virt::VirshSession#read_until' do
+  # @param read_timeout [Float] seconds the read loop will wait for its pattern
+  # @return [Array(Virt::VirshSession, IO, IO)] a session to read with, and the pipe to
+  #   feed it through
+  def session_over_pipe(read_timeout)
+    session = Virt::VirshSession.allocate
+    session.instance_variable_set(:@read_timeout, read_timeout)
+    read, write = IO.pipe
+    [session, read, write]
+  end
+
+  it 'returns as soon as the pattern arrives' do
+    session, read, write = session_over_pipe(5)
+    write.write("some output\nPROMPT")
+    assert_equal "some output\nPROMPT", session.send(:read_until, read, 'PROMPT')
+  ensure
+    read&.close
+    write&.close
+  end
+
+  it 'gives up on a silent stream once the deadline lapses' do
+    session, read, write = session_over_pipe(0.3)
+    started = Cooldown.now
+    err = assert_raises(Virt::VirshSession::Timeout) { session.send(:read_until, read, 'PROMPT') }
+    assert_equal 'no reply within 0.3s', err.message
+    assert_operator Cooldown.now - started, :>=, 0.3, 'it must wait the whole deadline out'
+  ensure
+    read&.close
+    write&.close
+  end
+
+  it 'gives up on a reply that stops mid-stream' do
+    session, read, write = session_over_pipe(0.3)
+    write.write('partial reply, but no prompt')
+    assert_raises(Virt::VirshSession::Timeout) { session.send(:read_until, read, 'PROMPT') }
+  ensure
+    read&.close
+    write&.close
+  end
+end
+
 describe 'Virt::VirshSession.quote' do
   it 'wraps an apostrophe the way virsh echo --shell does' do
     assert_equal %('it'\\''s'), Virt::VirshSession.quote("it's")
