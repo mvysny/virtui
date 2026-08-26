@@ -15,7 +15,9 @@ the VM") that the same analysis turns out to bear on, and — folded in on
 turned out to answer itself, plus the shape of the **response** to a non-zero
 `swap_out`, now that the signal has been watched long enough to be trusted. The `@trigger_increase_at`
 comment in `BallooningVM` encodes one of the misconceptions, so it is a code-level
-finding, not just an ops curiosity.
+finding, not just an ops curiosity. A **second observation on 2026-08-26** watched
+the same failure happen live rather than reading its scar afterwards; it is the
+strongest evidence here that cause 3 is the one that matters.
 
 Read the next section first: three questions about how swapping and guest caching
 actually work gate everything else here.
@@ -86,6 +88,62 @@ the routine case, and consistent with the swap holders above. IDEA spreads its
 allocation rate is still unmeasured** and it is the one number the whole
 threshold/hop discussion below turns on — one `/proc/vmstat` delta away.
 
+### Second observation, watched live — 2026-08-26
+
+The measurement above is one snapshot taken *after* the event; this is the same
+class of guest watched *through* it, so it supplies the ordering the snapshot
+could only reconstruct. Reported by the maintainer from virtui's own display, no
+guest-side instrumentation:
+
+Workload: **IntelliJ IDEA starting up inside the VM** — the named workload above.
+
+1. Guest used% sat at **55%**, the rest of the guest's RAM being **disk cache** —
+   i.e. sitting exactly on `@trigger_decrease_at`, inside the deadband, controller
+   idle.
+2. Through the ramp the number **refused to rise.** It did not creep toward 65; it
+   stayed put, "stubbornly", while IDEA allocated.
+3. **Swap climbed instead, to ~2.5 GiB.**
+4. *Only then* did used% jump to **65%**, and virtui grew the VM.
+
+No new physics — this is cause 3 below, seen in the time domain instead of
+reconstructed from a scar. What it adds:
+
+- **The order of events is now observed, not inferred.** The snapshot was
+  consistent with "the burst was absorbed by swap and the metric never moved", but
+  it could not exclude "the metric rose, the controller grew, and swap was left
+  over from earlier". It can now: **swap moved 2.5 GiB before the metric moved at
+  all.**
+- **The metric isn't merely erased — it is *pinned*.** Cause 3 predicts
+  `percent_used` *falls* as anon pages leave RAM; what actually happened is that
+  the fall from eviction and the rise from allocation cancelled, holding the
+  reading flat at 55% for the entire ramp. A flat trace is the worst possible
+  shape for a threshold controller: it is exactly what a healthy idle VM looks
+  like, and unlike a falling trace it doesn't even hint that something is moving.
+- **The controller was parked on the shrink edge while the guest was swapping.**
+  55% *is* `@trigger_decrease_at`; a slightly heavier eviction would have tipped it
+  under and the controller would have **shrunk the VM mid-burst** — the inversion
+  in cause 3, one percentage point away from firing, in the routine case.
+- **The grow fired ~2.5 GiB of swap-out too late**, and this time we know it was
+  the metric's lateness rather than the poll cadence: 2.5 GiB at IDEA's
+  100–300 MiB/s is on the order of 10–25 s, several sampling windows, not the
+  5–12 s dead time of cause 2. Fixing the poll rate would not have caught this.
+  **Cause 3 dominates cause 2 for this workload.**
+- **Not cache starvation.** The guest was cache-rich when the burst began (the
+  "rest of it was disk cache"), and the kernel swapped anyway — the same
+  fallback-path finding as the 4.3 GiB `Cached` measurement, now with the
+  reclaim watched live rather than inferred from `workingset_refault_file`.
+- **Direct support for fix 1.** `swap_out` was advancing throughout steps 2–3, the
+  whole time `percent_used` said nothing was happening. The one signal available
+  today would have triggered the grow ~2.5 GiB earlier, and would have blocked the
+  shrink the deadband edge was flirting with.
+
+Not recorded, and worth capturing on the next occurrence — all of it visible from
+the host, none needing a guest login: the wall-clock length of the flat stretch;
+whether `Cached` fell as swap rose (it decides whether the page cache was spent
+first, as swappiness=1 predicts, or bypassed); the `balloon.swap_out` delta per
+sample, which is the allocation rate this note has wanted since 2026-08-21; and
+whether a shrink actually fired at any point during the flat stretch.
+
 ## Root causes
 
 ### 1. `swappiness=1` does not mean "no swap"
@@ -152,7 +210,10 @@ same controlled variable:
 And nothing undoes it: swapped pages return only when faulted, one at a time.
 Hence the observed end state — swap at half, PSI at 0.00. **A swapping VM and an
 idle VM are indistinguishable in the current metric.** That is the core defect;
-1 and 2 are what let the burst through in the first place.
+1 and 2 are what let the burst through in the first place. Watched live on
+2026-08-26 (second observation above) the reading did not even sag — allocation
+and eviction cancelled and it sat *pinned* at 55% for the whole ramp, which is
+worse: a falling trace at least says something is moving.
 
 Corollary for reading the number at all: swap-used is a **high-water scar**, not a
 pressure gauge. Half of the measured 1.99 GiB (`SwapCached` = 1.00 GiB) is already
