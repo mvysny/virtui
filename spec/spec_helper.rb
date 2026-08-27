@@ -24,7 +24,7 @@ Tuile::ThemeDef.default = UI::Theme::THEME_DEF
 
 # The uptime-clock counterpart to Timecop, for specs that need a {Cooldown} to lapse.
 # Cooldowns are measured on {Cooldown.now} — uptime, deliberately not wall time (see
-# DECISIONS.md D-cooldown-monotonic) — which is exactly the clock Timecop does not move.
+# DECISIONS.md D_cooldown_monotonic) — which is exactly the clock Timecop does not move.
 module Uptime
   # Runs `block` with {Cooldown}'s clock `seconds` further on, and puts it back afterwards
   # even if the block raises, so a failing example cannot leak the shift into the next one.

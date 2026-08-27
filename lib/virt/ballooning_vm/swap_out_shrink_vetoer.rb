@@ -9,7 +9,7 @@ module Virt
     # Exists because swapping is invisible to the figure {BallooningVM} steers by. Evicting
     # anon pages *raises* `MemAvailable`, so a guest paying disk I/O for the memory it lacks
     # reads as one with memory to spare — and gets shrunk. See DECISIONS.md
-    # D-swap-shrink-veto for why the veto keys on the swap-out *rate* rather than on how
+    # D_swap_shrink_veto for why the veto keys on the swap-out *rate* rather than on how
     # full the guest's swap device is, and why it outlives the swapping by a minute.
     #
     # Stateful across calls: feed it every guest sample via {#observe}, in order.

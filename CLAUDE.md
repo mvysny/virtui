@@ -130,7 +130,7 @@ Rules:
 - **The contract lives in the yardoc; the *argument* lives where length is
   affordable.** A yardoc carries the contract, the gotcha, and at most a
   **one-line** why-not-the-obvious note ending in `see DECISIONS.md
-  D-<slug>`; the measurement, the analysis and the rejected options go in
+  D_<slug>`; the measurement, the analysis and the rejected options go in
   the entry. Keeps yardoc *smaller* — a citation passes the
   regression-guard gate that a convincing paragraph would have to fight
   for. (Why the split falls this way: DECISIONS.md's preamble.)
@@ -177,14 +177,14 @@ into this file. Three things to hold to while coding; everything else (the
 entry format, mutability, the tombstone rule, backfill policy) is in that
 file's preamble, read when you're about to write an entry.
 
-- **Cite by slug**, never by position: `see DECISIONS.md D-<slug>`.
-  `grep '^## D-' DECISIONS.md` is the index, so there is no ToC.
+- **Cite by slug**, never by position: `see DECISIONS.md D_<slug>`.
+  `grep '^## D_' DECISIONS.md` is the index, so there is no ToC.
 - **No entry without a real fork.** Nothing seriously considered and
   rejected → it isn't a decision, it's how the thing works → yardoc. (One
   trap: a *measurement that rules out the obvious approach* is a rejected
   alternative and does earn an entry.)
-- **Grep tripwire:** every `D-<slug>` cited anywhere in the repo exists as
-  a `^## D-` heading in `DECISIONS.md`.
+- **Grep tripwire:** every `D_<slug>` cited anywhere in the repo exists as
+  a `^## D_` heading in `DECISIONS.md`.
 
 ## Conventions
 
@@ -209,7 +209,7 @@ file's preamble, read when you're about to write an entry.
   never `Run.sync("virsh setmem '#{name}'")` — a single string goes through
   `/bin/sh`, so an interpolated VM name or path needs escaping that nobody
   remembers (a VM named `it's` broke seven commands; see DECISIONS.md
-  D-argv-not-shell). The only quoting left in the project is
+  D_argv_not_shell). The only quoting left in the project is
   `Virt::VirshSession.quote`, for `virsh`'s own tokenizer.
 - **Diagnostics go through `$log`** (the `TTY::Logger` set up in
   `bin/virtui`, the one allowed global). Use it instead of `puts` /

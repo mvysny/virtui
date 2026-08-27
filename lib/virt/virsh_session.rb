@@ -16,7 +16,7 @@ module Virt
   #
   # The default transport in `bin/virtui`; {VirshSpawn} is the fallback you get by editing
   # that file. Why a session at all, and why the obvious framings do not work:
-  # DECISIONS.md D-virsh-session.
+  # DECISIONS.md D_virsh_session.
   #
   # == Implementation details
   #
@@ -204,7 +204,7 @@ module Virt
       args = @uri ? ['-c', @uri] : []
       # `pgroup: true` shields the child from every signal the terminal sends to virtui's
       # process group — a window resize above all, which makes readline repaint a line
-      # nobody typed straight into the reply stream. See DECISIONS.md D-virsh-own-pgroup.
+      # nobody typed straight into the reply stream. See DECISIONS.md D_virsh_own_pgroup.
       @stdin, @stdout, @stderr, @wait = Open3.popen3(CHILD_ENV, 'virsh', '-q', *args, pgroup: true)
 
       banner = read_quiescent(@stdout, STARTUP_TIMEOUT_SECONDS)

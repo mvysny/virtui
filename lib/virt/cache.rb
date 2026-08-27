@@ -163,7 +163,7 @@ module Virt
       def self.diff(prev_cache, next_data, guest_swap = nil, guest_os = GuestOS::UNKNOWN)
         prev_data = prev_cache&.data
         # Age is wall-clock (sampled_at minus last_updated), never the delta between two
-        # polls' last_updated — see DECISIONS.md D-wall-clock-mem-age.
+        # polls' last_updated — see DECISIONS.md D_wall_clock_mem_age.
         age = next_data.mem_stat.nil? ? nil : ((next_data.sampled_at / 1000) - next_data.mem_stat.last_updated)
         VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age,
                     swap_out_rate(prev_cache, next_data), guest_swap, guest_os)
@@ -212,7 +212,7 @@ module Virt
       #
       # 12s clears the normal lag — libvirt refreshes balloon data only every ~5s, and we
       # poll every ~2s on top, so healthy data is routinely 5–7s old; see DECISIONS.md
-      # D-wall-clock-mem-age. Anything older means the guest stopped reporting.
+      # D_wall_clock_mem_age. Anything older means the guest stopped reporting.
       #
       # @return [Boolean] true if the memory data is stale
       def stale?

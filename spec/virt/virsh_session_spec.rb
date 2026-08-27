@@ -50,7 +50,7 @@ describe Virt::VirshSession do
   # Resizing the terminal signals virtui's whole process group, and the child runs GNU
   # readline: on SIGWINCH it repaints its line — ~520 bytes nobody asked for — into the
   # reply stream, and the next read finds them ahead of its echo. The child therefore
-  # lives in a process group of its own. see DECISIONS.md D-virsh-own-pgroup
+  # lives in a process group of its own. see DECISIONS.md D_virsh_own_pgroup
   it 'is deaf to the resize signal that reaches virtui process group' do
     child = @session.instance_variable_get(:@wait).pid
     refute_equal Process.getpgid(0), Process.getpgid(child), 'the child shares our process group'

@@ -10,7 +10,7 @@ module Virt
     # Exists because a swapping guest cannot ask for memory through the figure
     # {BallooningVM} steers by: evicting anon pages *raises* `MemAvailable`, so the usage
     # figure falls exactly when the guest is suffering, and a guest can swap gigabytes
-    # without it ever reaching the trigger. See DECISIONS.md D-swap-raise-vote.
+    # without it ever reaching the trigger. See DECISIONS.md D_swap_raise_vote.
     #
     # Independent of {SwapOutShrinkVetoer}, though both read the same counter, because they
     # ask different questions of it. The veto asks *has this guest swapped recently* and so

@@ -22,7 +22,7 @@ never reaches the nugget. This file is read *on demand*, by someone who
 came asking why, so an entry may carry the measurement table, the analysis
 and the full argument. The division of labour that follows: the yardoc
 keeps the contract plus at most a **one-line** why-not-the-obvious note
-ending in `see DECISIONS.md D-<slug>`, and the argument lives here. That
+ending in `see DECISIONS.md D_<slug>`, and the argument lives here. That
 makes yardoc smaller, not bigger — a citation earns its line where a
 convincing paragraph would have to fight for five.
 
@@ -40,10 +40,10 @@ entry's `Context`, the ruled-out approach is a bullet under *Alternatives
 rejected*, named as the trap it is so nobody re-derives it.
 
 **Format.** One entry per decision, headed
-`## D-<slug> — <one-line what-was-chosen> (YYYY-MM-DD)` and made of these
+`## D_<slug> — <one-line what-was-chosen> (YYYY-MM-DD)` and made of these
 bold-led paragraphs:
 
-- **Status:** Accepted / Proposed / Superseded by D-\<slug\>. Name where
+- **Status:** Accepted / Proposed / Superseded by D_\<slug\>. Name where
   it shipped (a commit, a release) once it did.
 - **Context.** What forced the choice.
 - **Decision.** What we do, in a few sentences. Link the owning yardoc
@@ -56,8 +56,10 @@ bold-led paragraphs:
 
 Entries are separated by a `---` rule.
 
-The ID is a slug, not a number: `D-` plus a 1–4-word kebab hint at the
-subject, so a citation carries meaning on its own. The `(date)` is
+The ID is a slug, not a number: `D_` plus a 1–4-word hint at the subject,
+so a citation carries meaning on its own. Underscores throughout, never a
+hyphen — the id has to be one *token*, so that `w` / `ciw` in vim and
+`grep -w` act on the whole of it rather than on a fragment. The `(date)` is
 *decided* provenance, not a log position — git owns the edit history, so
 don't narrate how an entry used to read. A decision is worth logging the
 moment it's *made*; implementation can lag, and the `Status:` line says
@@ -73,17 +75,17 @@ license:
 - **A reversed *shipped* decision forks a tombstone, it is not
   overwritten.** When a design was tried, shipped, and then thrown away,
   leave the old entry as the scar, set its `Status:` to **Superseded by
-  D-\<slug\>**, and write the replacement fresh. The line: *refined or
+  D_\<slug\>**, and write the replacement fresh. The line: *refined or
   extended* → edit in place; *reversed after shipping* → tombstone + new
   entry.
 
 **Newest first.** Entries run reverse-chronologically by decided date, so
 a scan hits recent decisions first.
 
-**Never read wholesale.** `grep '^## D-' DECISIONS.md` is the index; there
+**Never read wholesale.** `grep '^## D_' DECISIONS.md` is the index; there
 is no ToC (same discipline as `ls ideas/`). Cite an entry by slug. Grep
-tripwire: every `D-<slug>` referenced anywhere in the repo must exist as a
-`^## D-` heading here.
+tripwire: every `D_<slug>` referenced anywhere in the repo must exist as a
+`^## D_` heading here.
 
 **Backfill is opportunistic.** Rejection rationale that already sits
 inline in a yardoc stays put — this file is the home going *forward*. Move
@@ -92,7 +94,7 @@ rejection is crowding out the live design.
 
 ---
 
-## D-virsh-own-pgroup — the session child runs in its own process group, so a terminal resize cannot reach it (2026-08-23)
+## D_virsh_own_pgroup — the session child runs in its own process group, so a terminal resize cannot reach it (2026-08-23)
 
 **Status:** Accepted; the `pgroup: true` on {Virt::VirshSession#start}'s
 `popen3`.
@@ -151,7 +153,7 @@ stdin closing when virtui dies, which was measured to leave no orphan
 - *Ignore `SIGWINCH` in the child via a shell wrapper* (`sh -c 'trap ""
   WINCH; exec virsh …'`). Fixes only the signal we happened to see, and
   pays for it with a `/bin/sh` in the middle of the one transport that
-  must not re-learn quoting — see D-argv-not-shell.
+  must not re-learn quoting — see D_argv_not_shell.
 - *Drop `TERM=dumb` for a terminfo entry with a real `ce`, so the repaint
   is short.* Makes the symptom smaller and the reply stream worse: the
   point of `dumb` is that readline cannot emit ANSI escapes into the
@@ -172,11 +174,11 @@ stdin closing when virtui dies, which was measured to leave no orphan
 
 ---
 
-## D-guest-os-glyph — the guest-OS marker is a two-cell emoji, and an undeclared OS draws a dim `?` rather than a blank (2026-08-23)
+## D_guest_os_glyph — the guest-OS marker is a two-cell emoji, and an undeclared OS draws a dim `?` rather than a blank (2026-08-23)
 
 **Status:** Accepted; implemented in {UI::VMWindow#format_guest_os}.
 
-**Context.** Once {Virt::GuestOS} shipped (D-guest-os-from-xml), every VM
+**Context.** Once {Virt::GuestOS} shipped (D_guest_os_from_xml), every VM
 carried a declared OS family that nothing on screen showed — while that
 same declaration silently decides whether the VM is asked for a swap level
 at all. The VM list's overview line is one row of glyphs and a name in a
@@ -193,7 +195,7 @@ Where a project has a mascot, the mascot wins — 🐧 Tux, 😈 Beastie, 🐡 P
 the marks their users already recognise. 🐉, 💡, 💾 and 🌐 are stand-ins:
 Unicode has no dragonfly, and illumos/DOS/NetWare have no mascot to draw.
 The glyph set was chosen *after* the family list, not alongside it: the list
-comes from osinfo-db (D-guest-os-from-xml), so there is exactly one row to
+comes from osinfo-db (D_guest_os_from_xml), so there is exactly one row to
 fill per family a definition can express, and a spec asserts
 {UI::VMWindow::GUEST_OS_GLYPHS} covers {Virt::GuestOS::FAMILIES} exactly.
 
@@ -251,7 +253,7 @@ shifts a name column, which is why the testing effort went there.
 
 ---
 
-## D-guest-os-from-xml — the guest OS comes from the domain's libosinfo declaration, not from the running guest (2026-08-23)
+## D_guest_os_from_xml — the guest OS comes from the domain's libosinfo declaration, not from the running guest (2026-08-23)
 
 **Status:** Accepted; implemented as {Virt::GuestOS} and {Virt::Virsh#guest_os},
 memoized and gated in {Virt::Cache#update}.
@@ -259,7 +261,7 @@ memoized and gated in {Virt::Cache#update}.
 **Context.** {Virt::GuestAgent} reads the guest's swap level out of its
 `/proc/meminfo`, so the read is Linux-only — and virtui had no idea which of its
 guests were Linux. Two costs, the first of which arrived with
-D-guest-agent-backoff: a Windows guest's `guest-file-open` fails with a phrase
+D_guest_agent_backoff: a Windows guest's `guest-file-open` fails with a phrase
 matching none of {Virt::GuestAgent::EXPECTED_FAILURES}, so it produced one
 `warn` per VM boot for a guest that is merely not Linux; and it spent three
 doomed agent RPCs per tick until the write-off bounded it to one probe a minute,
@@ -293,7 +295,7 @@ family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
   keep its three doomed RPCs per tick and its write-off forever. Beside that:
   invisible for the 20–40s a guest takes to boot, invisible for a shut-off VM,
   needs its own `--timeout` because it *can* wedge on a sick guest, and it drags
-  in the whole D-guest-agent-backoff machinery (does detection share the strike
+  in the whole D_guest_agent_backoff machinery (does detection share the strike
   count? what log level for a guest that cannot answer *yet*? what happens on a
   pre-2.10 `qemu-ga` that refuses the RPC while the file read works fine?). The
   XML answers with none of that. It remains the right *second* source — see
@@ -369,7 +371,7 @@ family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
   `guest-get-osinfo` later as a *corroborating* source: when the agent is up it
   outranks the declaration and can classify an `:unknown` guest live.
 - **{Virt::GuestAgent::EXPECTED_FAILURES} gained `no such file or directory`**,
-  amending D-guest-agent-backoff: a non-Linux guest that declared nothing still
+  amending D_guest_agent_backoff: a non-Linux guest that declared nothing still
   reaches `guest-file-open` on a path that is not there, and that must not be a
   `warn`. The exact libvirt phrasing is unverified — no Windows guest with
   `qemu-guest-agent` was within reach to capture it — so the phrase is an
@@ -381,7 +383,7 @@ family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
   `:unknown` is a definition declaring something outside osinfo-db — not a gap in
   virtui's list. That is what makes the `debug` log for an unmatched id a signal
   worth acting on rather than routine noise, and it is the premise the dim `?`
-  marker leans on (D-guest-os-glyph).
+  marker leans on (D_guest_os_glyph).
 - **Growing {Virt::GuestOS::FAMILIES} is free** precisely because
   {Virt::GuestOS#no_proc_meminfo?} is `!linux?`: nine families were added without
   touching the gate, the cache or the agent. A `windows? || freebsd?` gate would
@@ -390,13 +392,13 @@ family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
 
 ---
 
-## D-guest-agent-backoff — a mute guest is written off for 60s, probed once a minute, and logged only when the failure is one we did not foresee (2026-08-23)
+## D_guest_agent_backoff — a mute guest is written off for 60s, probed once a minute, and logged only when the failure is one we did not foresee (2026-08-23)
 
 **Status:** Accepted; implemented as {Virt::GuestAgent::BACKOFF_SECONDS} and
 {Virt::GuestAgent::EXPECTED_FAILURES}, plus {Virt::GuestAgent#forget}, called
 from {Virt::Cache#update}.
 
-**Context.** The write-off added with D-guest-swap-level shipped as three
+**Context.** The write-off added with D_guest_swap_level shipped as three
 strikes then 300 seconds, announced with a `$log.info` line. Both numbers were
 picked against the guest that will *never* answer — no agent, or `guest-file-*`
 blocked — and both are wrong for the guest that simply cannot answer *yet*. At a
@@ -431,7 +433,7 @@ side, as the agent goes down before libvirt calls the domain stopped.
   three. Without this the "one probe a minute" above is really three, and the
   attempt rate against a *wedged* agent — the case that costs a full
   {Virt::GuestAgent::TIMEOUT_SECONDS} of the timer thread, unlike a mute one —
-  would rise 4.5x over what D-virsh-session assumed.
+  would rise 4.5x over what D_virsh_session assumed.
 
 {Virt::Cache#update} additionally calls {Virt::GuestAgent#forget} for every VM
 it sees not running, so strikes burned during a shutdown do not greet the next
@@ -486,20 +488,20 @@ boot.
 - A guest-induced reboot is still not detected: `forget` cannot fire, because
   the domain never leaves `running`. It heals within the 60s instead, which is
   what makes the short backoff load-bearing and `forget` mere hygiene.
-- D-virsh-session's "revisit only if a wedged guest is measured delaying the
+- D_virsh_session's "revisit only if a wedged guest is measured delaying the
   fleet poll" bullet stays live, and this moves that dial: a wedged guest now
   stalls one tick a minute rather than one per five.
 
 ---
 
-## D-ballooning-voters — {Virt::BallooningVM} runs a list of voters and vetoers instead of a chain of `if`s (2026-08-26)
+## D_ballooning_voters — {Virt::BallooningVM} runs a list of voters and vetoers instead of a chain of `if`s (2026-08-26)
 
 **Status:** Accepted, shipped in {Virt::BallooningVM#decide} and the input classes under
 `lib/virt/ballooning_vm/`.
 
 **Context.** The controller began as two thresholds and one back-off timer, which is
 three `if`s and four ivars — a size at which a branch chain is the right answer. It did
-not stay there. D-swap-shrink-veto added a third consideration, D-swap-raise-vote a
+not stay there. D_swap_shrink_veto added a third consideration, D_swap_raise_vote a
 fourth, and each arrived as another clause spliced into `update` plus more ivars in a
 constructor where nothing said which ivar served which rule. The two originals were the
 worst offenders precisely because they looked innocent: `@trigger_increase_at` and
@@ -538,7 +540,7 @@ reads for every VM on every poll.
   admission costs.
 - **Weighted votes, or a vote that carries a size.** The obvious next step, and premature:
   nothing today wants a different-sized answer to a different input, and the one place it
-  might (a gentler hop for a swap-driven raise) was argued down in D-swap-raise-vote. A
+  might (a gentler hop for a swap-driven raise) was argued down in D_swap_raise_vote. A
   vote that carried a size would also put a tuning number on every input class, which is
   the field soup this refactor exists to undo.
 - **Raise vetoes, for symmetry.** Nothing needs one, and rule 1 says why: nothing should
@@ -566,12 +568,12 @@ reads for every VM on every poll.
 
 ---
 
-## D-swap-raise-vote — a guest writing to swap is grown on the spot, by the same 30% the usage trigger uses (2026-08-26)
+## D_swap_raise_vote — a guest writing to swap is grown on the spot, by the same 30% the usage trigger uses (2026-08-26)
 
 **Status:** Accepted, shipped in {Virt::BallooningVM::SwapOutRaiseVoter}, consulted from
 {Virt::BallooningVM#update}. Deliberately the naive form — see *Consequences*.
 
-**Context.** D-swap-shrink-veto closed half of root cause 3 and said so: it stops the
+**Context.** D_swap_shrink_veto closed half of root cause 3 and said so: it stops the
 controller *taking* memory from a swapping guest, but the state actually measured —
 61% used, controller idle, 2 GiB parked in swap — had no shrink in flight at all, so
 the veto would never have fired. Nothing was ever going to grow that VM, because
@@ -640,7 +642,7 @@ that trickles to swap benignly, the two want to move in opposite directions.
 
 ---
 
-## D-cooldown-monotonic — {Cooldown} counts uptime, and exposes a writable clock so specs can travel it (2026-08-26)
+## D_cooldown_monotonic — {Cooldown} counts uptime, and exposes a writable clock so specs can travel it (2026-08-26)
 
 **Status:** Accepted, shipped in {Cooldown}.
 
@@ -705,7 +707,7 @@ this makes the two agree rather than adding a second convention.
   models fine; what looked like an obstacle — `backing_off?` deleting the entry on lapse
   — turned out to be bookkeeping, since a lapsed {Cooldown} answers `false` for ever.
   The load-bearing half is that the *strike count* is untouched there
-  (D-guest-agent-backoff), and that is unchanged.
+  (D_guest_agent_backoff), and that is unchanged.
 - {Virt::VirshSession}'s read deadline is on it too, which is the one consumer not
   confined to a single thread. `Uptime.travel` swaps a process-global, so it must not be
   used while another thread holds a live {Cooldown}; its yardoc says so. No spec wants to
@@ -724,7 +726,7 @@ this makes the two agree rather than adding a second convention.
 
 ---
 
-## D-swap-shrink-veto — a guest seen writing to swap has its memory frozen for 60s, on the rate rather than the level (2026-08-26)
+## D_swap_shrink_veto — a guest seen writing to swap has its memory frozen for 60s, on the rate rather than the level (2026-08-26)
 
 **Status:** Accepted, shipped in {Virt::BallooningVM::SwapOutShrinkVetoer}, consulted
 from {Virt::BallooningVM#update}.
@@ -764,7 +766,7 @@ swap-used is a high-water scar, not a pressure gauge.
 **Alternatives rejected.**
 
 - **Veto while the swap *level* is non-zero.** The obvious reading of "don't shrink
-  a swapping guest", and newly implementable since D-guest-swap-level put the real
+  a swapping guest", and newly implementable since D_guest_swap_level put the real
   level on screen. Rejected because the level is a scar: swap slots are freed by
   write faults and process exit with no `swap_in`, and a page swapped out at boot can
   sit there for hours. Gating on it means a VM that swapped once is never shrunk
@@ -808,7 +810,7 @@ swap-used is a high-water scar, not a pressure gauge.
   controller idle, 2 GiB swapped — had no shrink in flight at all, so the veto would
   never have fired. Veto-only left a stable bad equilibrium: the guest trickles to disk,
   `percent_used` sits mid-deadband, nothing is attempted, the trickle continues. The
-  other half is **D-swap-raise-vote**, which grows on the same signal; what remains open
+  other half is **D_swap_raise_vote**, which grows on the same signal; what remains open
   after it is the *bound* on that growth, in `ideas/swap-despite-ballooning.md`.
 - The 60 s cooldown costs density: a VM that swaps once an hour holds its memory a
   minute longer each time. Deliberate, and bounded by being finite.
@@ -819,7 +821,7 @@ swap-used is a high-water scar, not a pressure gauge.
   enough to filter the trickle is also high enough to blind a *grow* trigger, which
   is why the grow half cannot simply reuse this constant.
 - **The shape this sets for what follows**, generalised a day later into
-  D-ballooning-voters, which turned the two original thresholds into inputs of the same
+  D_ballooning_voters, which turned the two original thresholds into inputs of the same
   kind. An input is a small object under `lib/virt/ballooning_vm/` fed every sample
   via `observe`, answering one question as a `String` reason or `nil` — the
   `nil`-or-reason return is deliberate: it makes the maintainer-facing status line fall
@@ -827,19 +829,19 @@ swap-used is a high-water scar, not a pressure gauge.
   vetoers reduces over. There is one today, held in a plain ivar; the array arrives with
   the second, not before.
 - `swap_out_rate` now has a second consumer (the first is the SWAP row,
-  D-swap-row-two-cells), so its carry-forward-when-the-sample-is-stale behaviour is
+  D_swap_row_two_cells), so its carry-forward-when-the-sample-is-stale behaviour is
   now load-bearing for a control decision, not just for a readable display.
 
 ---
 
-## D-swap-row-two-cells — the SWAP row splits into guest occupancy and host I/O (2026-08-21)
+## D_swap_row_two_cells — the SWAP row splits into guest occupancy and host I/O (2026-08-21)
 
 **Status:** Accepted, shipped in {UI::VMWindow#format_swap_line}.
 
 **Context.** Until now the row carried one figure — the swap-out *rate* —
 in the guest cell, with the two since-boot counters as a tail and the host
 cell left empty on the grounds that swap is a guest-only concern
-(D-swap-row-always-on). D-guest-swap-level then produced a second figure,
+(D_swap_row_always_on). D_guest_swap_level then produced a second figure,
 the swap *level*, and it does not fit beside the rate: at a ~100-column
 terminal one cell is ~42 characters, and three figures plus two bars in
 that space shrinks the level bar to ~10 characters, which is exactly the
@@ -890,19 +892,19 @@ caption, not blank space.
   different quantities. The captions carry that (`1.8G` of `4G` vs `3M/s`),
   and the yardoc says it in a line.
 - A guest reporting a level but no swap counters still gets *no row*: the
-  gate is unchanged (D-swap-row-always-on), and the host cell needs the
+  gate is unchanged (D_swap_row_always_on), and the host cell needs the
   counters. No distro kernel builds without `CONFIG_VM_EVENT_COUNTERS`, so
   this stays theoretical.
-- The rate gauge got wider, so D-swap-rate-full-scale's sensitivity figure
+- The rate gauge got wider, so D_swap_rate_full_scale's sensitivity figure
   moved with it; the constant itself is unchanged.
 
 ---
 
-## D-guest-swap-level — read the guest's swap level from its own `/proc/meminfo`, through the QEMU guest agent (2026-08-21)
+## D_guest_swap_level — read the guest's swap level from its own `/proc/meminfo`, through the QEMU guest agent (2026-08-21)
 
 **Status:** Accepted, shipped: {Virt::GuestAgent} reads it,
 {Virt::Cache#update} samples one level per running VM into
-{Virt::Cache::VMCache}, and the `SWAP` row shows it (D-swap-row-two-cells).
+{Virt::Cache::VMCache}, and the `SWAP` row shows it (D_swap_row_two_cells).
 
 **Context.** `domstats` gives `balloon.swap_in`/`swap_out`, which are
 since-boot *I/O counters*: they never fall when swap slots are freed, so a
@@ -956,7 +958,7 @@ tokenizer off JSON's backslashes.
   us.
 - **`Libvirt::Domain#qemu_agent_command` via ruby-libvirt.** Saves the
   spawn, but ruby-libvirt 0.8.4 never releases the GVL, so one wedged
-  `qemu-ga` freezes the entire TUI rather than one thread — see D-virsh-cli.
+  `qemu-ga` freezes the entire TUI rather than one thread — see D_virsh_cli.
 
 **Consequences.**
 
@@ -977,7 +979,7 @@ tokenizer off JSON's backslashes.
 
 ---
 
-## D-swap-rate-full-scale — the swap gauge reads against a fixed 20 MiB/s, not a per-VM maximum (2026-08-21)
+## D_swap_rate_full_scale — the swap gauge reads against a fixed 20 MiB/s, not a per-VM maximum (2026-08-21)
 
 **Status:** Accepted; implemented as `UI::VMWindow::SWAP_RATE_FULL_SCALE`, read
 by {UI::VMWindow#format_swap_line}.
@@ -1035,7 +1037,7 @@ with it.
 
 ---
 
-## D-swap-row-always-on — every running VM keeps its SWAP row, even at rest (2026-08-21)
+## D_swap_row_always_on — every running VM keeps its SWAP row, even at rest (2026-08-21)
 
 **Status:** Accepted; implemented in {UI::VMWindow#format_swap_line}.
 
@@ -1084,7 +1086,7 @@ already next to the VM name.
 
 ---
 
-## D-mem-stats-self-armed — virtui arms guest mem-stat collection itself, on every VM start (2026-06-10)
+## D_mem_stats_self_armed — virtui arms guest mem-stat collection itself, on every VM start (2026-06-10)
 
 **Status:** Accepted; shipped in 536b566.
 
@@ -1120,16 +1122,16 @@ it survives a guest reboot but not a full power-off, which is why the arming
 is keyed on the not-running → running transition rather than done once at
 startup. A VM that still reports frozen data (no balloon device, no guest
 tools) is caught downstream by the staleness check — see
-`D-wall-clock-mem-age`.
+`D_wall_clock_mem_age`.
 
 ---
 
-## D-wall-clock-mem-age — balloon-data age is measured against the sample clock, not between polls (2026-06-10)
+## D_wall_clock_mem_age — balloon-data age is measured against the sample clock, not between polls (2026-06-10)
 
 **Status:** Accepted; shipped in 536b566.
 
 **Context.** Guest balloon data can freeze while everything else about the
-VM keeps updating (see `D-mem-stats-self-armed`). The UI has to be able to
+VM keeps updating (see `D_mem_stats_self_armed`). The UI has to be able to
 say so — that's the 🐢 next to the VM name — and {Virt::BallooningVM} has to
 refuse to resize on frozen numbers.
 
@@ -1156,7 +1158,7 @@ stopped reporting, not why (see the README's ballooning prerequisites).
 
 ---
 
-## D-argv-not-shell — subprocesses take one argument per word, not a command string (2026-08-21)
+## D_argv_not_shell — subprocesses take one argument per word, not a command string (2026-08-21)
 
 **Status:** Accepted. {Run.sync} and {Run.async} take a splat; every call
 site that interpolates a VM name or a file path passes it as its own
@@ -1226,7 +1228,7 @@ nothing interpolated.
 - {Virt::VirshSession.quote} is now the only quoting code in the project,
   and it has exactly one target: `virsh`'s tokenizer.
 
-## D-virsh-session — a persistent `virsh` REPL serves the reads (2026-08-21, default since 2026-08-23)
+## D_virsh_session — a persistent `virsh` REPL serves the reads (2026-08-21, default since 2026-08-23)
 
 **Status:** Accepted. {Virt::VirshSession} is what `bin/virtui` builds;
 {Virt::VirshSpawn} still serves every mutating command, and is the
@@ -1279,7 +1281,7 @@ command keeps its own process and its own exit status.
   runner entirely.
 - *One session per VM, with per-VM fault isolation and circuit breakers.*
   That machinery is justified only by an O(running-VMs) workload — per-VM
-  guest-agent reads. Those now exist (D-guest-swap-level) and one shared
+  guest-agent reads. Those now exist (D_guest_swap_level) and one shared
   child still serves them: the reads are serialised behind this session's
   mutex, a per-call `--timeout` bounds the damage a wedged guest can do, and
   {Virt::GuestAgent}'s own write-off is the circuit breaker, at no
@@ -1289,7 +1291,7 @@ command keeps its own process and its own exit status.
   ~6.5x larger summed RSS, almost all of which is shared pages. The fleet-wide `domstats` poll still needs exactly one
   child; conflating the two is what made this look more expensive than it is.
 - *The `ruby-libvirt` binding, to avoid subprocesses altogether.* Rejected
-  separately and for a harder reason — see D-virsh-cli, whose GVL paragraph
+  separately and for a harder reason — see D_virsh_cli, whose GVL paragraph
   is the argument: the gem never releases the GVL, so an in-process libvirt
   call freezes the UI thread. A subprocess cannot.
 - *Merging the child's stderr into stdout* (as the idea note first
@@ -1338,7 +1340,7 @@ command keeps its own process and its own exit status.
   failure path, which degrades to spawning — the floor is today's
   behaviour, which is why they did not block the promotion.
 
-## D-virsh-cli — drive libvirt by shelling out to `virsh`, not the ruby-libvirt binding (2025-11-11)
+## D_virsh_cli — drive libvirt by shelling out to `virsh`, not the ruby-libvirt binding (2025-11-11)
 
 **Status:** Accepted. {Virt::Virsh} is the only real backend;
 `Virt::LibVirtClient` was deleted in e3e0faa.
@@ -1361,7 +1363,7 @@ otherwise `bin/virtui` falls back to {Virt::VMEmulator} demo mode.
   the thing to revisit, not re-litigate, once that bug moves.
 
   **A second, worse objection, found 2026-08-21 while designing
-  D-guest-swap-level: ruby-libvirt 0.8.4 never releases the GVL.** The
+  D_guest_swap_level: ruby-libvirt 0.8.4 never releases the GVL.** The
   extension imports no `rb_thread_*` symbol at all, so every libvirt call
   holds the GVL for its full duration — measured with a blocking
   `Libvirt::open` to an unroutable address, which stopped a ticker thread

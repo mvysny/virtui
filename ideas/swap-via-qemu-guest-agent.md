@@ -3,8 +3,8 @@
 **Status:** the **read half is BUILT** (2026-08-21) — {Virt::GuestAgent} reads the
 guest's `/proc/meminfo` via `guest-file-open`/`read`/`close`, {Virt::Cache#update}
 samples one level per running VM, and the `SWAP` row shows it. See DECISIONS.md
-D-guest-swap-level (the choice, and `guest-exec` as the road not taken) and
-D-swap-row-two-cells (the row). The **drain half stays parked**, and so does the
+D_guest_swap_level (the choice, and `guest-exec` as the road not taken) and
+D_swap_row_two_cells (the row). The **drain half stays parked**, and so does the
 question of whether anything should *act* on the level.
 
 What this page is still for, and why it is not deleted yet:
@@ -17,9 +17,9 @@ What this page is still for, and why it is not deleted yet:
   `read_file` call away from being measurable;
 - the 2026-08-20 measurement table, which is evidence rather than a durable fact.
 
-Graduated and cut from here: the transport question (D-guest-swap-level), the GVL
-finding (D-virsh-cli, which now carries it as an argument against the binding),
-the persistent-session idea (D-virsh-session, whose own
+Graduated and cut from here: the transport question (D_guest_swap_level), the GVL
+finding (D_virsh_cli, which now carries it as an argument against the binding),
+the persistent-session idea (D_virsh_session, whose own
 note has since graduated and been deleted), and the four gotchas' *contract* (the yardoc on
 {Virt::GuestAgent#read_file}).
 
@@ -124,7 +124,7 @@ read passes `--timeout 2`.
 
 1. ~~**Current swap level.**~~ **Built** — `SwapTotal`/`SwapFree` from
    `/proc/meminfo`, because the balloon gives only cumulative `pswpin`/`pswpout`
-   — a rate, never a level. See D-guest-swap-level; nothing here to decide.
+   — a rate, never a level. See D_guest_swap_level; nothing here to decide.
 2. **Force-drain.** As root: `swapoff -a && swapon -a` (blunt, all-or-nothing,
    `try_to_unuse()`), or a rate-limited `process_madvise(pidfd, MADV_WILLNEED)`
    sweep over the swapped ranges found in `/proc/*/smaps`.
@@ -201,5 +201,5 @@ Three findings worth carrying over:
 - **What would a drain cost in capability?** It needs `guest-exec` — remote root
   in every managed VM, and a *write* path where everything shipped so far only
   reads a file. Opt-in flag? Only on an explicit keypress, never in the loop?
-  That is the fork D-guest-swap-level deliberately did not settle.
+  That is the fork D_guest_swap_level deliberately did not settle.
 

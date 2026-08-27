@@ -16,7 +16,7 @@ module Virt
   # Pair it with a {VirshSession}. One sample is three agent calls (open/read/close), each
   # ~13 ms of libvirtd+QMP+virtio-serial round-trip *plus* ~18 ms of process spawn on
   # {VirshSpawn} — that spawn, three times per VM per tick, is what makes the swap level a
-  # session-only feature. See DECISIONS.md D-guest-swap-level.
+  # session-only feature. See DECISIONS.md D_guest_swap_level.
   #
   # == Implementation details
   #
@@ -55,7 +55,7 @@ module Virt
     # spent 6s after libvirt calls the domain running, long before `qemu-ga` connects, so
     # every VM start writes its own guest off and waits the backoff out with a blank swap
     # gauge. The strike count then survives a lapse ({#backing_off?}), making a still-mute
-    # guest cost one probe a minute rather than three. See DECISIONS.md D-guest-agent-backoff.
+    # guest cost one probe a minute rather than three. See DECISIONS.md D_guest_agent_backoff.
     FAILURES_BEFORE_BACKOFF = 3
     # @see FAILURES_BEFORE_BACKOFF
     BACKOFF_SECONDS = 60
@@ -70,7 +70,7 @@ module Virt
     #
     # Matching libvirt's error text is fragile on purpose-limited grounds: it picks the *log
     # level* only, never the write-off, so a miss costs one `warn` line and a new libvirt
-    # phrasing cannot change what virtui does. See DECISIONS.md D-guest-agent-backoff.
+    # phrasing cannot change what virtui does. See DECISIONS.md D_guest_agent_backoff.
     EXPECTED_FAILURES = ['guest agent is not responding', 'guest agent disappeared',
                          'has not been found', 'domain is not running',
                          'no such file or directory'].freeze
@@ -131,7 +131,7 @@ module Virt
     # exec nor a process spawned in the guest, and `guest-exec` is asynchronous — its reply
     # carries only a PID, so the output takes a second `guest-exec-status` round-trip that
     # cannot be issued until the guest process has exited. See DECISIONS.md
-    # D-guest-swap-level.
+    # D_guest_swap_level.
     #
     # @param domain [String] VM name
     # @param path [String] absolute path of the file, as the *guest* sees it

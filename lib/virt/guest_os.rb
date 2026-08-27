@@ -12,7 +12,7 @@ module Virt
   # installed in the guest, but it says what the *creator* told libvirt. So it can be stale
   # (a definition made `--os-variant win10`, then used to install Linux) and it is absent
   # from a hand-written definition. Why this rather than asking `qemu-guest-agent` what is
-  # actually booted: DECISIONS.md D-guest-os-from-xml.
+  # actually booted: DECISIONS.md D_guest_os_from_xml.
   #
   # @!attribute [r] family
   #   @return [Symbol] one of {FAMILIES}' keys, or `:unknown` for both an id no vendor in
@@ -126,7 +126,7 @@ module Virt
     # been asked and answered. Deliberate, and the reason a `windows? || freebsd?` gate —
     # which lets `:unknown` fall through, and which every family added to {FAMILIES} would
     # have to be threaded into — was not taken; the trade is invisible on a fleet built by
-    # virt-manager, where nothing is `:unknown`. See DECISIONS.md D-guest-os-from-xml.
+    # virt-manager, where nothing is `:unknown`. See DECISIONS.md D_guest_os_from_xml.
     #
     # @return [Boolean] `true` for every family except `:linux`
     def no_proc_meminfo? = !linux?

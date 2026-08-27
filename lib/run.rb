@@ -12,7 +12,7 @@
 #                                   # containing a quote or a space breaks it
 #
 # Ruby hands a lone string to `/bin/sh`, so interpolating a VM name or a file path into
-# one means hand-escaping it correctly forever — see DECISIONS.md D-argv-not-shell. The
+# one means hand-escaping it correctly forever — see DECISIONS.md D_argv_not_shell. The
 # single-string form is kept only for literal commands with no interpolation.
 module Run
   # Runs `command` in the background, logging its combined output only if it fails.

@@ -23,15 +23,15 @@ Tuile.logger = $log
 # Update terminal title to show "VirTUI"
 print "\e]0;VirTUI\a"
 
-# The virsh CLI is the only real backend — see DECISIONS.md D-virsh-cli. With no virsh
+# The virsh CLI is the only real backend — see DECISIONS.md D_virsh_cli. With no virsh
 # installed there is nothing to manage, so fall back to the demo fleet.
 #
 # Reads come from one long-lived virsh child instead of a process per command: ~78x less
-# CPU per read (DECISIONS.md D-virsh-session), and it degrades to spawning by itself if
+# CPU per read (DECISIONS.md D_virsh_session), and it degrades to spawning by itself if
 # the child misbehaves, logging why. To go back to a process per command, put
 # Virt::VirshSpawn.new here and drop the guest agent with it — the guest swap level is
 # three qemu-agent-command calls per running VM per tick, and it is the process spawn, not
-# the libvirt round-trip, that makes those unaffordable (DECISIONS.md D-guest-swap-level).
+# the libvirt round-trip, that makes those unaffordable (DECISIONS.md D_guest_swap_level).
 runner = Virt::VirshSession.new if Virt::Virsh.available?
 virt = runner ? Virt::Virsh.new(runner: runner, guest_agent: Virt::GuestAgent.new(runner: runner)) : Virt::VMEmulator.demo
 

@@ -16,7 +16,7 @@
 # Measured on {.now} — **uptime, not wall time**. Ten seconds means ten elapsed seconds
 # whatever the wall clock does in between: an NTP correction, a timezone change and a
 # manual `date` all leave a running cooldown exactly where it was. That is the contract,
-# and it is why Timecop cannot move one — see DECISIONS.md D-cooldown-monotonic, and
+# and it is why Timecop cannot move one — see DECISIONS.md D_cooldown_monotonic, and
 # `Uptime.travel` in `spec/spec_helper.rb` for the counterpart specs use instead.
 #
 # Immutable, and reads the clock on every call — two calls a second apart disagree.

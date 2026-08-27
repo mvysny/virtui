@@ -67,7 +67,7 @@ describe Virt::GuestOS do
 
   context 'no_proc_meminfo?' do
     # The whole point of the class: Windows and FreeBSD are never asked for /proc/meminfo,
-    # and neither is a guest that declared nothing (see DECISIONS.md D-guest-os-from-xml).
+    # and neither is a guest that declared nothing (see DECISIONS.md D_guest_os_from_xml).
     it 'is true for everything except a declared Linux' do
       refute Virt::GuestOS.from_osinfo_id('http://ubuntu.com/ubuntu/25.10').no_proc_meminfo?
       assert Virt::GuestOS.from_osinfo_id('http://microsoft.com/win/11').no_proc_meminfo?

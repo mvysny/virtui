@@ -23,7 +23,7 @@ module UI
     # bar left to grow into, which costs sensitivity at the bottom — on a ~100-column terminal
     # the gauge's first character lights at ~0.8 MiB/s, so a trickle below that reads as an
     # empty bar and only the warn-colored label reports it. See DECISIONS.md
-    # D-swap-rate-full-scale for the self-scaling alternatives this rejects.
+    # D_swap_rate_full_scale for the self-scaling alternatives this rejects.
     SWAP_RATE_FULL_SCALE = 20.MiB
 
     # Width of the swap row's `↕traffic` tail — the arrow plus a 5-char byte size. Fixed, so
@@ -33,7 +33,7 @@ module UI
     # The guest-OS marker drawn between a VM's state glyph and its name, keyed by
     # {Virt::GuestOS#family}. Emoji, because the overview line is already read by its glyphs
     # (▶/⏹/🎈/🐢), and a family with no entry here — `:unknown` — falls through to the
-    # dim `?` {#format_guest_os} draws instead. See DECISIONS.md D-guest-os-glyph.
+    # dim `?` {#format_guest_os} draws instead. See DECISIONS.md D_guest_os_glyph.
     #
     # One entry per {Virt::GuestOS::FAMILIES} key, so every declaration osinfo-db can express
     # draws something. Where a project has a mascot the mascot wins (🐧 Tux, 😈 Beastie,
@@ -392,12 +392,12 @@ module UI
     #
     # Why the rate sits on the host side rather than beside the level: {#swap_io_bar}. Why an
     # unknown level is dashes rather than blank: {#swap_level_bar}. Both in DECISIONS.md
-    # D-swap-row-two-cells.
+    # D_swap_row_two_cells.
     #
     # Rendered whether or not the guest is swapping, so the warn coloring on the label rather
     # than the row's presence is what draws the eye: hiding the row at rest made every VM
     # below it jump a row on each swap burst. Absent *counters* are the one case that still
-    # hides it, because that state never flips back — see DECISIONS.md D-swap-row-always-on.
+    # hides it, because that state never flips back — see DECISIONS.md D_swap_row_always_on.
     # (A guest that reports a level but no counters therefore gets no row at all; no distro
     # kernel builds without `CONFIG_VM_EVENT_COUNTERS`, so that combination stays theoretical.)
     #

@@ -206,5 +206,5 @@ $ bundle exec rake spec
 
 - `+-` increases/shrinks active memory by 10% and disables automatic ballooning
 - Add [libvirt](https://ruby.libvirt.org/) client instead of shelling out to `virsh`: blocked by
-  [bug #1](https://github.com/mvysny/virtui/issues/1). See `DECISIONS.md` `D-virsh-cli`.
+  [bug #1](https://github.com/mvysny/virtui/issues/1). See `DECISIONS.md` `D_virsh_cli`.
 

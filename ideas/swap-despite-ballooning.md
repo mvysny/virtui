@@ -386,8 +386,8 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    `lib/virt/ballooning_vm/` — `SwapOutRaiseVoter` (rate over a 1 MiB/s noise floor →
    the same `+30%` the usage trigger takes) and `SwapOutShrinkVetoer` (a 60 s veto from
    the last such sample, i.e. the cooldown of correction 2 rather than the literal
-   per-sample form). Rationale and roads not taken: `DECISIONS.md` D-swap-raise-vote and
-   D-swap-shrink-veto; constants and their provenance sit next to their values in each
+   per-sample form). Rationale and roads not taken: `DECISIONS.md` D_swap_raise_vote and
+   D_swap_shrink_veto; constants and their provenance sit next to their values in each
    class. **What is left of this fix is the bound on the raise** — see the open item
    below; everything else here is kept only where it still argues that.
 
@@ -432,7 +432,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    bytes/s — the same seam that already derives `cpu_usage` and
    `mem_data_age_seconds`, so it inherits their lifecycle. `UI::VMWindow` renders a
    `SWAP` row per swapping VM — since 2026-08-21 with the guest's actual swap
-   *level* beside it, read through the guest agent (D-guest-swap-level): root
+   *level* beside it, read through the guest agent (D_guest_swap_level): root
    cause 3's erased evidence recovered rather than estimated. Nothing acts on
    either figure yet: **that was deliberate** — the trigger threshold had to be
    observed before it could be chosen, and the observation below is that
@@ -485,7 +485,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
       plus a check that the growth actually helped.
    2. ~~**The shrink veto needs a cooldown, not per-sample "advancing".**~~
       **Graduated** — this is the shape that shipped, and the argument for it now
-      lives in `DECISIONS.md` D-swap-shrink-veto.
+      lives in `DECISIONS.md` D_swap_shrink_veto.
 
    **And the veto alone is not enough** — worth stating plainly because it is easy to
    conclude the opposite from "accept the swapping, just stop making it worse". The
@@ -498,7 +498,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    **Still open — the one thing left in this fix: the ratchet.** What shipped is the
    naive response: vote fires, `+30%`, every guest sample the rate stays up. Nothing
    bounds how far the swap signal alone may raise a VM except `max_memory`, and nothing
-   checks that a raise *helped*. Two consequences, both recorded in D-swap-raise-vote so
+   checks that a raise *helped*. Two consequences, both recorded in D_swap_raise_vote so
    they are not rediscovered: a normal burst overshoots (8 GiB → ~22.8 GiB in ~20 s
    against a 3 GiB allocation, unwound over the following ~100 s by the ordinary
    shrink), and a guest whose reclaim more memory cannot fix — cgroup-limited inside the
@@ -603,7 +603,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
 **Overtaken in part, 2026-08-21 (later the same day): the swap *level* is now read
 straight from the guest.** {Virt::GuestAgent} fetches `SwapTotal`/`SwapFree` from
 the guest's own `/proc/meminfo` through `qemu-guest-agent`, and the `SWAP` row
-shows it beside the rate (DECISIONS.md D-guest-swap-level, D-swap-row-two-cells).
+shows it beside the rate (DECISIONS.md D_guest_swap_level, D_swap_row_two_cells).
 What that does to this section:
 
 - the **`debt` candidate below is now the fallback, not the plan.** For a guest
@@ -928,8 +928,8 @@ is the rest, per the CLAUDE.md graduation map.
 
 - the response to a non-zero `swap_out` finally chosen, with the three rejected
   shapes and the `HALF_LIFE` fork → **DECISIONS.md**. Both halves landed on
-  2026-08-26 (D-swap-shrink-veto, D-swap-raise-vote); what is left to land is the
-  *bound* on the raise, and it belongs in D-swap-raise-vote, which already names its
+  2026-08-26 (D_swap_shrink_veto, D_swap_raise_vote); what is left to land is the
+  *bound* on the raise, and it belongs in D_swap_raise_vote, which already names its
   absence as a consequence. Whatever constant survives
   (noise floor, half-life, cooldown) carries its provenance in the yardoc next to
   it — the noise floor's being "the rate is 0 at rest on these guests", the

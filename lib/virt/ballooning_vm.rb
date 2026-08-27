@@ -46,7 +46,7 @@ module Virt
 
       # How much to raise by, as a percentage: 30 means the actual goes to 130%. No
       # back-off gates it, so this is also a velocity — one hop per new guest sample, i.e.
-      # roughly one per 5s. See DECISIONS.md D-swap-raise-vote for what that costs.
+      # roughly one per 5s. See DECISIONS.md D_swap_raise_vote for what that costs.
       @increase_memory_by = 30
 
       # How much to lower by, as a percentage: 10 means the actual goes to 90%. Deliberately
