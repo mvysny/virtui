@@ -86,13 +86,17 @@ module System
     # Reads the host CPU feature flags from `/proc/cpuinfo` (e.g. `svm`/`vmx` for
     # virtualization support).
     #
+    # Folds three of the kernel's lines into one set: the general `flags:` line, plus
+    # the `vmx flags:` / `svm flags:` lines it prints for the virtualization
+    # sub-features. The VT-x sub-features (`ept`, `vpid`) live *only* on `vmx flags:`,
+    # so reading `flags:` alone reported every Intel host as lacking EPT. The three
+    # namespaces don't collide, so one flat set is enough.
+    #
     # @return [Set<String>] the CPU flags
     def cpu_flags
-      l = File.read('/proc/cpuinfo').lines
-      l = l.filter { |it| it.start_with? 'flags' }
-      l = l.flat_map(&:split).to_set
-      l.subtract(['flags', ':'])
-      l
+      lines = File.read('/proc/cpuinfo').lines
+      lines = lines.filter { |it| it.start_with?('flags', 'vmx flags', 'svm flags') }
+      lines.flat_map { |it| it.split(':', 2)[1].to_s.split }.to_set
     end
   end
 end

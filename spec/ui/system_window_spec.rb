@@ -30,10 +30,9 @@ module Tuile
       w
     end
 
-    # The lines of the currently-open help InfoWindow, joined into one string.
+    # The plain (unstyled) text of the currently-open {UI::CpuFlagsWindow} popup.
     def help_text
-      info = Screen.instance.popups[0].content
-      info.content.items.join("\n")
+      Screen.instance.popups[0].content.content.text.to_s
     end
 
     it 'smokes' do
@@ -47,9 +46,9 @@ module Tuile
       end
 
       it 'lists the Intel flags, folding any xsave* into "xsave"' do
-        flags = %w[vmx ept tsc_deadline pcid vpid invpcid pdpe1gb xsaveopt]
+        flags = %w[vmx ept tsc_deadline_timer pcid vpid invpcid pdpe1gb xsaveopt]
         summary = window_for(cpu_flags: flags).send(:format_cpu_info)
-        %w[vmx ept tsc_deadline pcid vpid invpcid pdpe1gb xsave].each { |f| assert summary.include?(f), summary }
+        %w[vmx ept tsc_deadline_timer pcid vpid invpcid pdpe1gb xsave].each { |f| assert summary.include?(f), summary }
       end
 
       it 'reports software emulation when no virtualization flag is present' do
@@ -61,12 +60,12 @@ module Tuile
 
     context('help window') do
       it 'opens on h and explains the present flags' do
-        w = window_for(cpu_flags: %w[vmx ept tsc_deadline pcid vpid invpcid pdpe1gb xsaveopt])
+        w = window_for(cpu_flags: %w[vmx ept tsc_deadline_timer pcid vpid invpcid pdpe1gb xsaveopt])
         w.handle_key('h')
         popups = Screen.instance.popups
         assert_equal 1, popups.length
-        assert_equal Component::InfoWindow, popups[0].content.class
-        %w[vmx ept tsc_deadline pcid vpid invpcid pdpe1gb xsave].each { |f| assert help_text.include?(f), help_text }
+        assert_equal UI::CpuFlagsWindow, popups[0].content.class
+        %w[vmx ept tsc_deadline_timer pcid vpid invpcid pdpe1gb xsave].each { |f| assert help_text.include?(f), help_text }
       end
 
       it 'explains AMD flags' do

@@ -3,7 +3,7 @@
 module UI
   # The host window: shows CPU model/flags and usage, RAM and swap usage, and per-disk
   # usage — each as a labelled progress bar built from {Virt::Cache} data. Pressing `h`
-  # opens a help window explaining the host's virtualization CPU flags.
+  # opens {CpuFlagsWindow}, explaining the host's virtualization CPU flags.
   #
   # UI-thread-confined.
   class SystemWindow < Tuile::Component::Window
@@ -62,7 +62,7 @@ module UI
       "h #{screen.theme.hint('Help')}"
     end
 
-    # Handles a key press: `h` opens the CPU-flags help window.
+    # Handles a key press: `h` opens {CpuFlagsWindow}.
     #
     # @param key [String] the pressed key
     # @return [Boolean] true if the key was handled
@@ -70,7 +70,7 @@ module UI
       return if super
 
       if key == 'h'
-        show_help_window
+        CpuFlagsWindow.open(@virt_cache.cpu_flags)
         true
       else
         false
@@ -98,60 +98,15 @@ module UI
     # Builds the one-line CPU summary — model, then whichever of the notable
     # virtualization flags the host has:
     #
-    #   x86_64, svm npt tsc_deadline pcid invpcid pdpe1gb xsave
+    #   x86_64, svm npt tsc_deadline_timer pcid invpcid pdpe1gb xsave
     #
-    # {#show_help_window} explains what each flag buys.
+    # The flag list and its order come from {CpuFlag::ALL}; {CpuFlagsWindow} explains
+    # each entry.
     #
     # @return [String] the CPU info line
     def format_cpu_info
-      r = @virt_cache.cpu_info.model + ', '
-      flags = @virt_cache.cpu_flags
-      # Intel VT-x (Virtualization Technology) - required for KVM on Intel
-      vmx = flags.include? 'vmx'
-      # AMD-V (AMD Secure Virtual Machine, aka AMD-V) - required for KVM on AMD
-      svm = flags.include? 'svm'
-      r += 'software' if !vmx && !svm
-      r += 'vmx' if vmx
-      r += 'svm' if svm
-      # EPT/NPT for memory virtualization (almost all CPUs since ~2008 have this)
-      r += ' ept' if flags.include? 'ept'
-      r += ' npt' if flags.include? 'npt'
-      # Faster APIC timer (better timing in guests)
-      r += ' tsc_deadline' if flags.include? 'tsc_deadline'
-      # Process-Context Identifiers – speeds up context switches and TLB flushes in guests
-      r += ' pcid' if flags.include? 'pcid'
-      # (Intel) → tagged TLB, speeds up guest transitions
-      r += ' vpid' if flags.include? 'vpid'
-      # Single-instruction invalidation of PCID – further improves TLB performance
-      r += ' invpcid' if flags.include? 'invpcid'
-      # 1GB huge pages support (greatly improves memory performance for VMs)
-      r += ' pdpe1gb' if flags.include? 'pdpe1gb'
-      # Faster saving/restoring of extended CPU state during VM entry/exit
-      r += ' xsave' if flags.any? { |it| it.start_with? 'xsave' }
-      r
-    end
-
-    # Opens an info window describing each virtualization-related CPU flag the host has —
-    # the glossary for the summary line {#format_cpu_info} builds.
-    # @return [void]
-    def show_help_window
-      lines = []
-      flags = @virt_cache.cpu_flags
-      lines += [['vmx', 'Intel VT-x (Virtualization Technology) - required for KVM']] if flags.include? 'vmx'
-      lines += [['svm', 'AMD-V (AMD Secure Virtual Machine, aka AMD-V) - required for KVM']] if flags.include? 'svm'
-      lines += [['software', 'No virtualization supported by CPU, using slow software emulation']] if lines.empty?
-      lines += [['ept', "Intel's Extended Page Tables memory virtualization"]] if flags.include? 'ept'
-      lines += [['npt', "AMD's Nested Page Tables memory virtualization"]] if flags.include? 'npt'
-      lines += [['tsc_deadline', 'Faster APIC timer (better timing in guest OS)']] if flags.include? 'tsc_deadline'
-      lines += [['pcid', 'Process-Context Identifiers – speeds up context switches and TLB flushes in guests']] if flags.include? 'pcid'
-      lines += [['vpid', '(Intel) → tagged TLB (Translation Lookaside Buffer), speeds up guest transitions']] if flags.include? 'vpid'
-      lines += [['invpcid', 'Single-instruction invalidation of PCID – further improves TLB performance']] if flags.include? 'invpcid'
-      lines += [['pdpe1gb', '1GB huge pages support (greatly improves memory performance for VMs)']] if flags.include? 'pdpe1gb'
-      if flags.any? { |it| it.start_with? 'xsave' }
-        lines += [['xsave', 'Faster saving/restoring of extended CPU state during VM entry/exit']]
-      end
-
-      Component::InfoWindow.open('Help', lines.map { |it| it[0] + ': ' + screen.theme.hint(it[1]) })
+      names = CpuFlag.present_in(@virt_cache.cpu_flags).map(&:name)
+      "#{@virt_cache.cpu_info.model}, #{names.join(' ')}"
     end
 
     # Draws a section header: `left` and `right` captions in `token`'s color, joined by a

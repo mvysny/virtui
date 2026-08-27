@@ -83,7 +83,9 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 
 - `UI::AppLayout` — the three-window screen; owns the `1`/`2`/`3` focus keys and the `$log` redirect
 - `UI::VMWindow` — the VM list, its usage bars, and the power/memory/search keys
-- `UI::SystemWindow` — host CPU/RAM/disk bars plus the CPU-flag help window
+- `UI::SystemWindow` — host CPU/RAM/disk bars plus the `h` CPU-flag help key
+- `UI::CpuFlag` — the virtualization CPU-flag glossary both the summary line and the help read
+- `UI::CpuFlagsWindow` — the `h` popup: one word-wrapped paragraph per flag the host has
 - `UI::Formatter` — the progress-bar string builders both windows render through
 - `UI::Theme` — the dark/light token pair; `THEME_DEF` goes to `screen.theme_def=`
 
