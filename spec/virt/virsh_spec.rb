@@ -62,17 +62,18 @@ describe Virt::Virsh do
   context 'guest_swap' do
     before { Helpers.setup_dummy_logger }
 
-    it 'is nil without a guest agent, and never touches the transport' do
+    it 'is nil without a swap sampler, and never touches the transport' do
       runner = RecordingRunner.new
       assert_nil Virt::Virsh.new(runner: runner).guest_swap('ubuntu')
       assert_empty runner.calls
     end
 
-    it 'delegates to the guest agent it was given' do
-      # The agent's own failure path (no agent in the guest) is what a RecordingRunner's
+    it 'delegates to the swap sampler it was given' do
+      # The sampler's own failure path (no agent in the guest) is what a RecordingRunner's
       # empty reply produces, so this asserts the wiring, not the parse.
       runner = RecordingRunner.new
-      assert_nil Virt::Virsh.new(runner: runner, guest_agent: Virt::GuestAgent.new(runner: runner)).guest_swap('ubuntu')
+      sampler = Virt::GuestSwapSampler.new(agent: Virt::GuestAgent.new(runner: runner))
+      assert_nil Virt::Virsh.new(runner: runner, swap_sampler: sampler).guest_swap('ubuntu')
       assert_equal 'qemu-agent-command', runner.calls.first[1]
     end
   end

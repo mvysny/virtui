@@ -10,7 +10,8 @@ module Virt
   # persistent child, {VirshSpawn} for a process per command), so this class holds nothing
   # but parsing:
   #
-  #   Virsh.new(runner: session, guest_agent: GuestAgent.new(runner: session))  # what the app builds
+  #   # what the app builds:
+  #   Virsh.new(runner: session, swap_sampler: GuestSwapSampler.new(agent: GuestAgent.new(runner: session)))
   #   Virsh.new(runner: VirshSpawn.new)           # a process per command
   #   Virsh.new                                   # ditto, and the parser-spec default
   #
@@ -35,11 +36,11 @@ module Virt
     OSINFO_ID = /<os\s+id="([^"]*)"/
 
     # @param runner [VirshSpawn, VirshSession] transport for every `virsh` invocation
-    # @param guest_agent [GuestAgent, nil] the channel {#guest_swap} reads through, or `nil`
-    #   for a backend that reports no swap levels at all
-    def initialize(runner: VirshSpawn.new, guest_agent: nil)
+    # @param swap_sampler [GuestSwapSampler, nil] the channel {#guest_swap} reads through, or
+    #   `nil` for a backend that reports no swap levels at all
+    def initialize(runner: VirshSpawn.new, swap_sampler: nil)
       @runner = runner
-      @guest_agent = guest_agent
+      @swap_sampler = swap_sampler
     end
 
     # @return [VirshSpawn, VirshSession] the transport in use
@@ -53,8 +54,8 @@ module Virt
     #
     # @param domain_name [String] VM name; must be running
     # @return [ResourceUsage, nil] swap used out of the guest's swap total, or `nil` if there
-    #   is no guest agent to ask (see {GuestAgent#swap} for the other reasons)
-    def guest_swap(domain_name) = @guest_agent&.swap(domain_name)
+    #   is no sampler to ask (see {GuestSwapSampler#swap} for the other reasons)
+    def guest_swap(domain_name) = @swap_sampler&.swap(domain_name)
 
     # The OS family the VM's definition declares, from its libosinfo metadata.
     #
@@ -86,12 +87,12 @@ module Virt
       GuestOS::UNKNOWN
     end
 
-    # Drops what the guest agent remembers about a VM's failed samples.
+    # Drops what the swap sampler remembers about a VM's failed samples.
     #
     # @param domain_name [String] VM name, typically one that has just stopped running (see
-    #   {GuestAgent#forget})
+    #   {GuestSwapSampler#forget})
     # @return [void]
-    def forget_guest(domain_name) = @guest_agent&.forget(domain_name)
+    def forget_guest(domain_name) = @swap_sampler&.forget(domain_name)
 
     # Reads runtime stats for every VM via `virsh domstats`.
     #

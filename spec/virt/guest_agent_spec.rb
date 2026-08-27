@@ -68,7 +68,7 @@ describe Virt::GuestAgent do
   # read — otherwise a guest that fails reads slowly runs out of handles.
   it 'closes the handle even when the read fails' do
     runner = ScriptedAgentRunner.new(HEALTHY_AGENT.merge('guest-file-read' => RuntimeError.new('error: boom')))
-    assert_nil Virt::GuestAgent.new(runner: runner).swap('Ubuntu')
+    assert_raises(RuntimeError) { Virt::GuestAgent.new(runner: runner).swap('Ubuntu') }
     assert_equal %w[guest-file-open guest-file-read guest-file-close], executes(runner)
   end
 
@@ -78,19 +78,19 @@ describe Virt::GuestAgent do
     runner = ScriptedAgentRunner.new(HEALTHY_AGENT.merge(
                                        'guest-file-open' => '{"error":{"class":"CommandNotFound","desc":"blocked"}}'
                                      ))
-    assert_nil Virt::GuestAgent.new(runner: runner).swap('Ubuntu')
-    assert_includes @log.string, 'blocked'
+    error = assert_raises(RuntimeError) { Virt::GuestAgent.new(runner: runner).swap('Ubuntu') }
+    assert_includes error.message, 'blocked'
     # Nothing to close: the open never produced a handle.
     assert_equal ['guest-file-open'], executes(runner)
   end
 
-  it 'reports nothing rather than half a file when the read is truncated' do
+  it 'refuses half a file rather than reporting it as a level' do
     truncated = [File.read('spec/virt/guest_meminfo.txt')[0, 40]].pack('m0')
     runner = ScriptedAgentRunner.new(
       HEALTHY_AGENT.merge('guest-file-read' => %({"return":{"count":40,"buf-b64":"#{truncated}","eof":false}}))
     )
-    assert_nil Virt::GuestAgent.new(runner: runner).swap('Ubuntu')
-    assert_includes @log.string, 'SwapTotal'
+    error = assert_raises(RuntimeError) { Virt::GuestAgent.new(runner: runner).swap('Ubuntu') }
+    assert_includes error.message, 'SwapTotal'
   end
 
   # The class of the error, not the log level, is what a caller polling this hangs its
@@ -117,100 +117,6 @@ describe Virt::GuestAgent do
     end
   end
 
-  it 'stops asking a guest that cannot answer, and says so once' do
-    runner = ScriptedAgentRunner.new('guest-file-open' => RuntimeError.new(
-      'error: Guest agent is not responding: QEMU guest agent is not connected'
-    ))
-    agent = Virt::GuestAgent.new(runner: runner)
-    5.times { assert_nil agent.swap('win11') }
-
-    assert_equal Virt::GuestAgent::FAILURES_BEFORE_BACKOFF, runner.calls.size
-    assert_equal 1, @log.string.scan('not asking again').size
-  end
-
-  it 'tries again once the write-off lapses' do
-    runner = ScriptedAgentRunner.new(HEALTHY_AGENT.merge('guest-file-open' => RuntimeError.new('error: nope')))
-    agent = Virt::GuestAgent.new(runner: runner, backoff_seconds: 0)
-    3.times { agent.swap('win11') }
-    assert_equal 3, runner.calls.size
-
-    assert_nil agent.swap('win11')
-    assert_equal 4, runner.calls.size, 'a lapsed write-off must let the next poll through'
-  end
-
-  it 'waits out the shipped BACKOFF_SECONDS, not merely some write-off' do
-    runner = ScriptedAgentRunner.new(HEALTHY_AGENT.merge('guest-file-open' => RuntimeError.new('error: nope')))
-    agent = Virt::GuestAgent.new(runner: runner) # the real 60s, not a spec's 0
-    Virt::GuestAgent::FAILURES_BEFORE_BACKOFF.times { agent.swap('win11') }
-    written_off_at = runner.calls.size
-
-    Uptime.travel(Virt::GuestAgent::BACKOFF_SECONDS - 1) { assert_nil agent.swap('win11') }
-    assert_equal written_off_at, runner.calls.size, 'a second before the write-off lapses, still not asked'
-
-    Uptime.travel(Virt::GuestAgent::BACKOFF_SECONDS) { assert_nil agent.swap('win11') }
-    assert_equal written_off_at + 1, runner.calls.size, 'asked once more the moment it lapses'
-  end
-
-  it 'spends one probe per lapse, not a fresh three strikes' do
-    runner = ScriptedAgentRunner.new('guest-file-open' => RuntimeError.new('error: nope'))
-    agent = Virt::GuestAgent.new(runner: runner, backoff_seconds: 0)
-    10.times { assert_nil agent.swap('win11') }
-
-    assert_equal Virt::GuestAgent::FAILURES_BEFORE_BACKOFF + 7, runner.calls.size,
-                 'a still-mute guest must re-arm on its single probe, not spend three'
-  end
-
-  # `TTY::Logger` renders the level as a word, so 'warning' is what a warn line is spotted by.
-  context 'log level' do
-    # @param open_error [StandardError] what `guest-file-open` raises on every poll
-    # @return [String] everything logged over the three polls that write the guest off
-    def log_of_write_off(open_error)
-      agent = Virt::GuestAgent.new(runner: ScriptedAgentRunner.new('guest-file-open' => open_error))
-      Virt::GuestAgent::FAILURES_BEFORE_BACKOFF.times { agent.swap('win11') }
-      @log.string
-    end
-
-    it 'keeps a guest with no agent — booting, shutting down, or without one — out of warn' do
-      log = log_of_write_off(RuntimeError.new(
-                               'error: Guest agent is not responding: QEMU guest agent is not connected'
-                             ))
-      assert_includes log, 'not asking again'
-      refute_includes log, 'warning'
-    end
-
-    it 'keeps a blocked guest-file-open out of warn' do
-      log = log_of_write_off(RuntimeError.new(
-                               'win11: guest-file-open failed: {"class"=>"CommandNotFound", ' \
-                               '"desc"=>"The command guest-file-open has not been found"}'
-                             ))
-      assert_includes log, 'not asking again'
-      refute_includes log, 'warning'
-    end
-
-    it 'warns once about a failure no healthy host produces' do
-      runner = ScriptedAgentRunner.new(
-        HEALTHY_AGENT.merge('guest-file-read' => '{"return":{"count":0}}')
-      )
-      agent = Virt::GuestAgent.new(runner: runner, backoff_seconds: 0)
-      10.times { assert_nil agent.swap('win11') }
-
-      assert_equal 1, @log.string.scan('warning').size, 'one warn per episode, at the write-off'
-      assert_includes @log.string, 'gave no buf-b64'
-    end
-  end
-
-  it 'forgets a written-off guest' do
-    runner = ScriptedAgentRunner.new(HEALTHY_AGENT.merge('guest-file-open' => RuntimeError.new('error: nope')))
-    agent = Virt::GuestAgent.new(runner: runner)
-    5.times { agent.swap('win11') }
-    assert_equal Virt::GuestAgent::FAILURES_BEFORE_BACKOFF, runner.calls.size
-
-    agent.forget('win11')
-    assert_nil agent.swap('win11'), 'the guest still cannot answer'
-    assert_equal Virt::GuestAgent::FAILURES_BEFORE_BACKOFF + 1, runner.calls.size,
-                 'a forgotten guest must be asked again at once'
-  end
-
   # The payload is nothing but nested quotes, and this is the end-to-end proof that the
   # session does not mangle it: `test:///default` needs no libvirtd but does reach libvirt's own
   # virDomainQemuAgentCommand, which it then declines — so a quoting bug would surface as a
@@ -220,8 +126,9 @@ describe Virt::GuestAgent do
 
     it 'survives the round-trip through a session' do
       session = Virt::VirshSession.new(uri: 'test:///default')
-      assert_nil Virt::GuestAgent.new(runner: session).swap('test')
-      assert_includes @log.string, 'virDomainQemuAgentCommand'
+      # The class of the refusal is libvirt's business; that it reached that function is ours.
+      error = assert_raises(StandardError) { Virt::GuestAgent.new(runner: session).swap('test') }
+      assert_includes error.message, 'virDomainQemuAgentCommand'
       refute session.degraded?, 'a declined agent call must not write off the session'
       assert_equal 'ok', session.query('echo', 'ok'), 'the session must still line up'
     ensure

@@ -49,7 +49,7 @@ VirTUI is a terminal UI for managing KVM/QEMU VMs via libvirt, built on the
 [tuile](https://github.com/mvysny/tuile) TUI gem and organized into three
 namespaces plus a handful of shared top-level classes.
 
-**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `Virt::Cache#update` (one `domstats` for the fleet, one `Virt::GuestOS` lookup per domain the *first* time it is seen, plus one `Virt::GuestAgent` swap-level read per *running* VM declared Linux) → submits a block to tuile's `EventQueue` → UI thread runs `Virt::Ballooning#update` then `layout.update_data` → dirty components repaint.
+**Update flow:** `bin/virtui` runs a `Concurrent::TimerTask` every 2s on a background thread → calls `Virt::Cache#update` (one `domstats` for the fleet, one `Virt::GuestOS` lookup per domain the *first* time it is seen, plus one `Virt::GuestSwapSampler` swap-level read per *running* VM declared Linux) → submits a block to tuile's `EventQueue` → UI thread runs `Virt::Ballooning#update` then `layout.update_data` → dirty components repaint.
 
 ### Class index
 
@@ -61,7 +61,8 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 - `Virt::Virsh` — the real backend: parses `virsh` text output; owns no transport
 - `Virt::VirshSpawn` — fallback/mutating transport: one `virsh` process per command
 - `Virt::VirshSession` — default transport: one long-lived `virsh` REPL serves the reads
-- `Virt::GuestAgent` — reads a guest's own `/proc/meminfo` (its swap level) via `qemu-guest-agent`
+- `Virt::GuestAgent` — reads a guest's own `/proc/meminfo` (its swap level) via `qemu-guest-agent`; raises
+- `Virt::GuestSwapSampler` — polls one swap level per tick and stops asking a guest that keeps failing
 - `Virt::GuestOS` — the OS family a domain's definition declares; gates the `/proc/meminfo` read
 - `Virt::Cache` — thread-safe cache of every VM's runtime data; the UI reads only this
 - `Virt::Ballooning` — fans one `BallooningVM` out per VM, once per update

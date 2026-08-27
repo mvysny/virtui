@@ -139,8 +139,8 @@ module Virt
     # @!attribute [r] guest_swap
     #   @return [ResourceUsage, nil] how full the guest's swap device is, read from the guest
     #     itself; `nil` for a VM that was not asked (its {#guest_os} does not declare Linux)
-    #     or could not answer (see {GuestAgent#swap}) — which is all of them unless the
-    #     backend was given a {GuestAgent}
+    #     or could not answer (see {GuestSwapSampler#swap}) — which is all of them unless the
+    #     backend was given a {GuestSwapSampler}
     #
     #     The companion to {#swap_out_rate}, and the other half of the story: the rate says
     #     whether reclaim is hitting the device *now*, this says how much the guest is still

@@ -94,6 +94,103 @@ rejection is crowding out the live design.
 
 ---
 
+## D_swap_sampler_split — the guest-agent client raises; a separate {Virt::GuestSwapSampler} owns the write-off (2026-08-27)
+
+**Status:** Accepted; shipped as {Virt::GuestAgent} (protocol + file channel,
+raising) and {Virt::GuestSwapSampler} (the poll policy), wired in `bin/virtui`
+and reached through {Virt::Virsh#guest_swap} as before.
+
+**Context.** {Virt::GuestAgent} had grown four jobs: the `qemu-agent-command`
+protocol, the open/read/close file channel, the `/proc/meminfo` read, and the
+give-up policy from D_guest_agent_backoff (strike counts, the 60s write-off, the
+`debug`/`warn` split). The policy was ~90 of its 256 lines and the only reason
+the class held state at all. Three concrete costs, none of which needed a second
+client to hurt:
+
+- **`#swap`'s `nil` meant four unrelated things** — no swap device, no agent, a
+  blocked RPC, *currently written off* — so its yardoc had to enumerate them and
+  no caller could tell "the guest has no swap" from "we did not ask".
+- **`#read_file` sat outside the write-off it looked protected by.** It is
+  public and advertised as the raw channel, yet it was neither gated by
+  `backing_off?` nor counted into the strikes. A second sampled read — the
+  `/proc/pressure/memory` in its own doc example — would have hammered a wedged
+  guest twice a tick, silently.
+- **The two halves want opposite fixtures.** Protocol specs want scripted JSON
+  and base64 and no clock; policy specs want `Uptime.travel` and an agent that
+  merely raises. Interleaved, every policy example carried a base64 payload it
+  did not care about.
+
+**Decision.** Two classes, plus a type to join them.
+
+{Virt::GuestAgent} keeps the protocol, the file channel and the read, holds no
+state, and *raises*: {Virt::GuestAgent::Unavailable} for the failures a healthy
+host produces on its own ({Virt::GuestAgent::EXPECTED_FAILURES}), any other error
+for a reply the agent does not document. `#swap` therefore returns a
+{ResourceUsage} always — a guest with no swap device reports a `total` of 0,
+because that is what its `/proc/meminfo` says.
+
+{Virt::GuestSwapSampler} holds the strike counts and the write-off, swallows
+every failure into `nil`, and picks the log level off the *class* of the error
+rather than re-matching libvirt's phrasings. The classification stays in the one
+place that talks to libvirt; the policy above it never sees an error string.
+
+The seam is deliberately **not** a decorator: the sampler does not preserve
+{Virt::GuestAgent}'s interface (raises → `nil`) and does not re-expose
+`#read_file`. A caller wanting a one-shot raw read reaches the agent and is
+visibly opting out of the write-off, which is the honest version of what the
+single class did by accident.
+
+**Alternatives rejected.**
+
+- **Leave it as one class.** The status quo, and the tempting answer while there
+  is exactly one client. Rejected on the three costs above, which are present
+  with one client: the overloaded `nil`, the ungated `#read_file`, and the
+  fixture tangle.
+- **Move the policy into {Virt::Cache}.** The strongest alternative, and worth
+  understanding before re-proposing it. It has a real pull: `Cache#update` *is*
+  the poller, it already applies the other two gates (`running?`,
+  `no_proc_meminfo?`), it already owns the per-domain memo of a backend read
+  (`@guest_os`), and it would *delete* code — `Virsh#forget_guest` and
+  `VMEmulator#forget_guest` exist only to forward to the write-off, and the
+  emulator's is a documented no-op. Rejected because it pays for that with the
+  wrong things: a third per-domain hash and a `debug`/`warn` branch inside the
+  densest method in the project; the one swallow in the tree landing in the class
+  that is otherwise strictly loud; the tight write-off specs moving behind a fake
+  backend; and `Virsh#guest_swap` re-acquiring the same two-meanings-for-`nil`
+  problem one level up (no sampler to ask vs. a read that failed).
+- **A generic per-key circuit breaker** (`breaker.call(domain) { agent.swap(domain) }`),
+  top-level next to {Cooldown}. One client today, and to be generic it needs a
+  logging callback and an is-this-expected predicate injected — knobs ahead of
+  the second concrete step. Revisit if a second polled guest read appears; until
+  then duplicating the ~40 lines is the cheaper mistake.
+- **Keying the log level on the error text at each call site**, as before. That
+  is what the {Virt::GuestAgent::Unavailable} type replaces. The bet
+  D_guest_agent_backoff records is unchanged — the text still picks the error
+  *class* only, never the write-off — but it is now placed once, where the
+  phrasings live, instead of at every place that has to choose a level.
+
+**Consequences.**
+
+- **`{Virt::GuestSwapSampler}` names one read, and will need renaming if it
+  grows a second.** Accepted deliberately: `GuestSampler` today would be naming
+  a reader that does not exist. If `/proc/pressure/memory` arrives, either rename
+  or add a sibling — CLAUDE.md's *duplicate rather than fold shallow-commonality
+  shells into a base* points at the sibling.
+- **`#read_file` is now, explicitly, unpoliced.** Nothing counts its failures or
+  skips a written-off guest. That is fine for a one-shot read and wrong for a
+  polled one; a second polled read belongs behind a sampler, not behind a direct
+  agent call.
+- The constants moved: {Virt::GuestSwapSampler::FAILURES_BEFORE_BACKOFF} and
+  {Virt::GuestSwapSampler::BACKOFF_SECONDS}, while
+  {Virt::GuestAgent::EXPECTED_FAILURES} and
+  {Virt::GuestAgent::TIMEOUT_SECONDS} stayed with the client. Citations
+  elsewhere in this file were swept to match.
+- {Virt::Virsh}'s constructor parameter is now `swap_sampler:`. It still answers
+  `nil` from {Virt::Virsh#guest_swap} when given none, so {Virt::Cache} and
+  {Virt::VMEmulator} did not move.
+
+---
+
 ## D_virsh_own_pgroup — the session child runs in its own process group, so a terminal resize cannot reach it (2026-08-23)
 
 **Status:** Accepted; the `pgroup: true` on {Virt::VirshSession#start}'s
@@ -377,7 +474,7 @@ family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
   `qemu-guest-agent` was within reach to capture it — so the phrase is an
   expectation, and a miss costs one `warn` line per boot of such a guest.
 - **The memo never expires.** Editing a domain's definition while virtui runs
-  takes a restart to notice. `Virt::GuestAgent#forget` stays about failure state
+  takes a restart to notice. `Virt::GuestSwapSampler#forget` stays about failure state
   and does not touch it.
 - **`:unknown` now means what it says.** With the table complete, an id reaching
   `:unknown` is a definition declaring something outside osinfo-db — not a gap in
@@ -394,8 +491,8 @@ family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
 
 ## D_guest_agent_backoff — a mute guest is written off for 60s, probed once a minute, and logged only when the failure is one we did not foresee (2026-08-23)
 
-**Status:** Accepted; implemented as {Virt::GuestAgent::BACKOFF_SECONDS} and
-{Virt::GuestAgent::EXPECTED_FAILURES}, plus {Virt::GuestAgent#forget}, called
+**Status:** Accepted; implemented as {Virt::GuestSwapSampler::BACKOFF_SECONDS} and
+{Virt::GuestAgent::EXPECTED_FAILURES}, plus {Virt::GuestSwapSampler#forget}, called
 from {Virt::Cache#update}.
 
 **Context.** The write-off added with D_guest_swap_level shipped as three
@@ -426,8 +523,9 @@ side, as the agent goes down before libvirt calls the domain stopped.
   and wrong for an agent installed incorrectly, a reply we cannot parse, or a
   libvirt error nobody foresaw, which would otherwise be swallowed with the
   rest. {Virt::GuestAgent::EXPECTED_FAILURES} draws the line, matched against
-  the error text; the warn fires exactly at the write-off, so one broken guest
-  costs one line per episode rather than one a minute.
+  the error text once and published as {Virt::GuestAgent::Unavailable}
+  (D_swap_sampler_split); the warn fires exactly at the write-off, so one broken
+  guest costs one line per episode rather than one a minute.
 - **The strike count survives a lapse.** Only a successful sample clears it, so
   a still-mute guest re-arms on the one probe rather than spending a fresh
   three. Without this the "one probe a minute" above is really three, and the
@@ -435,7 +533,7 @@ side, as the agent goes down before libvirt calls the domain stopped.
   {Virt::GuestAgent::TIMEOUT_SECONDS} of the timer thread, unlike a mute one —
   would rise 4.5x over what D_virsh_session assumed.
 
-{Virt::Cache#update} additionally calls {Virt::GuestAgent#forget} for every VM
+{Virt::Cache#update} additionally calls {Virt::GuestSwapSampler#forget} for every VM
 it sees not running, so strikes burned during a shutdown do not greet the next
 boot.
 
@@ -454,7 +552,7 @@ boot.
   expensive answer — it keeps polling a *wedged* agent for the whole window,
   2s of timer thread per tick, which is precisely what the write-off exists to
   bound. The state-transition half of the idea survives as
-  {Virt::GuestAgent#forget}.
+  {Virt::GuestSwapSampler#forget}.
 - *Keying the write-off itself on the error text* (`is not connected` =
   transient, everything else = permanent). Would separate the two guests
   exactly, at the price of hanging virtui's *behaviour* on libvirt's error
@@ -468,7 +566,7 @@ boot.
   cost of the once-per-episode rule is an *intermittent* unexpected error that
   never lands three consecutive strikes: it stays at `debug`. Accepted —
   anything genuinely misconfigured is persistent and surfaces within 6s.
-- *Dropping {Virt::GuestAgent::FAILURES_BEFORE_BACKOFF} to 1*, since a 60s
+- *Dropping {Virt::GuestSwapSampler::FAILURES_BEFORE_BACKOFF} to 1*, since a 60s
   write-off is itself blip tolerance. Cheaper against a wedged agent, but a
   single hiccup then blanks the gauge of a healthy guest for a minute.
 
@@ -478,7 +576,7 @@ boot.
   failure nothing in the log does either: `bin/virtui` pins `$log` at `:info`,
   so seeing those means lowering the level by hand. That is the intended trade —
   the swap level is the only read in the project allowed to go quiet (see
-  {Virt::GuestAgent}). An *unforeseen* failure is the exception and still
+  {Virt::GuestSwapSampler}). An *unforeseen* failure is the exception and still
   announces itself once.
 - {Virt::GuestAgent::EXPECTED_FAILURES} is a list of substrings from another
   project's error messages, so it rots by definition. The failure mode is
@@ -668,7 +766,7 @@ Production never assigns it. Specs travel time through `Uptime.travel`
 An explicit, documented seam rather than a spec reaching in to redefine a method:
 the writability is then part of the class's contract, where the yardoc can say who may
 use it, instead of a monkey-patch that a later `private_class_method` would silently
-break. {Virt::GuestAgent} already runs the same clock for its per-guest write-offs, so
+break. {Virt::GuestSwapSampler} already runs the same clock for its per-guest write-offs, so
 this makes the two agree rather than adding a second convention.
 
 **Alternatives rejected.**
@@ -684,11 +782,11 @@ this makes the two agree rather than adding a second convention.
   8-hour sleep still has 60 s to run on wake against a guest whose state has nothing to
   do with what armed it. `CLOCK_BOOTTIME` is the clock that would fix that specific
   case without reintroducing the NTP exposure; it is not worth the divergence from
-  {Virt::GuestAgent} today, and the cost is at most one stale decision on resume.
+  {Virt::GuestSwapSampler} today, and the cost is at most one stale decision on resume.
 - **Real `sleep`s in the specs.** Fine for {Cooldown}'s own sub-second boundaries,
   impossible for the callers: `BallooningVM`'s specs travel 20–80 s.
 - **Make every duration a constructor parameter, so specs pass 0.** The
-  {Virt::GuestAgent} idiom (`backoff_seconds: 0`), and it does not reach: it needs five
+  {Virt::GuestSwapSampler} idiom (`backoff_seconds: 0`), and it does not reach: it needs five
   new parameters across two classes, it stops the real 10/20/60 s values from being
   exercised at all, and "does it lapse at 60 s" is precisely the assertion that would
   be lost. Injecting the *clock* tests the shipped constants; injecting the
@@ -701,7 +799,7 @@ this makes the two agree rather than adding a second convention.
 - A writable class attribute in production code, load-bearing for tests only. The
   yardoc names its one legitimate caller; anything in `lib/` assigning `Cooldown.clock`
   is a bug.
-- {Virt::GuestAgent} was ported onto {Cooldown} once the clocks agreed, so there is one
+- The swap write-off was ported onto {Cooldown} once the clocks agreed, so there is one
   implementation of "suppressed until it lapses" in the tree rather than two. Its
   deadlines stay per-domain in a `Hash{String => Cooldown}`, which the value object
   models fine; what looked like an obstacle — `backing_off?` deleting the entry on lapse
@@ -921,10 +1019,10 @@ in the guest.
 **Decision.** {Virt::GuestAgent} reads the guest's `/proc/meminfo` with the
 agent's `guest-file-open`/`read`/`close` trio and parses it through
 {System::MemoryStat.parse} — the same parser the host's copy goes through,
-since it is the same file format. Any failure answers `nil`, and a guest
-that fails repeatedly is written off for five minutes: no agent, or an
-agent with the RPC blocked, is a normal state and must never break the
-poll.
+since it is the same file format. Every failure raises, and
+{Virt::GuestSwapSampler} above it answers `nil` and writes a guest off that
+keeps failing (D_guest_agent_backoff, D_swap_sampler_split): no agent, or an
+agent with the RPC blocked, is a normal state and must never break the poll.
 
 Paired with {Virt::VirshSession}, not offered on {Virt::VirshSpawn}: three
 agent calls per VM per tick is where the ~18 ms process spawn stops being
@@ -1284,7 +1382,7 @@ command keeps its own process and its own exit status.
   guest-agent reads. Those now exist (D_guest_swap_level) and one shared
   child still serves them: the reads are serialised behind this session's
   mutex, a per-call `--timeout` bounds the damage a wedged guest can do, and
-  {Virt::GuestAgent}'s own write-off is the circuit breaker, at no
+  {Virt::GuestSwapSampler}'s own write-off is the circuit breaker, at no
   multi-process cost. Revisit only if a wedged guest is measured delaying
   the fleet poll — the price of that revisit is measured: ~2.8 MB PSS per
   extra child (8.2 MB for one, 34.9 MB for ten), so quote PSS and not the

@@ -5,7 +5,7 @@ module Virt
   # guest agent (`qemu-guest-agent`) inside the VM via `virsh qemu-agent-command`:
   #
   #   agent = GuestAgent.new(runner: VirshSession.new)
-  #   agent.swap('Ubuntu')   # => #<ResourceUsage total=4GiB available=2.8GiB>, or nil
+  #   agent.swap('Ubuntu')   # => #<ResourceUsage total=4GiB available=2.8GiB>
   #   agent.read_file('Ubuntu', '/proc/pressure/memory')   # the raw channel
   #
   # `domstats` cannot answer this. Its `pswpin`/`pswpout` are counters that only ever climb,
@@ -18,16 +18,11 @@ module Virt
   # {VirshSpawn} — that spawn, three times per VM per tick, is what makes the swap level a
   # session-only feature. See DECISIONS.md D_guest_swap_level.
   #
-  # == Implementation details
-  #
-  # An enhancement, never a dependency: {#swap} answers `nil` for *any* failure, because a
-  # guest with no agent — or with `guest-file-*` among the agent's `BLOCK_RPCS`, as
-  # RHEL/Fedora ship it — is a normal state, not an internal error. It is the one read path
-  # in the project that swallows; everything under it raises loudly. A guest that keeps
-  # failing is written off and then probed once a minute (see {FAILURES_BEFORE_BACKOFF}).
-  # A failure a healthy host produces on its own ({EXPECTED_FAILURES}) stays at `debug` —
-  # every VM start passes through one while `qemu-ga` comes up — and anything else says so
-  # once, at `warn`, so a misconfigured agent is not swallowed with the rest.
+  # Stateless, and loud: every failure raises, sorted into {Unavailable} (a guest that was
+  # never going to answer — the normal state of a host with agent-less guests) and everything
+  # else (an agent that replied with something it does not document). Polling a fleet through
+  # this wants {GuestSwapSampler}, which turns the first kind into a blank gauge and stops
+  # asking a guest that keeps failing.
   #
   # Timer-thread-confined: three RPCs against a sick guest is exactly the stall that must
   # never reach the UI thread.
@@ -46,19 +41,6 @@ module Virt
     # means a wedged `qemu-ga` surfaces as a `virsh` error, which leaves the session alive,
     # rather than as a read timeout, which kills and respawns the child.
     TIMEOUT_SECONDS = 2
-
-    # How many consecutive failures write a guest off, and for how long — a failed poll
-    # costs up to {TIMEOUT_SECONDS} of the timer thread, so a guest that cannot answer has
-    # to stop being asked.
-    #
-    # 60s because the guest this defends is a *booting* one: at a 2s poll three strikes are
-    # spent 6s after libvirt calls the domain running, long before `qemu-ga` connects, so
-    # every VM start writes its own guest off and waits the backoff out with a blank swap
-    # gauge. The strike count then survives a lapse ({#backing_off?}), making a still-mute
-    # guest cost one probe a minute rather than three. See DECISIONS.md D_guest_agent_backoff.
-    FAILURES_BEFORE_BACKOFF = 3
-    # @see FAILURES_BEFORE_BACKOFF
-    BACKOFF_SECONDS = 60
 
     # The failures a healthy host produces on its own, matched against the error message to
     # raise {Unavailable} rather than a bare error. In order: the agent is not up (a guest
@@ -84,17 +66,9 @@ module Virt
 
     # @param runner [VirshSession, VirshSpawn] transport for the `qemu-agent-command` calls
     # @param timeout_seconds [Integer] per-call agent timeout (see {TIMEOUT_SECONDS})
-    # @param backoff_seconds [Integer, Float] how long a written-off guest is skipped for
-    #   (see {BACKOFF_SECONDS}); lowered by the specs, which would otherwise have to wait a
-    #   minute to watch a write-off lapse
-    def initialize(runner:, timeout_seconds: TIMEOUT_SECONDS, backoff_seconds: BACKOFF_SECONDS)
+    def initialize(runner:, timeout_seconds: TIMEOUT_SECONDS)
       @runner = runner
       @timeout_seconds = timeout_seconds
-      @backoff_seconds = backoff_seconds
-      # Hash{String => Integer} consecutive failures, and Hash{String => Cooldown} how long
-      # each written-off guest stays unasked.
-      @failures = {}
-      @retry_at = {}
     end
 
     # The guest's swap occupancy, from its own `/proc/meminfo`.
@@ -103,34 +77,15 @@ module Virt
     # frees the slots, which is what makes it the figure saying what a ballooned guest is
     # paying *now*.
     #
+    # A guest with no swap device reports a `total` of 0 rather than nothing, since that is
+    # what its `/proc/meminfo` says; only a failure to *read* is absent data, and that
+    # raises.
+    #
     # @param domain [String] VM name; must be running, or the agent call fails
-    # @return [ResourceUsage, nil] `SwapTotal` with `SwapFree` available, or `nil` if this
-    #   guest cannot answer — no agent, a blocked RPC, no swap configured, or the guest is
-    #   currently written off (see {FAILURES_BEFORE_BACKOFF})
-    def swap(domain)
-      return nil if backing_off?(domain)
-
-      level = System::MemoryStat.parse(read_file(domain, MEMINFO_PATH)).swap
-      forget(domain) # a good sample clears the strike count and any lapsed write-off alike
-      level
-    rescue StandardError => e
-      note_failure(domain, e)
-      nil
-    end
-
-    # Forgets a guest's strike count and any write-off, so its next sample starts clean.
-    #
-    # Call it when a VM leaves the running state: the agent goes down before libvirt calls
-    # the domain stopped, so a shutdown otherwise burns strikes that greet the next boot. It
-    # cannot cover a guest-induced *reboot*, which never leaves the running state — that one
-    # heals by {BACKOFF_SECONDS} lapsing instead.
-    #
-    # @param domain [String] VM name
-    # @return [void]
-    def forget(domain)
-      @failures.delete(domain)
-      @retry_at.delete(domain)
-    end
+    # @return [ResourceUsage] `SwapTotal` with `SwapFree` available
+    # @raise [Unavailable] if the guest was never going to answer
+    # @raise [RuntimeError] if the agent, or the file it returned, is not what it documents
+    def swap(domain) = System::MemoryStat.parse(read_file(domain, MEMINFO_PATH)).swap
 
     # Reads one file from inside the guest, in three agent calls: open, read, close.
     #
@@ -230,41 +185,12 @@ module Virt
       raise "#{domain}: #{execute} gave an unparseable reply (#{e.message}): #{raw[0, 200].inspect}"
     end
 
-    # A lapsed write-off simply answers `false` and the next call goes through. Note what is
-    # *not* touched: the strike count, which is what makes a still-mute guest re-arm on that
-    # single probe instead of spending three (see {FAILURES_BEFORE_BACKOFF}).
-    #
-    # @param domain [String] VM name
-    # @return [Boolean] whether this guest is currently written off
-    private def backing_off?(domain) = @retry_at[domain]&.active? || false
-
     # @param error [StandardError] the failure to classify
     # @return [Boolean] whether this is a failure a healthy host produces on its own (see
     #   {EXPECTED_FAILURES}), and so belongs in an {Unavailable}
     private def expected?(error)
       message = error.message.downcase
       EXPECTED_FAILURES.any? { |it| message.include?(it) }
-    end
-
-    # Records one failed sample, writing the guest off on the {FAILURES_BEFORE_BACKOFF}th.
-    #
-    # @param domain [String] VM name
-    # @param error [StandardError] why the sample failed
-    # @return [void]
-    private def note_failure(domain, error)
-      count = @failures[domain] = (@failures[domain] || 0) + 1
-      reason = error.message.lines.first&.strip
-      if count < FAILURES_BEFORE_BACKOFF
-        $log.debug("#{domain}: no swap level (#{count}/#{FAILURES_BEFORE_BACKOFF}): #{reason}")
-      else
-        @retry_at[domain] = Cooldown.of(@backoff_seconds)
-        # Exactly at the write-off, so an unforeseen failure is announced once per episode:
-        # earlier is a blip that may yet clear, later is a re-arm of something already said.
-        unforeseen = count == FAILURES_BEFORE_BACKOFF && !error.is_a?(Unavailable)
-        $log.public_send(unforeseen ? :warn : :debug,
-                         "#{domain}: guest agent gives no swap level (#{reason}); not asking " \
-                         "again for #{@backoff_seconds}s")
-      end
     end
   end
 end
