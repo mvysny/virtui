@@ -93,6 +93,30 @@ describe Virt::GuestAgent do
     assert_includes @log.string, 'SwapTotal'
   end
 
+  # The class of the error, not the log level, is what a caller polling this hangs its
+  # write-off and its log level off — see DECISIONS.md D_guest_agent_backoff.
+  context 'failure classification' do
+    # @param replies [Hash{String => String, StandardError}] the scripted agent
+    # @return [StandardError] what {Virt::GuestAgent#read_file} raised against it
+    def error_of_read(replies)
+      agent = Virt::GuestAgent.new(runner: ScriptedAgentRunner.new(replies))
+      assert_raises(StandardError) { agent.read_file('win11', '/proc/meminfo') }
+    end
+
+    it 'raises Unavailable for a guest that was never going to answer' do
+      error = error_of_read('guest-file-open' => RuntimeError.new(
+        'error: Guest agent is not responding: QEMU guest agent is not connected'
+      ))
+      assert_kind_of Virt::GuestAgent::Unavailable, error
+    end
+
+    it 'leaves a reply nobody documents an ordinary error' do
+      error = error_of_read(HEALTHY_AGENT.merge('guest-file-read' => '{"return":{"count":0}}'))
+      refute_kind_of Virt::GuestAgent::Unavailable, error
+      assert_includes error.message, 'gave no buf-b64'
+    end
+  end
+
   it 'stops asking a guest that cannot answer, and says so once' do
     runner = ScriptedAgentRunner.new('guest-file-open' => RuntimeError.new(
       'error: Guest agent is not responding: QEMU guest agent is not connected'

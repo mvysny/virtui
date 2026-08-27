@@ -61,19 +61,26 @@ module Virt
     BACKOFF_SECONDS = 60
 
     # The failures a healthy host produces on its own, matched against the error message to
-    # keep them out of the log at `warn`. In order: the agent is not up (a guest mid-boot or
-    # mid-shutdown, or one that never had `qemu-guest-agent`), it went away mid-command, the
-    # RPC is blocked or absent (`guest-file-*` is in `BLOCK_RPCS` as RHEL/Fedora ship the
-    # agent), the VM stopped between the `domstats` snapshot and this read, and the guest
-    # simply has no `/proc/meminfo` — a non-Linux guest whose definition never declared an
-    # OS, so {GuestOS} could not spare it this read (see {Cache#update}).
+    # raise {Unavailable} rather than a bare error. In order: the agent is not up (a guest
+    # mid-boot or mid-shutdown, or one that never had `qemu-guest-agent`), it went away
+    # mid-command, the RPC is blocked or absent (`guest-file-*` is in `BLOCK_RPCS` as
+    # RHEL/Fedora ship the agent), the VM stopped between the `domstats` snapshot and this
+    # read, and the guest simply has no `/proc/meminfo` — a non-Linux guest whose definition
+    # never declared an OS, so {GuestOS} could not spare it this read (see {Cache#update}).
     #
-    # Matching libvirt's error text is fragile on purpose-limited grounds: it picks the *log
-    # level* only, never the write-off, so a miss costs one `warn` line and a new libvirt
-    # phrasing cannot change what virtui does. See DECISIONS.md D_guest_agent_backoff.
+    # Matching libvirt's error text is fragile on purpose-limited grounds: it picks the
+    # error *class* only, never the write-off, so a miss costs one `warn` line from whoever
+    # is polling and a new libvirt phrasing cannot change what virtui does. See DECISIONS.md
+    # D_guest_agent_backoff.
     EXPECTED_FAILURES = ['guest agent is not responding', 'guest agent disappeared',
                          'has not been found', 'domain is not running',
                          'no such file or directory'].freeze
+
+    # Raised when this guest was never going to answer: no agent connected, the RPC blocked,
+    # the domain gone, the file absent ({EXPECTED_FAILURES}). A normal state of a healthy
+    # host, so a caller may treat it as "no data" — unlike every other error out of this
+    # class, each of which means the agent replied with something it does not document.
+    class Unavailable < StandardError; end
 
     # @param runner [VirshSession, VirshSpawn] transport for the `qemu-agent-command` calls
     # @param timeout_seconds [Integer] per-call agent timeout (see {TIMEOUT_SECONDS})
@@ -137,8 +144,8 @@ module Virt
     # @param path [String] absolute path of the file, as the *guest* sees it
     # @param max_bytes [Integer] how much to read in the single `guest-file-read`
     # @return [String] the file's contents
-    # @raise [RuntimeError] if any of the three calls fails, or the agent replies with
-    #   something other than what it documents
+    # @raise [Unavailable] if the guest was never going to answer this
+    # @raise [RuntimeError] if the agent replies with something other than what it documents
     def read_file(domain, path, max_bytes: READ_BYTES)
       handle = agent_command(domain, 'guest-file-open', { path: path, mode: 'r' })
       raise "#{domain}: guest-file-open returned no handle: #{handle.inspect}" unless handle.is_a?(Integer)
@@ -169,9 +176,9 @@ module Virt
       agent_command(domain, 'guest-file-close', { handle: handle })
     rescue StandardError => e
       # A guest shutting down between the open and the close leaks a handle it is about to
-      # destroy anyway, and that is the common way to get here (see {EXPECTED_FAILURES}).
+      # destroy anyway, and that is the common way to get here.
       reason = e.message.lines.first&.strip
-      $log.public_send(expected?(e) ? :debug : :warn,
+      $log.public_send(e.is_a?(Unavailable) ? :debug : :warn,
                        "#{domain}: leaked guest file handle #{handle}: #{reason}")
     end
 
@@ -181,6 +188,7 @@ module Virt
     # @param execute [String] the agent command, e.g. `guest-file-open`
     # @param arguments [Hash, nil] its arguments, or `nil` for a command taking none
     # @return [Object] the reply's `return` member — an Integer handle, or a Hash
+    # @raise [Unavailable] if the failure is one a healthy host produces on its own
     # @raise [RuntimeError] if `virsh` failed, the reply is not JSON, or the agent answered
     #   with an `error` member
     private def agent_command(domain, execute, arguments = nil)
@@ -200,6 +208,12 @@ module Virt
       raise "#{domain}: #{execute} returned no 'return': #{raw[0, 200].inspect}" unless reply.key?('return')
 
       reply['return']
+    rescue StandardError => e
+      # Classified here, at the one place that talks to libvirt: the error text is this
+      # class's business, and every caller above wants the answer as a type.
+      raise Unavailable, e.message if expected?(e)
+
+      raise
     end
 
     # @param domain [String] VM name, for the error message
@@ -226,7 +240,7 @@ module Virt
 
     # @param error [StandardError] the failure to classify
     # @return [Boolean] whether this is a failure a healthy host produces on its own (see
-    #   {EXPECTED_FAILURES}), and so belongs at `debug`
+    #   {EXPECTED_FAILURES}), and so belongs in an {Unavailable}
     private def expected?(error)
       message = error.message.downcase
       EXPECTED_FAILURES.any? { |it| message.include?(it) }
@@ -246,7 +260,7 @@ module Virt
         @retry_at[domain] = Cooldown.of(@backoff_seconds)
         # Exactly at the write-off, so an unforeseen failure is announced once per episode:
         # earlier is a blip that may yet clear, later is a re-arm of something already said.
-        unforeseen = count == FAILURES_BEFORE_BACKOFF && !expected?(error)
+        unforeseen = count == FAILURES_BEFORE_BACKOFF && !error.is_a?(Unavailable)
         $log.public_send(unforeseen ? :warn : :debug,
                          "#{domain}: guest agent gives no swap level (#{reason}); not asking " \
                          "again for #{@backoff_seconds}s")
