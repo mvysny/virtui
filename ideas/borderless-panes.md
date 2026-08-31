@@ -147,18 +147,22 @@ worsens it.
 
 ## What tuile could grow (filed upstream; none blocking)
 
-1. **Extract `LogTextView` out of `LogWindow`** — the view + the
+1. **Extract `LogTextView` out of `LogWindow`**
+   ([tuile#5](https://github.com/mvysny/tuile/issues/5)) — the view + the
    self-marshaling `#log` + the `IO` adapter, with `LogWindow` reduced to
    framing it. Needed for the frameless log pane. *Workaround:* duplicate
    the adapter locally (~30 lines).
-2. **`inverse: true` on `StyledString::Style`** (SGR 7). `Style` has only
+2. **`inverse: true` on `StyledString::Style`** (SGR 7,
+   [tuile#6](https://github.com/mvysny/tuile/issues/6)). `Style` has only
    fg/bg/bold/italic/underline/strikethrough (verified absent in the local
    checkout too), so "inverted" today means explicit fg+bg theme tokens per
    variant. SGR 7 swaps whatever colors are actually in effect —
    terminal-theme-proof, zero color decisions. *Workaround:* a
    `focus_segment` token pair, like the existing captions'
    `fg: :black, bg: …`.
-3. **Expose the OSC-11 background RGB.** Investigated 2026-08-31 in the
+3. **Expose the OSC-11 background RGB**
+   ([tuile#7](https://github.com/mvysny/tuile/issues/7)). Investigated
+   2026-08-31 in the
    local checkout (`../tuile`, 0.13.0 + a few commits): `TerminalBackground`
    *parses* the terminal's actual background RGB (the `REPLY` regex captures
    the three components) and immediately collapses it to `:light`/`:dark` in
