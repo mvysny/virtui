@@ -6,10 +6,7 @@ ruby '>= 3.3'
 gem 'concurrent-ruby'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
-# The local checkout: virtui needs LogTextView, Style#inverse and
-# Screen#background_color (tuile #5/#6/#7), unreleased as of 0.13.0.
-# Point back at rubygems once the release carrying them is out.
-gem 'tuile', path: '../tuile'
+gem 'tuile', '>= 0.14.0'
 gem 'zeitwerk', '~> 2.7'
 
 group :development do
