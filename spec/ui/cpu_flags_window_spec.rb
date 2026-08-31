@@ -60,7 +60,7 @@ module Tuile
       Screen.instance.content = Component::Label.new
       popup = UI::CpuFlagsWindow.open(%w[svm npt].to_set)
       assert_equal [popup], Screen.instance.popups
-      assert_equal UI::CpuFlagsWindow::SIZE, popup.size
+      assert_equal UI::CpuFlagsWindow::SIZE, popup.declared_size
     end
   end
 end

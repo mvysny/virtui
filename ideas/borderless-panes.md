@@ -1,11 +1,11 @@
 # Borderless panes: backgrounds differentiate, a chip + the cursor say focus
 
-**Status:** designed 2026-08-31, revised same day: the panes need no `Window`
-at all — they become `Layout::Vertical`s (see *Panes are Layouts* below), so
-**nothing blocks a virtui prototype**. Of the three tuile items filed
-upstream, #5 and #6 are already implemented; #7 (OSC-11 RGB) is in progress,
-and the tint-derivation policy for it is decided (see *The tint itself*).
-The look: Catppuccin-Latte-in-LazyVim —
+**Status: ready to implement** (2026-08-31). All three tuile items are done
+upstream and virtui builds against the local checkout (Gemfile
+`path: '../tuile'` until the release carrying them). The one decision left
+to make in-flight is the search field's shape (overlay vs embedded row —
+see *Open questions*); the rest of the opens are eyeball-at-prototype
+items. The look: Catppuccin-Latte-in-LazyVim —
 window frames go away (popups/dialogs keep theirs), panes are told apart by
 background shade instead, and focus gets *labeled* indicators because the
 frame's `active_border_color` flip dies with the frame.
@@ -57,10 +57,14 @@ the pole direction strictly *improves* their contrast; the dangerous
 a minimum perceptible step (so an already-dark background still shows the
 tint), and at the pole itself (`#000` can't darken) step the other way by
 the minimum — white on `#1a1a1a` is still ~16:1, a bounded, tiny exception.
-Staleness: the mode-2031 live theme-flip report carries only light/dark, so
-on that event the stored RGB is stale — drop to the fixed tint for the new
-variant until a fresh RGB arrives (tuile#7's mid-session re-query would
-eventually close this).
+Staleness is solved upstream: on a mode-2031 flip the screen re-probes
+OSC 11 itself, and a changed `Screen#background_color` fires
+`Component#on_theme_changed` across the tree — the same hook a theme swap
+uses. So the panes recompute their tint in `on_theme_changed` (which
+VMWindow already overrides) and both the variant flip and the fresh RGB
+funnel into it; no virtui-side staleness handling. A terminal that reports
+2031 flips but never answers OSC 11 keeps its startup color by upstream
+choice (tuile's D_background_rgb).
 
 Transparency side-effect, eyes open: painted cells are opaque (per the
 Alacritty observation above), so the tinted secondary panes go solid while
@@ -102,9 +106,8 @@ Residuals, eyes open:
   question.
 - **The log pane.** `Component::LogWindow` is itself a `Window` subclass;
   its innards — the word-wrapping auto-scroll `TextView`, the any-thread
-  self-marshaling `#log`, the `IO` adapter — need extracting to a
-  `LogTextView` upstream (tuile item 1 below), or ~30 lines duplicated
-  locally.
+  self-marshaling `#log`, the `IO` adapter — are extracted upstream as
+  `Component::LogTextView` (tuile#5, done); the pane composes it directly.
 - **Naming.** Per the tuile widget-suffix rule the classes stop being
   `*Window`: `VMPane`, `SystemPane`. A cohesive `UI::Pane` base only if the
   shared header assembly actually grows — start by duplicating the two-line
@@ -196,14 +199,21 @@ worsens it.
    upstream.** The chip renders via SGR 7: swaps whatever colors are in
    effect, terminal-theme-proof, no `focus_segment` token pair needed.
 3. **Expose the OSC-11 background RGB**
-   ([tuile#7](https://github.com/mvysny/tuile/issues/7)) — **in progress.**
-   `TerminalBackground` parses the terminal's actual background RGB (the
-   `REPLY` regex captures the three components) and collapses it to
-   `:light`/`:dark` in the private `classify`; #7 exposes it. How virtui
-   consumes it — and what happens without it — is decided: see *The tint
-   itself* above (pole-directed derivation over the fixed-tint floor;
-   fixed tints in 24-bit `Color.rgb`, degrading to 256-palette
-   greyscale-ramp steps under tmux/old terminals).
+   ([tuile#7](https://github.com/mvysny/tuile/issues/7)) — **implemented
+   upstream**, beyond the ask: `Screen#background_color` returns a `Color`
+   (**nil is the normal case** — `COLORFGBG`-only or no answer — so the
+   fixed-tint floor stays load-bearing), and it *stays current across OS
+   appearance flips*: the screen re-probes on the 2031 report and a changed
+   color fires `Component#on_theme_changed` tree-wide plus a full repaint.
+   `FakeScreen#background_color=` plays the terminal in specs — the
+   derivation is unit-testable. Consumption is decided: see *The tint
+   itself* (pole-directed derivation over the fixed-tint floor; fixed tints
+   in 24-bit `Color.rgb`, degrading to 256-palette greyscale-ramp steps
+   under tmux/old terminals).
+
+Unrelated API drift picked up with the switch to the local checkout:
+`Popup.new(size:)` became `declared_size:` (the `size` reader now returns
+the resolved cells) — `CpuFlagsWindow` and its spec adjusted.
 
 Already there, no work needed: `Component#bg_color=` accepts a fixed color or
 a `Theme::Ref`, children inherit via `effective_bg_color`, and the draw
@@ -225,8 +235,8 @@ panes work today.
   row.
 - `UI::SystemWindow` → `SystemPane < Layout::Vertical`: header row;
   `Cursor::Limited` + position bookkeeping.
-- Log pane: `LogTextView` (upstream or duplicated) + header row; `$log`
-  redirect rewires to its `IO`.
+- Log pane: `Component::LogTextView` + header row; `$log` redirect rewires
+  to its `IO`.
 - Popups (`CpuFlagsWindow`, pickers, memory/power menus): untouched — frames
   on floating surfaces stay.
 

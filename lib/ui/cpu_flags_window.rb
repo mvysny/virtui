@@ -45,7 +45,7 @@ module UI
     # @param flags [Set<String>] the host's CPU flags, from {System::Info#cpu_flags}
     # @return [Tuile::Component::Popup] the opened popup
     def self.open(flags)
-      Tuile::Component::Popup.new(content: new(flags), size: SIZE).open
+      Tuile::Component::Popup.new(content: new(flags), declared_size: SIZE).open
     end
 
     protected
