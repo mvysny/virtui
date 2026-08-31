@@ -2,8 +2,10 @@
 
 **Status:** designed 2026-08-31, revised same day: the panes need no `Window`
 at all — they become `Layout::Vertical`s (see *Panes are Layouts* below), so
-**nothing blocks a virtui prototype**. Three small tuile items remain, filed
-upstream, all with local workarounds. The look: Catppuccin-Latte-in-LazyVim —
+**nothing blocks a virtui prototype**. Of the three tuile items filed
+upstream, #5 and #6 are already implemented; #7 (OSC-11 RGB) is in progress,
+and the tint-derivation policy for it is decided (see *The tint itself*).
+The look: Catppuccin-Latte-in-LazyVim —
 window frames go away (popups/dialogs keep theirs), panes are told apart by
 background shade instead, and focus gets *labeled* indicators because the
 frame's `active_border_color` flip dies with the frame.
@@ -25,9 +27,46 @@ contrast pairing — including the LIGHT theme's deliberately *symbolic* ANSI
 colors (green/red/magenta), which the terminal remaps to shades chosen
 against *its* background, not ours. Tinting only the secondary panes keeps
 that choice intact and is exactly the LazyVim editor-vs-explorer effect.
-This is a real fork → DECISIONS.md entry on graduation (slug suggestion
-**tint_secondaries_only**, no `D_` prefix here on purpose — the grep
-tripwire).
+Revisited and re-rejected 2026-08-31: LazyVim itself *is* the full-paint
+model — it draws its configured theme and ignores the terminal background
+(observable under Alacritty transparency: LazyVim's painted cells are
+opaque; virtui's and Claude CLI's default-bg cells shine through). It earns
+that cost because an editor is a *destination* app rendering arbitrary
+syntax palettes — it must own its ground; a VM dashboard is furniture and
+should feel native to the terminal it's embedded in. Full paint would also
+kill transparency everywhere and reverse the symbolic-ANSI choice, for
+control that ~15 theme tokens don't need. This is a real fork → DECISIONS.md
+entry on graduation (slug suggestion **tint_secondaries_only**, no `D_`
+prefix here on purpose — the grep tripwire), carrying both rejected forms:
+full-Catppuccin paint and the LazyVim own-theme model.
+
+**The tint itself (decided 2026-08-31):** fixed near-neutral per-variant
+tints are the floor — needed regardless, since OSC 11 goes unanswered on
+some terminals and tmux setups. When tuile#7 delivers the terminal's actual
+background RGB, *derive* the tint from it instead: the value is **hue
+preservation**, because popular terminal themes are rarely neutral
+(Catppuccin Mocha `#1e1e2e` is purple-blue, Latte `#eff1f5` bluish,
+solarized teal) and a neutral-grey sidebar next to a tinted primary pane
+looks dirty, where darkening the actual background keeps the theme
+seamless. The grey-on-grey legibility fear is dissolved structurally:
+**step toward the theme's pole** — dark variant → darker, light variant →
+lighter, never toward the middle. The default foreground and virtui's
+accent tokens were contrast-tuned against near-black/near-white grounds, so
+the pole direction strictly *improves* their contrast; the dangerous
+"more middling grey" direction is the one the rule forbids. Two clamps:
+a minimum perceptible step (so an already-dark background still shows the
+tint), and at the pole itself (`#000` can't darken) step the other way by
+the minimum — white on `#1a1a1a` is still ~16:1, a bounded, tiny exception.
+Staleness: the mode-2031 live theme-flip report carries only light/dark, so
+on that event the stored RGB is stale — drop to the fixed tint for the new
+variant until a fresh RGB arrives (tuile#7's mid-session re-query would
+eventually close this).
+
+Transparency side-effect, eyes open: painted cells are opaque (per the
+Alacritty observation above), so the tinted secondary panes go solid while
+the primary pane keeps shining through — "translucent editor, solid
+sidebar". Expected to read as intentional; eyeball at prototype time, and
+if it bothers, the fix is a subtler tint, not abandoning the approach.
 
 ## Panes are Layouts, not frameless Windows
 
@@ -145,36 +184,26 @@ pane (the field consumes digits first — the key bubble, `AppLayout#handle_key`
 The current `[1]-VMs` captions lie identically; this design neither fixes nor
 worsens it.
 
-## What tuile could grow (filed upstream; none blocking)
+## The tuile items (filed upstream; none blocking)
 
 1. **Extract `LogTextView` out of `LogWindow`**
-   ([tuile#5](https://github.com/mvysny/tuile/issues/5)) — the view + the
-   self-marshaling `#log` + the `IO` adapter, with `LogWindow` reduced to
-   framing it. Needed for the frameless log pane. *Workaround:* duplicate
-   the adapter locally (~30 lines).
+   ([tuile#5](https://github.com/mvysny/tuile/issues/5)) — **implemented
+   upstream.** The view + the self-marshaling `#log` + the `IO` adapter,
+   with `LogWindow` reduced to framing it; the frameless log pane composes
+   the view directly.
 2. **`inverse: true` on `StyledString::Style`** (SGR 7,
-   [tuile#6](https://github.com/mvysny/tuile/issues/6)). `Style` has only
-   fg/bg/bold/italic/underline/strikethrough (verified absent in the local
-   checkout too), so "inverted" today means explicit fg+bg theme tokens per
-   variant. SGR 7 swaps whatever colors are actually in effect —
-   terminal-theme-proof, zero color decisions. *Workaround:* a
-   `focus_segment` token pair, like the existing captions'
-   `fg: :black, bg: …`.
+   [tuile#6](https://github.com/mvysny/tuile/issues/6)) — **implemented
+   upstream.** The chip renders via SGR 7: swaps whatever colors are in
+   effect, terminal-theme-proof, no `focus_segment` token pair needed.
 3. **Expose the OSC-11 background RGB**
-   ([tuile#7](https://github.com/mvysny/tuile/issues/7)). Investigated
-   2026-08-31 in the
-   local checkout (`../tuile`, 0.13.0 + a few commits): `TerminalBackground`
-   *parses* the terminal's actual background RGB (the `REPLY` regex captures
-   the three components) and immediately collapses it to `:light`/`:dark` in
-   the private `classify`; nothing exposes it. With the RGB, virtui derives
-   the sidebar tint from the real background (±4–5% luminance at the same
-   hue) instead of guessing. One design wrinkle for the issue: the mode-2031
-   live theme-change report (`\e[?997;1n` / `;2n`) carries *only*
-   light/dark, so an exposed RGB is startup-only unless the key thread —
-   which already parses the 2031 report — learns to re-query OSC 11
-   mid-session and parse the reply. *Workaround:* fixed near-neutral tints
-   per variant (24-bit `Color.rgb` works), degrading to 256-palette
-   greyscale-ramp steps under tmux/old terminals.
+   ([tuile#7](https://github.com/mvysny/tuile/issues/7)) — **in progress.**
+   `TerminalBackground` parses the terminal's actual background RGB (the
+   `REPLY` regex captures the three components) and collapses it to
+   `:light`/`:dark` in the private `classify`; #7 exposes it. How virtui
+   consumes it — and what happens without it — is decided: see *The tint
+   itself* above (pole-directed derivation over the fixed-tint floor;
+   fixed tints in 24-bit `Color.rgb`, degrading to 256-palette
+   greyscale-ramp steps under tmux/old terminals).
 
 Already there, no work needed: `Component#bg_color=` accepts a fixed color or
 a `Theme::Ref`, children inherit via `effective_bg_color`, and the draw
@@ -183,8 +212,8 @@ panes work today.
 
 ## The virtui-side change list
 
-- `UI::Theme`: new tokens — secondary-pane bg (pair), chip colors (unless
-  tuile grows `inverse`); delete `tab_inactive`.
+- `UI::Theme`: new tokens — secondary-pane bg (pair; the fixed-tint floor);
+  delete `tab_inactive`. No chip colors — the chip uses tuile#6's `inverse`.
 - `UI::AppLayout`: the panes stop being Windows (no more caption mutation);
   separator column in `rect=`; `refresh_status` renders chip + `q quit` +
   hint (the focus-chain walk already finds the owner and rebuilds on focus
@@ -206,9 +235,10 @@ panes work today.
 - Search field: overlay/popup vs embedded footer row. Overlay gets focus
   repair and the row back for free; check it still reads as attached to the
   VM pane.
-- Focused-chip contrast in the LIGHT theme if tuile's `inverse` is used:
-  SGR 7 on a near-white terminal inverts to near-white-on-dark — probably
-  fine, but eyeball it.
+- Focused-chip contrast in the LIGHT theme under SGR 7: a near-white
+  terminal inverts to near-white-on-dark — probably fine, but eyeball it.
+- The solid-sidebar-under-transparency effect (see *The tint itself*) —
+  eyeball at prototype time.
 
 ## Graduation
 
@@ -219,8 +249,8 @@ panes work today.
   rejected — slug suggestion **panes_are_layouts**).
 - Per-symbol rationale (chip builder, the scoped
   `show_cursor_when_inactive`, SystemPane's `Cursor::Limited` row
-  positions, tint derivation if OSC-11 RGB lands) → yardocs on those
-  methods/tokens.
+  positions, the pole-direction tint derivation and its clamps) → yardocs
+  on those methods/tokens.
 - README: nothing — no user-visible setup changes, no font dependency (that
   was the point of dropping the powerline glyph).
 - CLAUDE.md: class-index renames (`VMWindow` → `VMPane`, …); the threading
