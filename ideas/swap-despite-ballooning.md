@@ -949,6 +949,8 @@ is the rest, per the CLAUDE.md graduation map.
   from the UI thread" (if fix 8 lands) → **CLAUDE.md**, as cross-cutting
   invariants.
 - if fix 8 wins, `Committed_AS` as a controlled variable → merges into
-  `swap-via-qemu-guest-agent.md`'s "what it unlocks".
+  `swap-via-qemu-guest-agent.md`'s open question (it already carries the
+  candidate, and the fact that the field is in the already-fetched
+  `/proc/meminfo`).
 - the measurements, the properties-1–3 arithmetic and the exit/fix numbering are
   evidence about the *current* code, not durable facts: they die with this file.

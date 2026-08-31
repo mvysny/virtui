@@ -94,6 +94,86 @@ rejection is crowding out the live design.
 
 ---
 
+## D_no_force_drain — parked swap is left to drain by demand paging; virtui never forces it (2026-08-31)
+
+**Status:** Accepted. Nothing ships — the decision is that no drain code
+exists: {Virt::GuestAgent} stays a read-only channel and `guest-exec` stays
+out of the project.
+
+**Context.** Once the swap level became readable (D_guest_swap_level) the
+question that entry deliberately left open came due: should virtui also
+*drain* a guest's swap after a burst, to erase the scar? The kernel
+mechanics answer it. Pages in swap are the tail of the anon LRU — cold by
+revealed preference: everything still out there is out there because nobody
+has touched it since the eviction. Demand paging therefore *is* a drain,
+and an optimally-ordered one — pages return exactly when they matter,
+batched by swap readahead (`page-cluster`), prioritized by actual use — 
+where a forced drain re-implements it sorted by swap-slot order instead of
+by usefulness. Observed 2026-08-20 (table in
+`ideas/swap-via-qemu-guest-agent.md` while it lives): a guest drained
+1.14 GiB of swap on its own as the balloon grew — ~515 MiB faulted back on
+demand, the rest slots freed by writes and process exits, nothing forcing
+any of it. One uncontrolled observation, but it points where the mechanics
+point: the drain happens for free once the headroom exists.
+
+**Decision.** Parked swap is accepted as damage already done. The honesty
+problem it leaves — a guest holding swap looks comfortable to the
+controller — is fixed by making the controller *see* the level (the read
+D_guest_swap_level shipped; the level-gated shrink question still open in
+`ideas/swap-despite-ballooning.md`), never by physically moving pages.
+
+**Alternatives rejected.**
+
+- **`swapoff -a && swapon -a`** — the only drain needing no code deployed
+  into the guest. `try_to_unuse()` faults every swapped page back
+  synchronously — minutes for a couple of GiB of scattered 4K reads — and
+  for the whole swapoff→swapon window the guest has *no swap at all* while
+  the drain itself consumes `MemAvailable` at top speed: a memory spike in
+  that window goes straight to the OOM killer. Worse, if only-in-swap
+  exceeds `MemAvailable` at the start, `swapoff` itself OOMs the guest —
+  the fix converts a performance blemish into an availability incident.
+  It also needs `guest-exec` as root in every managed VM: a remote-root
+  *write* capability where everything shipped only reads a file.
+- **A rate-limited `process_madvise(pidfd, MADV_WILLNEED)` sweep** over the
+  swapped ranges in `/proc/*/smaps`. Gentler, but there is no CLI for
+  `process_madvise`, so it means deploying a binary into the guest — inside
+  the standing no-custom-agent prohibition. And below the ~50%-full
+  slot-retention threshold it doesn't even lower the visible level: a read
+  fault keeps the slot and the page lands in `SwapCached`.
+- **Any forced drain at all, on the merits.** It converts free RAM into
+  resident cold anon: it spends the burst headroom on pages nobody is going
+  to touch; the dead weight is the first thing re-evicted on the next
+  pressure event, a full round-trip of guest *and* host disk I/O to end
+  where it started; and it raises `(MemTotal − MemAvailable)`, so
+  {Virt::BallooningVM::MemLevelRaiseVoter} grows the VM and the host pins
+  RAM under untouched pages — virtui inducing the very signal it acts on.
+- **The steelman that came closest: paying the latency debt off-peak.** The
+  one real cost of parked swap is interactive — the user returns to the IDE
+  and pays the fault-back latency page by page, at the worst time. An
+  idle-time prefault would pay it while nobody waits. Rejected because the
+  warm pages that cause the jank fault back within minutes of resumed use
+  anyway, while the long tail a prefault drags in is the part that was
+  never coming back — and the only vehicles are the two rejected mechanisms
+  above. **Don't re-add** as a loop behaviour; if the itch returns, the
+  shape is an operator keypress on a confirmed-idle guest with confirmed
+  headroom, and even that is weak. zram in the guest
+  (`ideas/swap-despite-ballooning.md`, fix 5) dissolves the question
+  entirely — a zram fault-back is a decompression, so the scar self-heals.
+
+**Consequences.**
+
+- {Virt::GuestAgent} is read-only by decision, not by lag: `guest-exec` has
+  no sanctioned use in virtui. D_guest_swap_level's reconsideration clause
+  — one exec catting several files if PSI, `vmstat` and meminfo are all
+  wanted per tick — remains the only imaginable re-entry, and it is a read.
+- The honesty half of the swap problem rides entirely on the controller
+  seeing the level; no drain is waiting behind it as a fallback.
+- A *human* running `swapoff -a && swapon -a` for a clean baseline (when
+  only-in-swap comfortably fits `MemAvailable`) is unaffected — this
+  rejects virtui doing it, not an operator.
+
+---
+
 ## D_swap_sampler_split — the guest-agent client raises; a separate {Virt::GuestSwapSampler} owns the write-off (2026-08-27)
 
 **Status:** Accepted; shipped as {Virt::GuestAgent} (protocol + file channel,
@@ -1069,8 +1149,8 @@ tokenizer off JSON's backslashes.
   README, alongside the balloon device and the stats period.
 - The guest-side channel is now open in code. It is deliberately narrow —
   {Virt::GuestAgent#read_file} reads a file and cannot execute anything —
-  and widening it to `guest-exec` (a swap *drain*, `swapoff -a`) is a
-  separate decision, not an extension of this one.
+  and widening it to `guest-exec` (a swap *drain*, `swapoff -a`) was a
+  separate decision, since decided against: see D_no_force_drain.
 - Sampling belongs on the timer thread inside {Virt::Cache#update}, not
   inside `Virsh#domain_data`: `domstats` is one O(1) call for the whole
   fleet, while this is O(running VMs) calls that fail per VM.
