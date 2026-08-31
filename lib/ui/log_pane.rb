@@ -45,9 +45,9 @@ module UI
       Formatter.chip('3', 'Log', focused: active?, theme: screen.theme)
     end
 
-    # @return [String] empty — the log pane has no key shortcuts to advertise, but
-    #   responding here is what lets {AppLayout#refresh_status} find the pane (and its
-    #   {#chip}) on the focus chain.
+    # @return [String] empty — the log pane has no key shortcuts to advertise. It answers
+    #   {AppLayout#refresh_status}'s probe anyway, so that the empty status line is this
+    #   pane's deliberate silence rather than a method nobody remembered to write.
     def keyboard_hint
       ''
     end

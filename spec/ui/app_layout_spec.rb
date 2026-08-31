@@ -55,14 +55,22 @@ module Tuile
       assert_equal [0, 39, 100, 1], rect_of(layout.status)
     end
 
-    it 'refresh_status advertises the focused pane\'s chip, quit, and its own hint' do
+    it 'refresh_status advertises quit plus the focused pane\'s own hint, and no chip' do
       layout.rect = Rect.new(0, 0, 100, 40)
       layout.vms.focus
       layout.refresh_status
       text = layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
-      assert_includes text, '[1]-VMs'
       assert_includes text, 'quit'
       assert_includes text, 'Power', text
+      # The chip lives in the pane header only (DECISIONS.md D_labeled_focus_cues).
+      refute_includes text, '[1]-VMs', text
+    end
+
+    it 'refresh_status falls back to quit alone for a pane that advertises no keys' do
+      layout.rect = Rect.new(0, 0, 100, 40)
+      layout.log.focus
+      layout.refresh_status
+      assert_equal 'q quit', layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
     end
 
     it 'rect= clamps the system pane width to 60 on a wide screen' do

@@ -144,11 +144,9 @@ digits are consumed by the field before {UI::AppLayout#handle_key} sees them.
 panes (D_panes_are_layouts) needed a replacement.
 
 **Decision.** Two cues, both *absolute and labeled*. (1) A chip — `[1]-VMs`,
-inverse video when the pane owns the keyboard, dim otherwise — drawn twice:
-in the pane's own header (the spatial anchor, lazygit's active-pane title)
-and at the left of the status line (the fixed-corner vim-mode spot, which
-also names whose `keyboard_hint` follows — the old status line showed hints
-without saying whose). (2) The list cursor: tuile already hides it in
+inverse video when the pane owns the keyboard, dim otherwise — drawn **once**,
+in the pane's own header (the spatial anchor, lazygit's active-pane title).
+(2) The list cursor: tuile already hides it in
 inactive lists by default, and virtui's former permanent
 `show_cursor_when_inactive = true` is scoped down to the search field's
 lifetime, restoring the invariant *cursor visible ⟺ the VM pane owns the
@@ -156,6 +154,17 @@ keyboard*. Exactly **one inverted element per pane** — the chip.
 
 **Alternatives rejected.**
 
+- *The chip drawn twice — pane header **and** the left of the status line.*
+  What shipped first, on the argument that the fixed-corner copy (the
+  vim-mode spot) also names whose `keyboard_hint` follows, since the old
+  status line listed hints without saying whose. Withdrawn on first look at
+  the running app: with the panes' headers now labeled, the same inverse
+  block appears twice on screen and the second one answers a question the
+  first already did — whose hints these are is read off the one inverted
+  header. Two inverted blocks also undercut this entry's own *exactly one
+  inverted element per pane*. The status line is keys only.
+  **Don't re-add it** to attribute the hints; if attribution ever is
+  genuinely unclear, a *dim* prefix is the shape to try, not a second chip.
 - *Background-lift of the focused pane.* A relative cue: you must remember
   the resting shade to read it. Passive; easy to forget what's selected.
 - *Flipping the Guest/Host captions with focus* (they used to invert with the
@@ -165,9 +174,11 @@ keyboard*. Exactly **one inverted element per pane** — the chip.
   load-bearing *column headers*, not chrome — they moved into the header row
   as static dim labels, and the `tab_inactive` token died with the flip.
 
-**Consequences.** The log pane has no cursor (its content is deliberately a
-`TextView` — long lines wrap rather than ellipsize) and is the one
-cursor-absence case; the chip covers it. {UI::SystemPane}'s list gained a
+**Consequences.** With the status line down to keys, focusing the log pane —
+which advertises none — leaves it showing just `q quit`; that empty row is
+the honest reading of "nothing to press here". The log pane also has no
+cursor (its content is deliberately a `TextView` — long lines wrap rather
+than ellipsize) and is the one cursor-absence case; the chip covers it. {UI::SystemPane}'s list gained a
 `Cursor::Limited` over the bar rows partly *for* this consistency (and for
 scrolling an overflowing disk list); that cursor leaves the door open for
 row-scoped `h` help later — noted, not committed.
@@ -178,7 +189,7 @@ row-scoped `h` help later — noted, not committed.
 
 **Status:** Accepted; shipped in {UI::Formatter.chip}.
 
-**Context.** The status-line chip (D_labeled_focus_cues) invited the
+**Context.** The focus chip (D_labeled_focus_cues) invited the
 powerline look.
 
 **Decision.** Plain inverse video (SGR 7, tuile#6) around plain text. SGR 7

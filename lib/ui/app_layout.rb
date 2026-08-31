@@ -10,8 +10,8 @@ module UI
   # the background: the VM pane — the "editor", where all interaction lives — keeps the
   # terminal's default background, while the System and log panes are tinted one step
   # toward mid-grey (`:pane_bg`, see {Theme}) and separated from each other by a one-cell
-  # `│` column. Focus is *labeled* instead of frame-colored: each pane's header chip plus
-  # the status-line chip (DECISIONS.md D_labeled_focus_cues).
+  # `│` column. Focus is *labeled* instead of frame-colored: the pane's own header chip,
+  # once, and the list cursor (DECISIONS.md D_labeled_focus_cues).
   #
   # Tuile draws no status bar and reserves no row (see its DECISIONS.md
   # `D-status-bar`), so the bottom line is ours: {#refresh_status} rebuilds it and
@@ -73,20 +73,21 @@ module UI
       true
     end
 
-    # Rebuilds the status line: the focused pane's chip, the global quit key, then that
-    # pane's hint. Walking *up* from the focused component mirrors the direction a key
-    # bubbles, so the row describes the keys that will actually be delivered — the focused
-    # search field consumes `/` and `ESC` before {VMPane} sees them, and its hint says so.
+    # Rebuilds the status line: the global quit key, then the focused pane's hint. Keys
+    # only — the row does not repeat the focus chip, which the pane's own header already
+    # carries (DECISIONS.md D_labeled_focus_cues). Walking *up* from the focused component
+    # mirrors the direction a key bubbles, so the row describes the keys that will actually
+    # be delivered — the focused search field consumes `/` and `ESC` before {VMPane} sees
+    # them, and its hint says so.
     #
-    # `keyboard_hint` (and `chip`) are virtui's own methods on virtui's own panes; Tuile
-    # has no such seam, and nothing calls this but the screen's focus hook.
+    # `keyboard_hint` is virtui's own method on virtui's own panes; Tuile has no such seam,
+    # and nothing calls this but the screen's focus hook.
     #
     # @return [void]
     def refresh_status
       cursor = screen.focused
       cursor = cursor.parent until cursor.nil? || cursor.respond_to?(:keyboard_hint)
-      chip = cursor.respond_to?(:chip) ? cursor.chip.to_ansi : nil
-      @status.text = [chip, "q #{screen.theme.hint('quit')}", cursor&.keyboard_hint]
+      @status.text = ["q #{screen.theme.hint('quit')}", cursor&.keyboard_hint]
                      .compact.reject(&:empty?).join('  ')
     end
 

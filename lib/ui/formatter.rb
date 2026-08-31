@@ -27,10 +27,11 @@ module UI
         Tuile::StyledString.styled('-' * (width - progressbar_char_length), fg: rest_color)
     end
 
-    # Renders a focus chip — the labeled focus cue shared by the status line and the pane
-    # headers: `[key]-label`, one space of block padding each side. The focused variant is
-    # inverse video (SGR 7 swaps whatever colors are in effect, so it reads on any terminal
-    # theme without a color token pair); the unfocused variant is dim, in the hint color.
+    # Renders a focus chip — the labeled focus cue each pane draws in its own header row,
+    # and the only place it appears: `[key]-label`, one space of block padding each side.
+    # The focused variant is inverse video (SGR 7 swaps whatever colors are in effect, so it
+    # reads on any terminal theme without a color token pair); the unfocused variant is dim,
+    # in the hint color.
     # Plain inverted block on purpose — no powerline glyphs, see DECISIONS.md
     # D_no_powerline_glyphs.
     #
