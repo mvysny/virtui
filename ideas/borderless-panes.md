@@ -3,8 +3,10 @@
 **Status: ready to implement** (2026-08-31). All three tuile items are done
 upstream and virtui builds against the local checkout (Gemfile
 `path: '../tuile'` until the release carrying them). No design decisions
-left — the search field goes overlay-first with the embedded row as
-fallback; every remaining open is an eyeball-at-prototype item. The look:
+left — the search field is a row in the pane's own layout, not an overlay;
+every remaining open is an eyeball-at-prototype item. One non-blocking
+upstream ask remains open (tuile#8, color-depth detection) with a workable
+fallback. The look:
 Catppuccin-Latte-in-LazyVim —
 window frames go away (popups/dialogs keep theirs), panes are told apart by
 background shade instead, and focus gets *labeled* indicators because the
@@ -40,23 +42,69 @@ entry on graduation (slug suggestion **tint_secondaries_only**, no `D_`
 prefix here on purpose — the grep tripwire), carrying both rejected forms:
 full-Catppuccin paint and the LazyVim own-theme model.
 
-**The tint itself (decided 2026-08-31):** fixed near-neutral per-variant
-tints are the floor — needed regardless, since OSC 11 goes unanswered on
-some terminals and tmux setups. When tuile#7 delivers the terminal's actual
-background RGB, *derive* the tint from it instead: the value is **hue
-preservation**, because popular terminal themes are rarely neutral
-(Catppuccin Mocha `#1e1e2e` is purple-blue, Latte `#eff1f5` bluish,
-solarized teal) and a neutral-grey sidebar next to a tinted primary pane
-looks dirty, where darkening the actual background keeps the theme
-seamless. The grey-on-grey legibility fear is dissolved structurally:
-**step toward the theme's pole** — dark variant → darker, light variant →
-lighter, never toward the middle. The default foreground and virtui's
-accent tokens were contrast-tuned against near-black/near-white grounds, so
-the pole direction strictly *improves* their contrast; the dangerous
-"more middling grey" direction is the one the rule forbids. Two clamps:
-a minimum perceptible step (so an already-dark background still shows the
-tint), and at the pole itself (`#000` can't darken) step the other way by
-the minimum — white on `#1a1a1a` is still ~16:1, a bounded, tiny exception.
+**The tint itself (decided 2026-08-31; direction revised same day, by
+measurement):** fixed near-neutral per-variant tints are the floor — needed
+regardless, since OSC 11 goes unanswered on some terminals and tmux setups.
+When tuile#7 delivers the terminal's actual background RGB, *derive* the
+tint from it instead: the value is **hue preservation**, because popular
+terminal themes are rarely neutral (Catppuccin Mocha `#1e1e2e` is
+purple-blue, Latte `#eff1f5` bluish, solarized teal) and a neutral-grey
+sidebar next to a tinted primary pane looks dirty, where stepping the
+actual background keeps the theme seamless. Concretely: an HSL round-trip
+that holds hue+saturation and moves only lightness.
+
+**Direction: toward mid-grey** — dark variant → lighter, light variant →
+darker — by a slight step, ΔL ≈ 0.04 (exact value: eyeball, below). This
+*revises* the first decision (step toward the theme's pole, argued from
+contrast: the tokens were tuned against near-black/near-white, so the pole
+strictly improves their ratios). The argument is mechanically true but the
+measurement says it doesn't bind, and the slightness is why: the tinted
+areas are large, and a big area shows a small tint. WCAG ratios computed
+against the tokens the *System pane actually renders* (`cpu`, `ram`,
+`swap`, `disk`, `disk_label`, `frame`, default fg — the VM-pane tokens
+drop out, that pane stays untinted) over six representative backgrounds
+(#000, Mocha, One Dark, #fff, Latte, Solarized Light):
+
+- The foreground never matters — white-on-dark has 14–21:1 to burn.
+- The binding constraint is **`cpu` DodgerBlue3 in the LIGHT theme**
+  (5.8:1 on white, tuned with no headroom): on Latte it breaks at Δ=0.10
+  (3.98:1), sits on the 4.5 line at 0.05, clears comfortably at 0.03–0.04.
+- Dark caps in the same region (One Dark +0.10 → `cpu` 3.99:1; +0.05 →
+  4.80:1). So **Δ ≈ 0.04 is safe everywhere measured**, both directions'
+  budgets are ~0.05, and toward-grey's small contrast cost is affordable.
+- The decider: the pole rule's *exception* (can't darken past `#000`,
+  can't lighten past `#fff`) fires exactly at the two most common terminal
+  backgrounds, where it degenerates to a step-the-other-way no-op —
+  toward-grey's exception (a background already mid-grey) fires on no real
+  terminal. A rule whose primary branch is dead on the most common input
+  is the wrong primary branch.
+
+The safety valve survives as a **contrast guard, not a direction rule**:
+compute the System-pane tokens' ratios against the candidate tint; below
+the floor, step the other way. ~10 lines, expected dead on every real
+background, protects the ones never tested.
+
+**Casualty found by the same arithmetic: `frame` cannot stay a fixed hex.**
+Dark's `#333333` assumes a near-black terminal — on One Dark it is 1.11:1
+*untinted*, and the toward-grey tint walks it through 1.00:1 (invisible)
+at Δ=0.03, exactly where the System/log separator column is load-bearing;
+it re-emerges from the other side at higher Δ, i.e. visibility
+non-monotonic in the tint. Fix: `frame` joins the derived set — one or two
+further steps in the same direction from the pane background — so the
+hairline keeps a known distance from the ground it sits on.
+
+**Tuning Δ:** eyeball, via a temporary `[`/`]` binding in demo mode
+nudging Δ live; tune against real terminals, then hardcode. The floor
+becomes a spec, not prose: every System-pane token ≥ 4.5:1 against the
+derived tint for the representative-background table, driven through
+`FakeScreen#background_color=`. Known approximation, eyes open: a fixed
+ΔL in HSL isn't perceptually uniform, but the measured contrast deltas
+come out comparable on both sides, so it's a good-enough proxy — OKLab is
+the upgrade if the dark step reads weaker than the light one. The
+fixed-tint floor values (the no-OSC-11 case — pane bg *and* its `frame`,
+since a derived `frame` has no input there either) get picked in the same
+eyeball session.
+
 Staleness is solved upstream: on a mode-2031 flip the screen re-probes
 OSC 11 itself, and a changed `Screen#background_color` fires
 `Component#on_theme_changed` across the tree — the same hook a theme swap
@@ -97,13 +145,22 @@ optional footer row.
 
 Residuals, eyes open:
 
-- **Search-close focus repair — decided: overlay first.** `Window#footer=`
-  repairs focus via `on_child_removed` when the removed footer held it
-  (`window.rb:68`); a plain Layout doesn't. The search field becomes a
-  small popup/overlay: the screen already repairs focus when a popup
-  closes, and the pane keeps the row. Fallback if the overlay doesn't read
-  as attached to the VM pane (see *Open questions*): an embedded footer
-  row, with `close_search` calling `content.focus` explicitly.
+- **Search-close focus repair — decided: a row in the pane's layout.**
+  `Window#footer=` repairs focus via `on_child_removed` when the removed
+  footer held it (`window.rb:68`); a plain Layout doesn't, so `close_search`
+  calls `content.focus` explicitly. That's the whole cost. The earlier
+  overlay-first plan is dropped: it read as free ("the screen repairs focus
+  when a popup closes") but isn't. `Popup` self-centers — `reposition`
+  (`popup.rb:94`) resolves `declared_size` and calls `center` — so a search
+  field would land mid-screen, which is precisely the "doesn't look attached
+  to the VM pane" failure; anchoring it means a `Popup` subclass overriding
+  `reposition`. And the lighter shape, a bare focusable `Overlay`, is
+  forbidden upstream: `overlay.rb`'s implementation notes call a focusable
+  non-modal overlay the one thing that must not appear ("every keystroke
+  goes dead until Tab recovers"). So it's a modal `Popup` subclass or a
+  one-line `focus` call. Also affected: `keyboard_hint`'s
+  `return … if footer` (`vm_window.rb:196`) — `footer` stops being a
+  `Window` concept, so the search-open state becomes the pane's own ivar.
 - **The log pane.** `Component::LogWindow` is itself a `Window` subclass;
   its innards — the word-wrapping auto-scroll `TextView`, the any-thread
   self-marshaling `#log`, the `IO` adapter — are extracted upstream as
@@ -206,10 +263,18 @@ worsens it.
    appearance flips*: the screen re-probes on the 2031 report and a changed
    color fires `Component#on_theme_changed` tree-wide plus a full repaint.
    `FakeScreen#background_color=` plays the terminal in specs — the
-   derivation is unit-testable. Consumption is decided: see *The tint
-   itself* (pole-directed derivation over the fixed-tint floor; fixed tints
-   in 24-bit `Color.rgb`, degrading to 256-palette greyscale-ramp steps
-   under tmux/old terminals).
+   derivation is unit-testable. Consumption: see *The tint itself*.
+4. **Detect the terminal's color depth**
+   ([tuile#8](https://github.com/mvysny/tuile/issues/8)) — **open, not
+   blocking.** #7 closes only half the loop: an app can read the background
+   as RGB and derive a tint from it, but `Color#sgr_codes` emits
+   `48;2;R;G;B` unconditionally, and nothing in tuile knows whether the
+   terminal (or tmux without `terminal-features "*:RGB"`) understands it.
+   Asked for `Screen#color_depth` plus `Color#quantize` — the RGB→256
+   mapping is two formulas, not a table. Until it lands, virtui emits
+   truecolor and accepts that a 256-only terminal approximates the tint;
+   the fixed-tint floor already covers the terminals that answer no OSC 11
+   at all, which correlate heavily with the ones that can't do 24-bit.
 
 Unrelated API drift picked up with the switch to the local checkout:
 `Popup.new(size:)` became `declared_size:` (the `size` reader now returns
@@ -223,7 +288,12 @@ panes work today.
 ## The virtui-side change list
 
 - `UI::Theme`: new tokens — secondary-pane bg (pair; the fixed-tint floor);
-  delete `tab_inactive`. No chip colors — the chip uses tuile#6's `inverse`.
+  delete `tab_inactive`; `frame` stops being a fixed hex and derives from
+  the pane bg (see *The tint itself*). No chip colors — the chip uses
+  tuile#6's `inverse`.
+- The tint derivation itself (HSL step toward grey + contrast guard +
+  the spec table): a small top-level or `UI::` helper, unit-tested via
+  `FakeScreen#background_color=`.
 - `UI::AppLayout`: the panes stop being Windows (no more caption mutation);
   separator column in `rect=`; `refresh_status` renders chip + `q quit` +
   hint (the focus-chain walk already finds the owner and rebuilds on focus
@@ -231,8 +301,8 @@ panes work today.
 - `UI::Formatter`: the chip builder (shared by status line and pane headers).
 - `UI::VMWindow` → `VMPane < Layout::Vertical`: header row (chip + column
   captions, replacing the `repaint_border` override); scope
-  `show_cursor_when_inactive` to search; search field as an overlay
-  (embedded footer row is the fallback).
+  `show_cursor_when_inactive` to search; search field as a row in the
+  layout, `close_search` re-focusing `content`.
 - `UI::SystemWindow` → `SystemPane < Layout::Vertical`: header row;
   `Cursor::Limited` + position bookkeeping.
 - Log pane: `Component::LogTextView` + header row; `$log` redirect rewires
@@ -242,9 +312,9 @@ panes work today.
 
 ## Open questions
 
-- The search overlay: does it read as attached to the VM pane? If not,
-  fall back to the embedded footer row (see the focus-repair residual in
-  *Panes are Layouts*).
+- The exact Δ (~0.04 measured-safe; is it *perceptible enough* on a pure
+  `#000` background and a washed-out display?) and the fixed-tint floor
+  values — the `[`/`]` demo-mode eyeball session (see *The tint itself*).
 - Focused-chip contrast in the LIGHT theme under SGR 7: a near-white
   terminal inverts to near-white-on-dark — probably fine, but eyeball it.
 - The solid-sidebar-under-transparency effect (see *The tint itself*) —
@@ -255,12 +325,16 @@ panes work today.
 - The forks above → DECISIONS.md entries: **tint_secondaries_only**,
   **no_powerline_glyphs**, the focus-indication tree (bg-lift and
   caption-flip rejected; chip + cursor chosen — one entry, slug suggestion
-  **labeled_focus_cues**), and panes-as-Layouts (frameless-Window mode
-  rejected — slug suggestion **panes_are_layouts**).
+  **labeled_focus_cues**), panes-as-Layouts (frameless-Window mode
+  rejected — slug suggestion **panes_are_layouts**), and the tint
+  direction (pole-directed step rejected by measurement — slug suggestion
+  **tint_toward_grey**; carry the key ratios, they're the provenance).
 - Per-symbol rationale (chip builder, the scoped
   `show_cursor_when_inactive`, SystemPane's `Cursor::Limited` row
-  positions, the pole-direction tint derivation and its clamps) → yardocs
-  on those methods/tokens.
+  positions, the toward-grey step + contrast guard and the derived
+  `frame`, the search-row-not-overlay one-liner on `open_search` — Popup
+  self-centers, a focusable non-modal Overlay is forbidden upstream) →
+  yardocs on those methods/tokens.
 - README: nothing — no user-visible setup changes, no font dependency (that
   was the point of dropping the powerline glyph).
 - CLAUDE.md: class-index renames (`VMWindow` → `VMPane`, …); the threading
