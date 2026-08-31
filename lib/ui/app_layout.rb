@@ -25,6 +25,8 @@ module UI
     # @param ballooning [Virt::Ballooning] the ballooning controller for {VMPane}
     def initialize(virt_cache, ballooning)
       super()
+      # Fold the terminal's reported background into the theme before the panes read it.
+      screen.theme_def = Theme.derived(screen.background_color)
       @virt_cache = virt_cache
       @system = SystemPane.new(virt_cache)
       @vms = VMPane.new(virt_cache, ballooning)
@@ -122,11 +124,19 @@ module UI
 
     protected
 
-    # Re-bakes the labels whose colors are flattened into their text — the separator
-    # column and the status line. The panes rebuild their own headers.
+    # Re-derives the background-dependent theme tokens, then re-bakes the labels whose
+    # colors are flattened into their text — the separator column and the status line.
+    # (The panes rebuild their own headers.)
+    #
+    # Both a light/dark variant flip and a fresh OSC-11 background RGB funnel into this
+    # hook (a changed `Screen#background_color` fires it tree-wide), so there is no
+    # staleness handling anywhere else. The `theme_def=` inside is re-entrant by
+    # construction: the derivation is deterministic, so the nested assignment resolves
+    # to an equal theme and `Screen#theme=` no-ops.
     # @return [void]
     def on_theme_changed
       super
+      screen.theme_def = Theme.derived(screen.background_color)
       rebuild_separator
       refresh_status
     end

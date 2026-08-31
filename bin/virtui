@@ -44,8 +44,9 @@ virt_cache = Virt::Cache.new(virt, System::Info.new)
 
 ballooning = Virt::Ballooning.new(virt_cache)
 screen = Tuile::Screen.new
-screen.theme_def = UI::Theme::THEME_DEF
 screen.on_error = ->(e) { $log.fatal('Uncaught event loop exception', e) }
+# The theme (with its background-derived pane tints) is UI::AppLayout's own concern —
+# it assigns screen.theme_def in its constructor and re-derives on appearance flips.
 layout = UI::AppLayout.new(virt_cache, ballooning)
 screen.content = layout
 # Tuile owns no status bar; the layout draws its own bottom row and this is what

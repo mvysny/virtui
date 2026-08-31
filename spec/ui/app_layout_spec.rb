@@ -77,6 +77,16 @@ module Tuile
       assert_nil layout.vms.effective_bg_color
     end
 
+    it 'derives the pane tint from a reported terminal background, and tracks a change' do
+      layout # build on the floor theme first
+      mocha = Color.hex('#1e1e2e')
+      Screen.instance.background_color = mocha
+      derived = UI::Theme.derived(mocha).dark
+      assert_equal derived[:pane_bg], Screen.instance.theme[:pane_bg]
+      assert_equal derived[:pane_bg], layout.system.effective_bg_color # the Ref re-resolves
+      assert_equal derived[:frame], Screen.instance.theme[:frame]
+    end
+
     it 'update_data refreshes the panes without raising' do
       layout.update_data
       refute_empty layout.vms.list.items

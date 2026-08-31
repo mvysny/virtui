@@ -108,8 +108,48 @@ module UI
                   pane_frame: Tuile::Color.hex('#cccccc')
                 })
 
-    # The dark/light pair; assign to `screen.theme_def=`.
+    # The dark/light pair; assign to `screen.theme_def=` — or better, assign
+    # {.derived}, which folds the terminal's reported background in.
     # @return [Tuile::ThemeDef]
     THEME_DEF = Tuile::ThemeDef.new(dark: DARK, light: LIGHT)
+
+    # The custom tokens {.derived}'s contrast guard defends — the foregrounds the
+    # tinted System pane renders. The VM-pane tokens (`ok`/`warn`/`error`/`off`,
+    # `vm_name`) are deliberately absent: that pane keeps the terminal default
+    # background, so no tint can hurt them. `ram_vm` is symbolic ANSI and skips
+    # itself (see {Tint.rgb_of}).
+    # @return [Array<Symbol>]
+    GUARD_TOKENS = %i[cpu cpu_vm ram ram_vm swap disk disk_vm disk_label].freeze
+
+    # The theme pair with the pane tint and the hairlines derived from the terminal's
+    # actual background ({Tint}), replacing the fixed floors: `pane_bg` steps the
+    # background toward mid-grey, `frame` becomes a hairline on the terminal ground and
+    # `pane_frame` a hairline on the tinted ground (the fixed `#333333` was a
+    # near-invisible 1.1:1 on mid-dark terminals like One Dark — a hairline must be
+    # derived from the ground it rules on). With no reported background (`nil` — plenty
+    # of terminals answer no OSC 11) the fixed-tint floor {THEME_DEF} stands.
+    #
+    # @param background [Tuile::Color, nil] `Screen#background_color`
+    # @return [Tuile::ThemeDef] the pair to assign to `screen.theme_def=`
+    def self.derived(background)
+      return THEME_DEF if background.nil?
+
+      Tuile::ThemeDef.new(dark: derive_variant(DARK, background), light: derive_variant(LIGHT, background))
+    end
+
+    # One variant with its derived tokens folded in — see {.derived}.
+    #
+    # @param base [Theme] {DARK} or {LIGHT}
+    # @param background [Tuile::Color] the terminal background RGB
+    # @return [Theme]
+    def self.derive_variant(base, background)
+      pane_bg = Tint.pane_bg(background, guard: GUARD_TOKENS.map { |token| base[token] })
+      base.with(custom: base.custom.merge(
+        pane_bg: pane_bg,
+        frame: Tint.hairline(background),
+        pane_frame: Tint.hairline(pane_bg)
+      ))
+    end
+    private_class_method :derive_variant
   end
 end
