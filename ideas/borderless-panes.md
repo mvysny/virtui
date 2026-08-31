@@ -2,10 +2,10 @@
 
 **Status: ready to implement** (2026-08-31). All three tuile items are done
 upstream and virtui builds against the local checkout (Gemfile
-`path: '../tuile'` until the release carrying them). The one decision left
-to make in-flight is the search field's shape (overlay vs embedded row —
-see *Open questions*); the rest of the opens are eyeball-at-prototype
-items. The look: Catppuccin-Latte-in-LazyVim —
+`path: '../tuile'` until the release carrying them). No design decisions
+left — the search field goes overlay-first with the embedded row as
+fallback; every remaining open is an eyeball-at-prototype item. The look:
+Catppuccin-Latte-in-LazyVim —
 window frames go away (popups/dialogs keep theirs), panes are told apart by
 background shade instead, and focus gets *labeled* indicators because the
 frame's `active_border_color` flip dies with the frame.
@@ -97,13 +97,13 @@ optional footer row.
 
 Residuals, eyes open:
 
-- **Search-close focus repair.** `Window#footer=` repairs focus via
-  `on_child_removed` when the removed footer held it (`window.rb:68`); a
-  plain Layout doesn't. Either the search field becomes a small
-  popup/overlay — the screen already repairs focus when a popup closes — or
-  it stays an embedded row and `close_search` calls `content.focus`
-  explicitly. The overlay also dodges the does-the-footer-cost-a-row
-  question.
+- **Search-close focus repair — decided: overlay first.** `Window#footer=`
+  repairs focus via `on_child_removed` when the removed footer held it
+  (`window.rb:68`); a plain Layout doesn't. The search field becomes a
+  small popup/overlay: the screen already repairs focus when a popup
+  closes, and the pane keeps the row. Fallback if the overlay doesn't read
+  as attached to the VM pane (see *Open questions*): an embedded footer
+  row, with `close_search` calling `content.focus` explicitly.
 - **The log pane.** `Component::LogWindow` is itself a `Window` subclass;
   its innards — the word-wrapping auto-scroll `TextView`, the any-thread
   self-marshaling `#log`, the `IO` adapter — are extracted upstream as
@@ -231,8 +231,8 @@ panes work today.
 - `UI::Formatter`: the chip builder (shared by status line and pane headers).
 - `UI::VMWindow` → `VMPane < Layout::Vertical`: header row (chip + column
   captions, replacing the `repaint_border` override); scope
-  `show_cursor_when_inactive` to search; search field as overlay or embedded
-  row.
+  `show_cursor_when_inactive` to search; search field as an overlay
+  (embedded footer row is the fallback).
 - `UI::SystemWindow` → `SystemPane < Layout::Vertical`: header row;
   `Cursor::Limited` + position bookkeeping.
 - Log pane: `Component::LogTextView` + header row; `$log` redirect rewires
@@ -242,9 +242,9 @@ panes work today.
 
 ## Open questions
 
-- Search field: overlay/popup vs embedded footer row. Overlay gets focus
-  repair and the row back for free; check it still reads as attached to the
-  VM pane.
+- The search overlay: does it read as attached to the VM pane? If not,
+  fall back to the embedded footer row (see the focus-repair residual in
+  *Panes are Layouts*).
 - Focused-chip contrast in the LIGHT theme under SGR 7: a near-white
   terminal inverts to near-white-on-dark — probably fine, but eyeball it.
 - The solid-sidebar-under-transparency effect (see *The tint itself*) —
