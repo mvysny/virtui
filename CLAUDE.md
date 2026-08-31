@@ -29,7 +29,7 @@ over `lib/`. Both `bin/virtui` and `spec/spec_helper.rb` just `require 'virtui'`
 everything else autoloads. Conventions to keep the loader happy:
 
 - **One constant per file**, named after the path (`lib/virt/virsh.rb` → `Virt::Virsh`,
-  `lib/ui/vm_window.rb` → `UI::VMWindow`). Don't add `require`/`require_relative`
+  `lib/ui/vm_pane.rb` → `UI::VMPane`). Don't add `require`/`require_relative`
   for sibling classes — reference the constant and it autoloads.
 - **Three namespaces map to directories:** `lib/virt/` → `Virt::` (libvirt backend
   domain model + clients), `lib/ui/` → `UI::` (tuile presentation), and
@@ -40,7 +40,7 @@ everything else autoloads. Conventions to keep the loader happy:
 - **`lib/core_ext/` is ignored** by the loader and required manually: it holds the
   `Numeric` byte-unit monkey-patch and the top-level `format_byte_size` helper —
   things that don't define a matching constant.
-- Acronym casing (`UI`, `VMWindow`, `VMEmulator`, `VM`, `BallooningVM`) is set via
+- Acronym casing (`UI`, `VMPane`, `VMEmulator`, `VM`, `BallooningVM`) is set via
   `inflector.inflect` in `lib/virtui.rb`; add an entry there for new ones.
 
 ## Architecture
@@ -82,13 +82,15 @@ why. Keep entries to a line; an entry that grows into prose has drifted.
 
 **`lib/ui/` → `UI::`** — the tuile presentation layer.
 
-- `UI::AppLayout` — the three-window screen; owns the `1`/`2`/`3` focus keys and the `$log` redirect
-- `UI::VMWindow` — the VM list, its usage bars, and the power/memory/search keys
-- `UI::SystemWindow` — host CPU/RAM/disk bars plus the `h` CPU-flag help key
+- `UI::AppLayout` — the three-pane screen; owns the `1`/`2`/`3` focus keys, the tint, and the `$log` redirect
+- `UI::VMPane` — the VM list, its usage bars, and the power/memory/search keys
+- `UI::SystemPane` — host CPU/RAM/disk bars plus the `h` CPU-flag help key
+- `UI::LogPane` — `$log`'s output: a header chip over tuile's `LogTextView`
 - `UI::CpuFlag` — the virtualization CPU-flag glossary both the summary line and the help read
 - `UI::CpuFlagsWindow` — the `h` popup: one word-wrapped paragraph per flag the host has
-- `UI::Formatter` — the progress-bar string builders both windows render through
-- `UI::Theme` — the dark/light token pair; `THEME_DEF` goes to `screen.theme_def=`
+- `UI::Formatter` — the progress-bar and focus-chip string builders the panes render through
+- `UI::Theme` — the dark/light token pair; `.derived(background)` goes to `screen.theme_def=`
+- `UI::Tint` — derives the pane tint + hairlines from the terminal's background RGB
 
 **Top-level** — shared, deliberately namespace-free.
 

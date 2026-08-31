@@ -94,6 +94,216 @@ rejection is crowding out the live design.
 
 ---
 
+## D_panes_are_layouts — the borderless panes are Layout::Verticals, not frameless Windows (2026-08-31)
+
+**Status:** Accepted; shipped as {UI::VMPane}, {UI::SystemPane}, {UI::LogPane}.
+
+**Context.** The borderless-panes redesign (window frames go away, backgrounds
+differentiate — D_tint_secondaries_only) needed a home for what the `Window`
+chrome used to carry: caption, footer, scrollbar, focus repair. The first
+draft asked tuile for a `Window#frame = false` mode.
+
+**Decision.** Each pane is a `Tuile::Component::Layout::Vertical`: a one-row
+header (`Fixed[1]` — the focus chip, plus {UI::VMPane}'s column captions) over
+the content widget (`Expand[1]`), with {UI::VMPane}'s search field appearing
+as a third row while open. The log pane composes tuile's extracted
+`LogTextView` (tuile#5) directly.
+
+**Alternatives rejected.**
+
+- *A frameless `Window` mode upstream.* Once the border goes, `Window` earns
+  nothing — bending a class whose job is painting the border into not
+  painting it keeps the class for its name. Verified against tuile 0.13 that
+  everything the frame seemed to carry is already elsewhere: `List`/`TextView`
+  own their scrollbars; `Screen#focused=` sets `active` on every ancestor, so
+  a `Layout` pane reads focus-within for free; `List` paints its whole rect,
+  so click-to-focus already lands.
+- *The search field as a popup/overlay* (the design's first pick, chosen for
+  the screen's own popup focus repair). Rejected at implementation review:
+  `Popup` self-centers (`reposition` resolves `declared_size` and centers),
+  so anchoring it under the pane means a subclass override — while tuile
+  explicitly forbids the lighter shape, a focusable non-modal `Overlay`
+  ("every keystroke goes dead until Tab recovers"). Against that, the
+  embedded row costs one explicit `list.focus` in
+  {UI::VMPane#close_search} — strictly simpler. **Don't re-try the overlay**
+  without first re-reading `overlay.rb`'s implementation notes.
+
+**Consequences.** A `Layout` pane repairs nothing on child removal —
+{UI::VMPane#close_search} must (and does) re-focus the list itself. The
+`1`-in-chip quirk survives unchanged: while the search field is focused,
+digits are consumed by the field before {UI::AppLayout#handle_key} sees them.
+
+---
+
+## D_labeled_focus_cues — focus is shown by a labeled chip plus the list cursor, not by chrome color (2026-08-31)
+
+**Status:** Accepted; shipped as {UI::Formatter.chip}, the pane headers, and
+{UI::VMPane}'s search-scoped `show_cursor_when_inactive`.
+
+**Context.** The window frame carried focus (`active_border_color`); frameless
+panes (D_panes_are_layouts) needed a replacement.
+
+**Decision.** Two cues, both *absolute and labeled*. (1) A chip — `[1]-VMs`,
+inverse video when the pane owns the keyboard, dim otherwise — drawn twice:
+in the pane's own header (the spatial anchor, lazygit's active-pane title)
+and at the left of the status line (the fixed-corner vim-mode spot, which
+also names whose `keyboard_hint` follows — the old status line showed hints
+without saying whose). (2) The list cursor: tuile already hides it in
+inactive lists by default, and virtui's former permanent
+`show_cursor_when_inactive = true` is scoped down to the search field's
+lifetime, restoring the invariant *cursor visible ⟺ the VM pane owns the
+keyboard*. Exactly **one inverted element per pane** — the chip.
+
+**Alternatives rejected.**
+
+- *Background-lift of the focused pane.* A relative cue: you must remember
+  the resting shade to read it. Passive; easy to forget what's selected.
+- *Flipping the Guest/Host captions with focus* (they used to invert with the
+  border). Three inverted blocks in one row is noise that dilutes the chip;
+  System/Log have no captions, so focus would look different per pane; and a
+  two-shade caption flip is the bg-lift objection in miniature. They are
+  load-bearing *column headers*, not chrome — they moved into the header row
+  as static dim labels, and the `tab_inactive` token died with the flip.
+
+**Consequences.** The log pane has no cursor (its content is deliberately a
+`TextView` — long lines wrap rather than ellipsize) and is the one
+cursor-absence case; the chip covers it. {UI::SystemPane}'s list gained a
+`Cursor::Limited` over the bar rows partly *for* this consistency (and for
+scrolling an overflowing disk list); that cursor leaves the door open for
+row-scoped `h` help later — noted, not committed.
+
+---
+
+## D_no_powerline_glyphs — the chip is a plain inverted block; no special characters (2026-08-31)
+
+**Status:** Accepted; shipped in {UI::Formatter.chip}.
+
+**Context.** The status-line chip (D_labeled_focus_cues) invited the
+powerline look.
+
+**Decision.** Plain inverse video (SGR 7, tuile#6) around plain text. SGR 7
+swaps whatever colors are in effect — terminal-theme-proof, no
+`focus_segment` token pair needed.
+
+**Alternatives rejected.**
+
+- *The full-height powerline arrow terminator (``, U+E0B0).* A private-use
+  Nerd Font glyph: tofu on stock terminals, and the client's font is
+  undetectable server-side. A TUI dashboard must not carry a font
+  prerequisite for a decoration.
+- *The half-block `▐` terminator.* Renders everywhere, but looks
+  near-identical to a plain hard edge — complexity for no visible gain.
+
+**Consequences.** README carries no font prerequisite — that was the point.
+One eyeball item open: the focused chip in the LIGHT theme under SGR 7
+(a near-white terminal inverts to near-white-on-dark — probably fine).
+
+---
+
+## D_tint_secondaries_only — only the System/log panes are tinted; the VM pane keeps the terminal's background (2026-08-31)
+
+**Status:** Accepted; shipped in {UI::AppLayout} (the `pane_bg` refs) and
+{UI::Theme}.
+
+**Context.** With the frames gone (D_panes_are_layouts) the panes are told
+apart by background shade — the Catppuccin-Latte-in-LazyVim editor-vs-explorer
+look. The question was how much of the screen virtui should paint.
+
+**Decision.** The VM pane — the "editor", where all interaction lives — keeps
+the terminal's default background; only the secondary System/log row is
+tinted ({UI::Tint}, D_tint_toward_grey), with a one-cell `│` column between
+the two.
+
+**Alternatives rejected.**
+
+- *Full Catppuccin: paint every background explicitly.* virtui would stop
+  blending with the user's terminal theme and would own every contrast
+  pairing — including the LIGHT theme's deliberately *symbolic* ANSI colors
+  (green/red/magenta), which the terminal remaps to shades chosen against
+  *its* background, not ours.
+- *The LazyVim own-theme model* (revisited and re-rejected the same day —
+  LazyVim itself is the full-paint model: under Alacritty transparency its
+  painted cells are opaque where virtui's default-bg cells shine through).
+  An editor earns that cost because it is a *destination* app rendering
+  arbitrary syntax palettes — it must own its ground; a VM dashboard is
+  furniture and should feel native to the terminal it's embedded in. Full
+  paint would also kill transparency everywhere and reverse the
+  symbolic-ANSI choice, for control that ~15 theme tokens don't need.
+
+**Consequences.** Under terminal transparency the tinted panes go solid while
+the VM pane keeps shining through — "translucent editor, solid sidebar".
+Expected to read as intentional; if it bothers at the prototype eyeball, the
+fix is a subtler tint, not abandoning the approach. The floor tints and the
+tint step still await that eyeball pass (see {UI::Tint::DELTA}).
+
+---
+
+## D_tint_toward_grey — the pane tint steps the terminal background toward mid-grey, not toward the theme's pole (2026-08-31)
+
+**Status:** Accepted; shipped as {UI::Tint} and {UI::Theme.derived}.
+
+**Context.** The derived tint (from `Screen#background_color`, tuile#7)
+needed a direction. The first decision was **toward the theme's pole** (dark
+→ darker, light → lighter), argued from contrast: the foreground and accent
+tokens were contrast-tuned against near-black/near-white grounds, so the pole
+direction strictly improves their ratios, and "more middling grey" is the
+dangerous direction. Measurement reversed it the same day, before anything
+shipped.
+
+**Decision.** Step the background's HSL lightness toward mid-grey by
+{UI::Tint::DELTA} (0.04), hue and saturation held (hue preservation is the
+point of deriving at all — Mocha `#1e1e2e` is purple-blue, and a neutral-grey
+sidebar next to a tinted pane looks dirty). A contrast guard flips the step
+away from grey if it would drag a guarded token that clears 4.5:1 against the
+raw background below that floor; tokens already under the floor are bar
+colors tuned as non-text (WCAG's line there is 3:1) and are not guarded. The
+hairlines (`frame`, `pane_frame`) derive the same way at
+{UI::Tint::HAIRLINE_DELTA} (0.2) from their actual grounds.
+
+The measurements (WCAG ratios of the System-pane tokens over six
+representative backgrounds — #000, Mocha `#1e1e2e`, One Dark `#282c34`,
+#fff, Latte `#eff1f5`, Solarized Light `#fdf6e3`; the table lives on as
+`spec/ui/tint_spec.rb`'s guard-table specs):
+
+- The default foreground never binds — white-on-dark keeps 14–21:1 either
+  direction.
+- The binding token is the LIGHT theme's `:cpu` (DodgerBlue3, 5.8:1 on pure
+  white, tuned with no headroom): on Latte it breaks at Δ=0.10 (3.98:1),
+  sits on the 4.5 line at 0.05, clears comfortably at 0.03–0.04.
+- Dark caps in the same region (One Dark +0.10 → `:cpu` 3.99:1; +0.05 →
+  4.80:1). Both directions' budgets are ~0.05; toward-grey's contrast cost
+  at 0.04 is real but never binding.
+
+**Alternatives rejected.**
+
+- *The pole-directed step.* Mechanically true that it improves contrast —
+  and irrelevant at Δ≈0.04, per the numbers above. What decided it: the pole
+  rule's *exception* (can't darken past `#000`, can't lighten past `#fff`)
+  fires exactly at the two most common terminal backgrounds, where the rule
+  degenerates into a step-the-other-way special case — whereas toward-grey's
+  exception (a background already mid-grey) fires on no real terminal. A rule
+  whose primary branch is dead on the most common input is the wrong primary
+  branch.
+- *A fixed `frame` hex surviving the redesign.* Ruled out by the same
+  arithmetic: `#333333` is 1.11:1 on One Dark *untinted* — near-invisible —
+  and the toward-grey tint walks it through 1.00:1 at Δ=0.03, exactly where
+  the System/log separator is load-bearing (visibility non-monotonic in the
+  tint). A hairline must be derived from the ground it rules on.
+- *A per-token runtime contrast search* (try Δ, halve, flip, iterate).
+  Over-machinery: the guard as shipped is one flip, expected dead on every
+  real background, and the spec table owns the assurance.
+
+**Consequences.** The exact Δ and the fixed floors ({UI::Theme}'s `pane_bg`
+pair, used when OSC 11 goes unanswered) still await an eyeball pass on real
+terminals — is 0.04 perceptible on a washed-out display over `#000`? A fixed
+HSL ΔL is not perceptually uniform; the measured contrast deltas come out
+comparable on both sides, so it stands, and OKLab is the upgrade if the dark
+step ever reads weaker than the light one. Symbolic ANSI tokens (`ram_vm`)
+can never be guarded — only the terminal knows their RGB. 256-color
+emission is not virtui's problem: tuile#8 quantizes RGB at the wire.
+
+---
+
 ## D_no_force_drain — parked swap is left to drain by demand paging; virtui never forces it (2026-08-31)
 
 **Status:** Accepted. Nothing ships — the decision is that no drain code
@@ -353,7 +563,7 @@ stdin closing when virtui dies, which was measured to leave no orphan
 
 ## D_guest_os_glyph — the guest-OS marker is a two-cell emoji, and an undeclared OS draws a dim `?` rather than a blank (2026-08-23)
 
-**Status:** Accepted; implemented in {UI::VMWindow#format_guest_os}.
+**Status:** Accepted; implemented in {UI::VMPane#format_guest_os}.
 
 **Context.** Once {Virt::GuestOS} shipped (D_guest_os_from_xml), every VM
 carried a declared OS family that nothing on screen showed — while that
@@ -363,7 +573,7 @@ at all. The VM list's overview line is one row of glyphs and a name in a
 
 **Decision.** The family is drawn between the state glyph and the name, one
 glyph per {Virt::GuestOS::FAMILIES} key, with a `?` in the frame (dim) color
-for `:unknown`. Every marker is padded to {UI::VMWindow::GUEST_OS_WIDTH} = 2
+for `:unknown`. Every marker is padded to {UI::VMPane::GUEST_OS_WIDTH} = 2
 cells, which is what the emoji measure under `unicode/display_width` — the
 same measure tuile lays rows out with.
 
@@ -374,7 +584,7 @@ Unicode has no dragonfly, and illumos/DOS/NetWare have no mascot to draw.
 The glyph set was chosen *after* the family list, not alongside it: the list
 comes from osinfo-db (D_guest_os_from_xml), so there is exactly one row to
 fill per family a definition can express, and a spec asserts
-{UI::VMWindow::GUEST_OS_GLYPHS} covers {Virt::GuestOS::FAMILIES} exactly.
+{UI::VMPane::GUEST_OS_GLYPHS} covers {Virt::GuestOS::FAMILIES} exactly.
 
 Placement follows a rule worth keeping in the row: **left of the name is
 what the VM *is*, right of it is what it is *doing*.** The OS declaration
@@ -390,7 +600,7 @@ turtle stay on the right, where a tick-by-tick change costs nothing.
   never asked for its swap level and shows the same `-` as a guest with no
   agent. Blank in the marker column reads as *nothing to say* when it means
   *nobody asked* — the identical argument that made
-  {UI::VMWindow#swap_level_bar} draw dashes instead of spaces. A dim `?`
+  {UI::VMPane#swap_level_bar} draw dashes instead of spaces. A dim `?`
   costs one cell already reserved by the padding and is the only thing on
   screen that explains the missing level. It also keeps Windows and
   undeclared visually distinct, which a blank would not.
@@ -408,7 +618,7 @@ turtle stay on the right, where a tick-by-tick change costs nothing.
   overview line is already an emoji vocabulary — ▶/⏹/🎈/🐢 — and a
   bare letter next to them reads as a truncated word, not a marker.
 - *A `guest_os.glyph` method on {Virt::GuestOS}.* Would spare
-  {UI::VMWindow} a lookup table, at the price of a presentation decision
+  {UI::VMPane} a lookup table, at the price of a presentation decision
   living in `Virt::`. Dependencies point toward data, never toward UI; the
   table stays in the window.
 
@@ -418,7 +628,7 @@ terminal font without it draws a tofu box, and a tofu box is usually one
 cell, so that row's name shifts a column — the failure is cosmetic but it is
 exactly the misalignment the padding exists to prevent. Accepted knowingly;
 the fallback if it bites is a padded `W ` in that one entry of
-{UI::VMWindow::GUEST_OS_GLYPHS}, no other change.
+{UI::VMPane::GUEST_OS_GLYPHS}, no other change.
 
 Ten of the twelve glyphs are unseen in demo mode, which declares only Linux,
 Windows and nothing — and unseen on a real host too: the author has no
@@ -525,7 +735,7 @@ family gates the agent read, and {Virt::Cache} memoizes one lookup per domain.
   {Virt::GuestOS#no_proc_meminfo?} is the plain `!linux?` instead — see
   *Consequences* for what that costs.
 - *Memoizing on {Virt::Virsh}, next to the lookup.* The natural place, and the
-  wrong thread: `Virsh` is reachable from the UI thread ({UI::VMWindow}'s power
+  wrong thread: `Virsh` is reachable from the UI thread ({UI::VMPane}'s power
   keys, {Virt::Ballooning}'s `set_actual`), so mutable state there is state two
   threads can reach — and a memoizing `Virsh#guest_os` invites a future OS column
   to call it from the render path, taking {Virt::VirshSession}'s single mutex on
@@ -1014,7 +1224,7 @@ swap-used is a high-water scar, not a pressure gauge.
 
 ## D_swap_row_two_cells — the SWAP row splits into guest occupancy and host I/O (2026-08-21)
 
-**Status:** Accepted, shipped in {UI::VMWindow#format_swap_line}.
+**Status:** Accepted, shipped in {UI::VMPane#format_swap_line}.
 
 **Context.** Until now the row carried one figure — the swap-out *rate* —
 in the guest cell, with the two since-boot counters as a tail and the host
@@ -1159,8 +1369,8 @@ tokenizer off JSON's backslashes.
 
 ## D_swap_rate_full_scale — the swap gauge reads against a fixed 20 MiB/s, not a per-VM maximum (2026-08-21)
 
-**Status:** Accepted; implemented as `UI::VMWindow::SWAP_RATE_FULL_SCALE`, read
-by {UI::VMWindow#format_swap_line}.
+**Status:** Accepted; implemented as `UI::VMPane::SWAP_RATE_FULL_SCALE`, read
+by {UI::VMPane#format_swap_line}.
 
 **Context.** The SWAP row started as plain text and was reshaped to match the
 CPU and RAM rows above it — caption cell, bar, figures — so the guest column
@@ -1217,7 +1427,7 @@ with it.
 
 ## D_swap_row_always_on — every running VM keeps its SWAP row, even at rest (2026-08-21)
 
-**Status:** Accepted; implemented in {UI::VMWindow#format_swap_line}.
+**Status:** Accepted; implemented in {UI::VMPane#format_swap_line}.
 
 **Context.** The guest swap-out indicator shipped as a row that appeared
 under a VM's RAM bar only while the rate was positive, on the reasoning that
