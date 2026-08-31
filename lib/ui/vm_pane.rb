@@ -1,17 +1,25 @@
 # frozen_string_literal: true
 
 module UI
-  # The VM window: a scrollable, cursor-selectable list of all VMs, each with guest-vs-host
+  # The VM pane: a scrollable, cursor-selectable list of all VMs, each with guest-vs-host
   # CPU/RAM/disk usage bars and a ballooning-status indicator. Per-VM actions are reachable
   # via key shortcuts: power menu (`p`), launch viewer (`v`), memory menu (`m`), toggle disk
   # stats (`d`) and search (`/`).
   #
+  # A borderless `Layout::Vertical`, not a `Window` (see DECISIONS.md D_panes_are_layouts):
+  # a one-row header — the focus chip plus the Guest/Host column captions — over the
+  # {Tuile::Component::List}, with the incremental-search {Tuile::Component::TextField}
+  # appearing as a third row while open (a row in the pane's own layout, not an overlay:
+  # `Popup` self-centers away from the pane, and a focusable non-modal `Overlay` is
+  # forbidden upstream — the row plus one explicit {#close_search} re-focus is strictly
+  # simpler).
+  #
   # UI-thread-confined.
-  class VMWindow < Tuile::Component::Window
+  class VMPane < Tuile::Component::Layout::Vertical
     include Tuile
 
-    # Separates a row's guest half from its host half. The same vertical bar tuile draws the
-    # window border with, so the two columns read as framed rather than piped apart.
+    # Separates a row's guest half from its host half. The same vertical bar the pane
+    # separator column uses, so the two columns read as framed rather than piped apart.
     COLUMN_SEPARATOR = '│'
 
     # Width of the caption cell every row opens its column with, bar rows and the swap row
@@ -65,20 +73,39 @@ module UI
     # @param virt_cache [Virt::Cache] the runtime cache to read VM data from and act through
     # @param ballooning [Virt::Ballooning] the ballooning controller toggled from the memory menu
     def initialize(virt_cache, ballooning)
-      super('VMs')
-      self.content = Component::List.new
+      super()
       @virt_cache = virt_cache
       @ballooning = ballooning
       # Array<String>: the VM name backing every rendered line, indexed by line position.
       @line_data = []
       @show_disk_stat = false
-      content.cursor = Component::List::Cursor.new
-      content.show_cursor_when_inactive = true
-      self.scrollbar = true
+      # TextField, nil: the incremental-search row while open — see {#open_search}.
+      @search = nil
+      @header = Component::Label.new
+      @list = Component::List.new
+      @list.cursor = Component::List::Cursor.new
+      @list.scrollbar_visibility = :visible
+      add(@header, Fixed[1])
+      add(@list, Expand[1])
+      rebuild_header
     end
+
+    # @return [Tuile::Component::List] the VM list — the pane's focus target
+    attr_reader :list
+
+    # @return [Tuile::Component::TextField, nil] the incremental-search row while open,
+    #   nil otherwise — see {#open_search}
+    attr_reader :search
 
     # @return [Boolean] whether disk stats are shown for shut-off VMs too
     attr_reader :show_disk_stat
+
+    # Focuses the VM list. The pane itself is passive layout; the list is what owns the
+    # cursor and the keyboard.
+    # @return [void]
+    def focus
+      @list.focus
+    end
 
     # Toggles showing disk stats for shut-off VMs and re-renders.
     # @param value [Boolean] true to show disk stats for shut-off VMs
@@ -89,19 +116,19 @@ module UI
 
     # Rebuilds every VM's lines (overview + guest/host CPU, RAM and disk bars) from the
     # current cache data, and recomputes the allowed cursor positions. Paints nothing if
-    # the window is too narrow.
+    # the pane is too narrow.
     #
     # @return [void]
     def update
       column_width = (rect.width - 16) / 2
-      return if column_width.negative? # paint nothing if window is not big enough
+      return if column_width.negative? # paint nothing if the pane is not big enough
 
       theme = screen.theme
       domains = @virt_cache.domains.sort_by(&:upcase) # Array<String>
       cursor_positions = [] # allowed cursor positions
       cpus = @virt_cache.cpu_info.cpus
       host_ram = @virt_cache.host_mem_stat.ram
-      content.build_lines do |lines|
+      @list.build_lines do |lines|
         @line_data.clear
         domains.each do |domain_name|
           cursor_positions << lines.size
@@ -146,11 +173,11 @@ module UI
           end
         end
       end
-      content.cursor = if cursor_positions.empty?
-                         Component::List::Cursor.new
-                       else
-                         Component::List::Cursor::Limited.new(cursor_positions, position: content.cursor.position)
-                       end
+      @list.cursor = if cursor_positions.empty?
+                       Component::List::Cursor.new
+                     else
+                       Component::List::Cursor::Limited.new(cursor_positions, position: @list.cursor.position)
+                     end
     end
 
     # Handles a key press: `/` opens search; `p`/`v`/`m`/`d` act on the VM under the cursor
@@ -160,14 +187,14 @@ module UI
     # @return [Boolean] true if the key was handled
     def handle_key(key)
       return true if super
-      return false if footer&.active?
+      return false if @search&.active?
 
       if key == '/'
         open_search
         return true
       end
 
-      current_vm = @line_data[content.cursor.position] unless content.cursor.position.nil?
+      current_vm = @line_data[@list.cursor.position] unless @list.cursor.position.nil?
       return false if current_vm.nil?
 
       if key == 'p' # Power menu
@@ -189,22 +216,38 @@ module UI
       end
     end
 
+    # @return [Tuile::StyledString] the pane's focus chip, inverted iff the pane owns the
+    #   keyboard. `[1]` mirrors {AppLayout}'s focus-key map.
+    def chip
+      Formatter.chip('1', 'VMs', focused: active?, theme: screen.theme)
+    end
+
     # @return [String] the footer hint line, listing the available key shortcuts (or the
     #   search-close hint while searching)
     def keyboard_hint
       t = screen.theme
-      return "ESC #{t.hint('close search')}" if footer
+      return "ESC #{t.hint('close search')}" if @search
 
       "p #{t.hint('Power')}  v #{t.hint('run Viewer')}  m #{t.hint('Memory')}  " \
         "d #{t.hint('toggle Disk stat')}  / #{t.hint('Search')}"
     end
 
+    # Rebuilds the header when the pane enters or leaves the focus chain — the chip's
+    # inverted/dim state is baked into the header label's text.
+    # @param value [Boolean]
+    # @return [void]
+    def active=(value)
+      super
+      rebuild_header
+    end
+
     protected
 
-    # Re-renders when the window width changes (bar widths depend on it).
+    # Re-renders when the pane width changes (bar widths and caption centering depend on it).
     # @return [void]
     def on_width_changed
       super
+      rebuild_header
       update
     end
 
@@ -212,54 +255,82 @@ module UI
     # @return [void]
     def on_theme_changed
       super
+      rebuild_header
       update
-    end
-
-    # Draws the window border plus the "Guest usage"/"Host usage" column captions.
-    # @return [void]
-    def repaint_border
-      super
-      return if rect.empty?
-
-      y = rect.top
-      fourth = rect.width / 4
-      theme = screen.theme
-      bg = active? ? theme.active_border_color : theme[:tab_inactive]
-      draw_text(rect.left + fourth - 5, y,
-                StyledString.styled(' Guest usage ', fg: :black, bg: bg))
-      draw_text(rect.left + (3 * fourth) - 5, y,
-                StyledString.styled(' Host usage ', fg: :black, bg: bg))
     end
 
     private
 
-    # Opens an incremental-search text field in the footer, wiring its events to move the
-    # list cursor to matching VMs.
+    # Rebuilds the header row: the focus chip, then the Guest/Host column captions.
+    #
+    # The captions are load-bearing column headers — every VM row renders guest-side |
+    # host-side bar pairs and these are the only thing saying which is which — but they are
+    # static dim labels, deliberately not flipping with focus: the chip is the pane's one
+    # inverted element (see DECISIONS.md D_labeled_focus_cues). Centered at 1/4 and 3/4 of
+    # the pane width, over the middle of each bar column.
+    #
+    # @return [void]
+    def rebuild_header
+      theme = screen.theme
+      line = chip.to_ansi
+      fourth = rect.width / 4
+      line = place(line, fourth - 5, theme.hint('Guest usage'))
+      line = place(line, (3 * fourth) - 5, theme.hint('Host usage'))
+      @header.text = line
+    end
+
+    # Appends `text` to `line` so it starts at column `at`, space-padded; appends nothing
+    # when `line` has already grown past `at` (a too-narrow pane).
+    #
+    # @param line [String] the ANSI-styled row built so far
+    # @param at [Integer] target start column
+    # @param text [String] ANSI-styled text to place
+    # @return [String] the extended row
+    def place(line, at, text)
+      pad = at - StyledString.parse(line).display_width
+      return line if pad.negative?
+
+      line + (' ' * pad) + text
+    end
+
+    # Opens the incremental-search text field as a bottom row of the pane, wiring its events
+    # to move the list cursor to matching VMs. While the field holds focus the list is
+    # inactive, so the cursor is kept painted via `show_cursor_when_inactive` — scoped to
+    # the search so that outside it *cursor visible ⟺ the VM pane owns the keyboard*.
     # @return [void]
     def open_search
-      return if footer
+      return if @search
 
       field = Component::TextField.new
       field.on_escape = method(:close_search)
       field.on_enter = method(:close_search)
-      field.on_change = ->(text) { content.select_next(text, include_current: true) }
-      field.on_key_down = -> { content.select_next(field.text) }
-      field.on_key_up = -> { content.select_prev(field.text) }
-      self.footer = field
+      field.on_change = ->(text) { @list.select_next(text, include_current: true) }
+      field.on_key_down = -> { @list.select_next(field.text) }
+      field.on_key_up = -> { @list.select_prev(field.text) }
+      @search = field
+      @list.show_cursor_when_inactive = true
+      add(field, Fixed[1])
       field.focus
     end
 
-    # Closes the search footer.
+    # Closes the search row, handing focus back to the list (a Layout has no `Window#footer=`
+    # focus repair; this explicit re-focus is the whole cost of the row-not-overlay choice).
     # @return [void]
     def close_search
-      self.footer = nil
+      field = @search
+      return if field.nil?
+
+      @search = nil
+      @list.show_cursor_when_inactive = false
+      @list.focus
+      remove(field)
     end
 
     # Opens the memory menu for the selected VM: toggle auto-ballooning, or give it max
     # memory and disable ballooning. No-op (logs an error) if the VM isn't running.
     # @return [void]
     def show_memory_popup
-      current_vm = @line_data[content.cursor.position] || return
+      current_vm = @line_data[@list.cursor.position] || return
       state = @virt_cache.state(current_vm)
       if state != :running
         $log.error "'#{current_vm}' is not running"
@@ -283,7 +354,7 @@ module UI
     # reboot or hard reset. Each action logs an error if the VM is in the wrong state.
     # @return [void]
     def show_power_popup
-      current_vm = @line_data[content.cursor.position] || return
+      current_vm = @line_data[@list.cursor.position] || return
       state = @virt_cache.state(current_vm)
       opts = [['s', 'Start'], ['o', 'shut dOwn gracefully'], ['O', 'force Off'], ['r', 'reboot (soft)'],
               ['R', 'Reset (hard)']]
@@ -468,7 +539,7 @@ module UI
     end
 
     # Draws a row header: `left` caption followed by a frame rule filling the rest of the
-    # window width.
+    # pane width.
     #
     # @param left [String] the caption (may contain styling)
     # @return [String] the rendered header line

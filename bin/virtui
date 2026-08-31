@@ -51,7 +51,7 @@ screen.content = layout
 # Tuile owns no status bar; the layout draws its own bottom row and this is what
 # keeps it current (tuile DECISIONS.md `D-status-bar`).
 screen.on_focus_changed = -> { layout.refresh_status }
-screen.focused = layout.vms
+layout.vms.focus
 
 # 2s: fast enough that ballooning can ramp a VM up before it starts swapping. Polling
 # harder buys nothing — libvirt refreshes guest balloon data only every ~5s anyway

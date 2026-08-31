@@ -27,6 +27,25 @@ module UI
         Tuile::StyledString.styled('-' * (width - progressbar_char_length), fg: rest_color)
     end
 
+    # Renders a focus chip — the labeled focus cue shared by the status line and the pane
+    # headers: `[key]-label`, one space of block padding each side. The focused variant is
+    # inverse video (SGR 7 swaps whatever colors are in effect, so it reads on any terminal
+    # theme without a color token pair); the unfocused variant is dim, in the hint color.
+    # Plain inverted block on purpose — no powerline glyphs, see DECISIONS.md
+    # D_no_powerline_glyphs.
+    #
+    # @param key [String] the focus key, e.g. `'1'`
+    # @param label [String] the pane name, e.g. `'VMs'`
+    # @param focused [Boolean] whether the chip's pane owns the keyboard
+    # @param theme [Tuile::Theme] the theme the dim variant draws its hint color from
+    # @return [Tuile::StyledString] the rendered chip
+    def chip(key, label, focused:, theme:)
+      text = " [#{key}]-#{label} "
+      return Tuile::StyledString.styled(text, inverse: true) if focused
+
+      Tuile::StyledString.styled(text, fg: theme.hint_color)
+    end
+
     # Renders a labelled progress-bar segment: `left` caption (left-padded to `label_width`,
     # unless empty), the {#progress_bar} filling the middle, then `right` caption
     # (right-padded to 6), all within `width` characters:

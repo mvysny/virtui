@@ -4,7 +4,7 @@ require_relative '../spec_helper'
 require 'timecop'
 
 module Tuile
-  describe UI::VMWindow do
+  describe UI::VMPane do
     before do
       Screen.fake
       @log = Helpers.setup_dummy_logger
@@ -16,12 +16,12 @@ module Tuile
     let(:window) do
       w = Timecop.freeze(now + 5) do
         cache.update
-        UI::VMWindow.new(cache, ballooning)
+        UI::VMPane.new(cache, ballooning)
       end
       Screen.instance.content = w
       w.rect = Rect.new(0, 0, 20, 20)
       w.active = true
-      w.content.active = true
+      w.list.active = true
       w.show_disk_stat = true
       w
     end
@@ -32,14 +32,14 @@ module Tuile
     # Moves the cursor to `pos`, opens the `menu` popup (p/m), picks `option`, and returns
     # everything logged while doing so.
     def pick(pos, menu, option)
-      window.content.cursor.go(pos)
+      window.list.cursor.go(pos)
       window.handle_key(menu)
       picker.handle_key(option)
       @log.string
     end
 
     # @return [Array<String>] every rendered guest swap-out line, top to bottom
-    def swap_lines = window.content.items.map(&:to_s).grep(/SWAP/)
+    def swap_lines = window.list.items.map(&:to_s).grep(/SWAP/)
 
     # One VM's swap row as text, styling stripped, at a width that leaves room for both bars.
     #
@@ -55,7 +55,7 @@ module Tuile
     def win11 = 9
 
     it 'has the right content' do
-      content = window.content.items.map(&:to_s)
+      content = window.list.items.map(&:to_s)
       # BASE declares no OS, so it gets the dim '?' where Fedora gets a penguin
       assert_equal '⏹ ?  BASE───────', content[0]
       assert_equal '    vda: 50%   64G   128G │', content[1]
@@ -81,105 +81,110 @@ module Tuile
     end
 
     it 'show_memory_popup opens picker for running VM' do
-      window.content.cursor.go(4) # Ubuntu is running
+      window.list.cursor.go(4) # Ubuntu is running
       window.handle_key('m')
       assert(Screen.instance.popups.any? { |it| it.content.is_a?(Component::PickerWindow) })
     end
 
     context('cursor movement') do
       it 'moves cursor down correctly' do
-        assert_equal 0, window.content.cursor.position
+        assert_equal 0, window.list.cursor.position
         # first VM is stopped and takes 2 lines
-        window.content.handle_key(Keys::DOWN_ARROW)
-        assert_equal 2, window.content.cursor.position
+        window.list.handle_key(Keys::DOWN_ARROW)
+        assert_equal 2, window.list.cursor.position
         # second VM is running and takes 3 lines
-        window.content.handle_key(Keys::DOWN_ARROW)
-        assert_equal 4, window.content.cursor.position
+        window.list.handle_key(Keys::DOWN_ARROW)
+        assert_equal 4, window.list.cursor.position
         # third VM is running, so it takes 5 lines (header, CPU, RAM, SWAP, disk)
-        window.content.handle_key(Keys::DOWN_ARROW)
-        assert_equal 9, window.content.cursor.position
+        window.list.handle_key(Keys::DOWN_ARROW)
+        assert_equal 9, window.list.cursor.position
         # no more VMs
-        window.content.handle_key(Keys::DOWN_ARROW)
-        assert_equal 9, window.content.cursor.position
+        window.list.handle_key(Keys::DOWN_ARROW)
+        assert_equal 9, window.list.cursor.position
       end
       it 'moves cursor up correctly' do
-        window.content.cursor.go(9)
-        assert_equal 9, window.content.cursor.position
-        window.content.handle_key(Keys::UP_ARROW)
-        assert_equal 4, window.content.cursor.position
-        window.content.handle_key(Keys::UP_ARROW)
-        assert_equal 2, window.content.cursor.position
-        window.content.handle_key(Keys::UP_ARROW)
-        assert_equal 0, window.content.cursor.position
-        window.content.handle_key(Keys::UP_ARROW)
-        assert_equal 0, window.content.cursor.position
+        window.list.cursor.go(9)
+        assert_equal 9, window.list.cursor.position
+        window.list.handle_key(Keys::UP_ARROW)
+        assert_equal 4, window.list.cursor.position
+        window.list.handle_key(Keys::UP_ARROW)
+        assert_equal 2, window.list.cursor.position
+        window.list.handle_key(Keys::UP_ARROW)
+        assert_equal 0, window.list.cursor.position
+        window.list.handle_key(Keys::UP_ARROW)
+        assert_equal 0, window.list.cursor.position
       end
     end
 
     context('search') do
-      it 'opens a TextField in the footer on /' do
+      it 'opens a TextField row on /' do
         window.handle_key('/')
-        assert_instance_of Component::TextField, window.footer
+        assert_instance_of Component::TextField, window.search
       end
 
       it 'ESC closes the search' do
         window.handle_key('/')
-        window.footer.handle_key(Keys::ESC)
-        assert_nil window.footer
+        window.search.handle_key(Keys::ESC)
+        assert_nil window.search
       end
 
       it 'ENTER closes the search' do
         window.handle_key('/')
-        window.footer.handle_key(Keys::ENTER)
-        assert_nil window.footer
+        window.search.handle_key(Keys::ENTER)
+        assert_nil window.search
       end
 
-      it 'shows the cursor on the list while searching' do
-        assert window.content.show_cursor_when_inactive
+      # The invariant outside a search: cursor visible ⟺ the VM pane owns the keyboard.
+      it 'shows the inactive-list cursor only while searching' do
+        refute window.list.show_cursor_when_inactive
+        window.handle_key('/')
+        assert window.list.show_cursor_when_inactive
+        window.search.handle_key(Keys::ESC)
+        refute window.list.show_cursor_when_inactive
       end
 
       it 'jumps to the matching VM as the user types' do
         window.handle_key('/')
-        window.footer.handle_key('w') # win11
-        assert_equal 9, window.content.cursor.position
+        window.search.handle_key('w') # win11
+        assert_equal 9, window.list.cursor.position
       end
 
       it 'is case-insensitive and matches substrings' do
         window.handle_key('/')
-        window.footer.text = 'FED' # Fedora
-        assert_equal 2, window.content.cursor.position
+        window.search.text = 'FED' # Fedora
+        assert_equal 2, window.list.cursor.position
       end
 
       it 'down arrow jumps to the next match' do
         window.handle_key('/')
-        window.footer.text = 'a' # matches base (0) and Fedora (2)
-        assert_equal 0, window.content.cursor.position # lands on base (include_current)
-        window.footer.handle_key(Keys::DOWN_ARROW)
-        assert_equal 2, window.content.cursor.position # Fedora
+        window.search.text = 'a' # matches base (0) and Fedora (2)
+        assert_equal 0, window.list.cursor.position # lands on base (include_current)
+        window.search.handle_key(Keys::DOWN_ARROW)
+        assert_equal 2, window.list.cursor.position # Fedora
       end
 
       it 'up arrow jumps to the previous match' do
         window.handle_key('/')
-        window.footer.text = 'a' # matches base (0) and Fedora (2)
-        window.content.cursor.go(2) # Fedora
-        window.footer.handle_key(Keys::UP_ARROW)
-        assert_equal 0, window.content.cursor.position # base
+        window.search.text = 'a' # matches base (0) and Fedora (2)
+        window.list.cursor.go(2) # Fedora
+        window.search.handle_key(Keys::UP_ARROW)
+        assert_equal 0, window.list.cursor.position # base
       end
 
       it 'down/up wrap around the list' do
         window.handle_key('/')
-        window.footer.text = 'a' # matches base (0) and Fedora (2)
-        window.content.cursor.go(2) # Fedora — last match
-        window.footer.handle_key(Keys::DOWN_ARROW)
-        assert_equal 0, window.content.cursor.position # wraps to base
+        window.search.text = 'a' # matches base (0) and Fedora (2)
+        window.list.cursor.go(2) # Fedora — last match
+        window.search.handle_key(Keys::DOWN_ARROW)
+        assert_equal 0, window.list.cursor.position # wraps to base
       end
 
       it 'only lands on cursor-allowed positions (VM header rows)' do
         window.handle_key('/')
-        window.footer.text = 'cpu' # appears on stat rows, never on header rows
+        window.search.text = 'cpu' # appears on stat rows, never on header rows
         # No VM header line contains 'cpu', and stat rows are not allowed positions,
         # so cursor stays put.
-        assert_equal 0, window.content.cursor.position
+        assert_equal 0, window.list.cursor.position
       end
     end
 
@@ -194,7 +199,7 @@ module Tuile
         refute window.handle_key('z')
       end
 
-      it 'ignores VM shortcuts while the search footer is active' do
+      it 'ignores VM shortcuts while the search row is active' do
         window.handle_key('/')
         refute window.handle_key('p')
         assert_nil picker # no power menu opened
@@ -263,7 +268,7 @@ module Tuile
       end
 
       it 'refuses to open the memory menu for a shut-off VM' do
-        window.content.cursor.go(base)
+        window.list.cursor.go(base)
         window.handle_key('m')
         assert_nil picker
         assert @log.string.include?("'BASE' is not running")
@@ -274,7 +279,7 @@ module Tuile
       it 'shows the ballooning direction indicator once ballooners exist' do
         ballooning.update
         window.update
-        line = window.content.items.map(&:to_s)[ubuntu]
+        line = window.list.items.map(&:to_s)[ubuntu]
         assert line.include?("\u{1F388}-"), line # balloon + "steady" (delta 0)
       end
 
@@ -282,12 +287,12 @@ module Tuile
         ballooning.update
         ballooning.enabled('Ubuntu', false)
         window.update
-        line = window.content.items.map(&:to_s)[ubuntu]
+        line = window.list.items.map(&:to_s)[ubuntu]
         assert line.include?("\u{1F388}x"), line
       end
 
       it 'marks each VM with what its definition declares' do
-        content = window.content.items.map(&:to_s)
+        content = window.list.items.map(&:to_s)
         assert_includes content[ubuntu], "\u{1F427} Ubuntu" # declared Linux
         assert_includes content[win11], "\u{1FA9F} win11" # declared Windows
         assert_includes content[base], '?  BASE' # declares nothing
@@ -298,12 +303,12 @@ module Tuile
       it 'pads every guest-OS marker to the same width, so the name column holds' do
         families = Virt::GuestOS::FAMILIES.keys + [:unknown]
         markers = families.map { |family| window.send(:format_guest_os, Virt::GuestOS.new(family, nil)) }
-        assert_equal [UI::VMWindow::GUEST_OS_WIDTH],
+        assert_equal [UI::VMPane::GUEST_OS_WIDTH],
                      markers.map { |m| StyledString.parse(m).display_width }.uniq
       end
 
       it 'draws a glyph for every family a definition can declare' do
-        assert_equal Virt::GuestOS::FAMILIES.keys.sort, UI::VMWindow::GUEST_OS_GLYPHS.keys.sort
+        assert_equal Virt::GuestOS::FAMILIES.keys.sort, UI::VMPane::GUEST_OS_GLYPHS.keys.sort
       end
 
       it 'maps paused and unknown states to their glyphs' do

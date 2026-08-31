@@ -24,7 +24,7 @@ loader.ignore("#{__dir__}/core_ext")  # loaded manually above
 # lib/virt/ -> Virt:: (libvirt backend), lib/ui/ -> UI:: (tuile presentation).
 loader.inflector.inflect(
   'ui' => 'UI',
-  'vm_window' => 'VMWindow',
+  'vm_pane' => 'VMPane',
   'vm_emulator' => 'VMEmulator',
   'vm' => 'VM',
   'ballooning_vm' => 'BallooningVM',

@@ -1,10 +1,17 @@
 # frozen_string_literal: true
 
 module UI
-  # The top-level screen layout, orchestrating the three windows: {VMWindow} (VM
-  # list/controls), {SystemWindow} (host CPU/RAM/disk) and a log window, over a
-  # one-row status line. Also redirects `$log`'s console output into the log window
-  # and owns the `1`/`2`/`3` focus keys (see {#handle_key}).
+  # The top-level screen layout, orchestrating the three borderless panes: {VMPane} (VM
+  # list/controls), {SystemPane} (host CPU/RAM/disk) and {LogPane}, over a one-row status
+  # line. Also redirects `$log`'s console output into the log pane and owns the `1`/`2`/`3`
+  # focus keys (see {#handle_key}).
+  #
+  # The panes carry no frames (DECISIONS.md D_panes_are_layouts); what tells them apart is
+  # the background: the VM pane — the "editor", where all interaction lives — keeps the
+  # terminal's default background, while the System and log panes are tinted one step
+  # toward mid-grey (`:pane_bg`, see {Theme}) and separated from each other by a one-cell
+  # `│` column. Focus is *labeled* instead of frame-colored: each pane's header chip plus
+  # the status-line chip (DECISIONS.md D_labeled_focus_cues).
   #
   # Tuile draws no status bar and reserves no row (see its DECISIONS.md
   # `D-status-bar`), so the bottom line is ours: {#refresh_status} rebuilds it and
@@ -14,34 +21,42 @@ module UI
   class AppLayout < Tuile::Component::Layout::Absolute
     include Tuile
 
-    # @param virt_cache [Virt::Cache] the runtime cache the windows read from
-    # @param ballooning [Virt::Ballooning] the ballooning controller for {VMWindow}
+    # @param virt_cache [Virt::Cache] the runtime cache the panes read from
+    # @param ballooning [Virt::Ballooning] the ballooning controller for {VMPane}
     def initialize(virt_cache, ballooning)
       super()
       @virt_cache = virt_cache
-      @system = SystemWindow.new(virt_cache)
-      @vms = VMWindow.new(virt_cache, ballooning)
-      @log = Component::LogWindow.new
+      @system = SystemPane.new(virt_cache)
+      @vms = VMPane.new(virt_cache, ballooning)
+      @log = LogPane.new
+      # The one-cell `│` column between the System and log panes; its text is rebuilt to
+      # the row height by {#rect=}, its colors by {#on_theme_changed}.
+      @separator = Component::Label.new
       @status = Component::Label.new
       $log.remove_handler :console
-      $log.add_handler [:console, { output: Component::LogWindow::IO.new(@log), enable_color: true }]
-      add([@vms, @system, @log, @status])
-      # {Hash<String, Tuile::Component::Window>}: the focus keys {#handle_key} dispatches.
+      $log.add_handler [:console, { output: Component::LogTextView::IO.new(@log), enable_color: true }]
+      add([@vms, @system, @separator, @log, @status])
+      # Tint the secondary panes; a {Theme::Ref} re-resolves on every theme swap by itself.
+      # The VM pane deliberately keeps the terminal default (DECISIONS.md
+      # D_tint_secondaries_only).
+      @system.bg_color = Theme.ref(:pane_bg)
+      @log.bg_color = Theme.ref(:pane_bg)
+      @separator.bg_color = Theme.ref(:pane_bg)
+      # {Hash<String, Tuile::Component>}: the focus keys {#handle_key} dispatches. Each
+      # pane's chip advertises its own key; keep the two in sync.
       @focus_keys = { '1' => @vms, '2' => @system, '3' => @log }
-      # Advertise each key in its window's caption — tuile doesn't render it for us.
-      @focus_keys.each { |key, window| window.caption = "[#{key}]-#{window.caption}" }
     end
 
-    # @return [VMWindow] the VM list/controls window
+    # @return [VMPane] the VM list/controls pane
     attr_reader :vms
-    # @return [SystemWindow] the host CPU/RAM/disk window
+    # @return [SystemPane] the host CPU/RAM/disk pane
     attr_reader :system
-    # @return [Tuile::Component::LogWindow] the log window
+    # @return [LogPane] the log pane
     attr_reader :log
     # @return [Tuile::Component::Label] the bottom status line
     attr_reader :status
 
-    # Focuses the window bound to `key`: `1` the VMs, `2` the host metrics, `3` the log.
+    # Focuses the pane bound to `key`: `1` the VMs, `2` the host metrics, `3` the log.
     # As the scope root, this is the last rung of the key bubble — the focused component
     # and its ancestors get the key first, so typing `1` into the VM search field isn't
     # hijacked.
@@ -49,30 +64,31 @@ module UI
     # @param key [String] the pressed key
     # @return [Boolean] true if the key was handled
     def handle_key(key)
-      window = @focus_keys[key]
-      return false if window.nil?
+      pane = @focus_keys[key]
+      return false if pane.nil?
 
-      window.focus
+      pane.focus
       true
     end
 
-    # Rebuilds the status line: the global quit key, then the hint of whichever
-    # window the focus chain runs through. Walking *up* from the focused component
-    # mirrors the direction a key bubbles, so the row describes the keys that will
-    # actually be delivered — the focused search field consumes `/` and `ESC` before
-    # {VMWindow} sees them, and its hint says so.
+    # Rebuilds the status line: the focused pane's chip, the global quit key, then that
+    # pane's hint. Walking *up* from the focused component mirrors the direction a key
+    # bubbles, so the row describes the keys that will actually be delivered — the focused
+    # search field consumes `/` and `ESC` before {VMPane} sees them, and its hint says so.
     #
-    # `keyboard_hint` is virtui's own method on virtui's own windows; Tuile has no
-    # such seam, and nothing calls this but the screen's focus hook.
+    # `keyboard_hint` (and `chip`) are virtui's own methods on virtui's own panes; Tuile
+    # has no such seam, and nothing calls this but the screen's focus hook.
     #
     # @return [void]
     def refresh_status
       cursor = screen.focused
       cursor = cursor.parent until cursor.nil? || cursor.respond_to?(:keyboard_hint)
-      @status.text = ["q #{screen.theme.hint('quit')}", cursor&.keyboard_hint].compact.reject(&:empty?).join('  ')
+      chip = cursor.respond_to?(:chip) ? cursor.chip.to_ansi : nil
+      @status.text = [chip, "q #{screen.theme.hint('quit')}", cursor&.keyboard_hint]
+                     .compact.reject(&:empty?).join('  ')
     end
 
-    # Refreshes every window's contents from the cache and repaints. Call when new data is
+    # Refreshes every pane's contents from the cache and repaints. Call when new data is
     # available; must run with the screen lock held (on the UI thread).
     #
     # @return [void]
@@ -83,22 +99,46 @@ module UI
       screen.repaint
     end
 
-    # Lays out the three windows within `rect`: VMs on top spanning the full width, with
-    # the system window and log side-by-side along the bottom.
+    # Lays out the three panes within `rect`: VMs on top spanning the full width, with
+    # the system pane and log side-by-side along the bottom, a one-cell separator column
+    # between them.
     #
     # @param rect [Tuile::Rect] the area assigned to this layout
     def rect=(rect)
       super
-      system_window_width = (rect.width / 2).clamp(0, 60)
+      system_pane_width = (rect.width / 2).clamp(0, 60)
       system_height = 13
-      # One row goes to the status line; the windows share what is left.
+      # One row goes to the status line; the panes share what is left.
       body_height = [rect.height - 1, 0].max
       vms_height = [body_height - system_height, 0].max
-      @system.rect = Rect.new(rect.left, rect.top + vms_height, system_window_width, system_height)
       @vms.rect = Rect.new(rect.left, rect.top, rect.width, vms_height)
-      @log.rect = Rect.new(rect.left + system_window_width, rect.top + vms_height, rect.width - system_window_width,
-                           system_height)
+      @system.rect = Rect.new(rect.left, rect.top + vms_height, system_pane_width, system_height)
+      @separator.rect = Rect.new(rect.left + system_pane_width, rect.top + vms_height, 1, system_height)
+      @log.rect = Rect.new(rect.left + system_pane_width + 1, rect.top + vms_height,
+                           [rect.width - system_pane_width - 1, 0].max, system_height)
       @status.rect = Rect.new(rect.left, rect.top + body_height, rect.width, 1)
+      rebuild_separator
+    end
+
+    protected
+
+    # Re-bakes the labels whose colors are flattened into their text — the separator
+    # column and the status line. The panes rebuild their own headers.
+    # @return [void]
+    def on_theme_changed
+      super
+      rebuild_separator
+      refresh_status
+    end
+
+    private
+
+    # Rebuilds the separator column's text: one `:pane_frame` `│` per row of the bottom
+    # pane row.
+    # @return [void]
+    def rebuild_separator
+      bar = screen.theme.fg(:pane_frame, '│')
+      @separator.text = Array.new(@separator.rect.height, bar).join("\n")
     end
   end
 end

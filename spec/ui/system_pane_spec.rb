@@ -2,7 +2,7 @@
 
 require_relative '../spec_helper'
 
-# A System::Emulator whose CPU flags and disks can be varied, so SystemWindow's
+# A System::Emulator whose CPU flags and disks can be varied, so SystemPane's
 # flag-dependent CPU summary and its per-disk render loop can be exercised (the base
 # Emulator reports a fixed flag set and no disks).
 class FakeSysInfo < System::Emulator
@@ -18,13 +18,13 @@ class FakeSysInfo < System::Emulator
 end
 
 module Tuile
-  describe UI::SystemWindow do
+  describe UI::SystemPane do
     before { Screen.fake }
     after { Screen.close }
 
     def window_for(cpu_flags: %w[svm npt pdpe1gb], disks: {})
       cache = Virt::Cache.new(Virt::VMEmulator.demo, FakeSysInfo.new(cpu_flags: cpu_flags, disks: disks))
-      w = UI::SystemWindow.new(cache)
+      w = UI::SystemPane.new(cache)
       Screen.instance.content = w
       w.rect = Rect.new(0, 0, 40, 20)
       w
@@ -92,7 +92,7 @@ module Tuile
 
     it 'renders a row per disk' do
       disks = { 'sda' => System::DiskUsage.new(ResourceUsage.new(100.GiB, 40.GiB), 12.GiB, ['/x.qcow2']) }
-      lines = window_for(disks: disks).content.items.map(&:to_s)
+      lines = window_for(disks: disks).list.items.map(&:to_s)
       assert(lines.any? { |l| l.include?('sda') }, lines.join("\n"))
     end
   end

@@ -1,47 +1,78 @@
 # frozen_string_literal: true
 
 module UI
-  # The host window: shows CPU model/flags and usage, RAM and swap usage, and per-disk
+  # The host pane: shows CPU model/flags and usage, RAM and swap usage, and per-disk
   # usage — each as a labelled progress bar built from {Virt::Cache} data. Pressing `h`
   # opens {CpuFlagsWindow}, explaining the host's virtualization CPU flags.
   #
+  # A borderless `Layout::Vertical` (see DECISIONS.md D_panes_are_layouts): a one-row
+  # header carrying the focus chip, over the {Tuile::Component::List}. The list carries a
+  # {Tuile::Component::List::Cursor::Limited} over the bar rows — focus indication
+  # consistent with {VMPane}, and keyboard scrolling when the disk list overflows the
+  # pane's fixed height (`less`/`htop` move highlights through non-actionable rows the
+  # same way); headers and blank rows are skipped, since a cursor parked on one reads
+  # as a glitch.
+  #
   # UI-thread-confined.
-  class SystemWindow < Tuile::Component::Window
+  class SystemPane < Tuile::Component::Layout::Vertical
     include Tuile
 
     # @param virt_cache [Virt::Cache] the runtime cache to read host metrics from
     def initialize(virt_cache)
-      super('System')
-      self.content = Component::List.new
+      super()
       @virt_cache = virt_cache
+      @header = Component::Label.new
+      @list = Component::List.new
+      @list.scrollbar_visibility = :visible
+      add(@header, Fixed[1])
+      add(@list, Expand[1])
       @cpu_info = format_cpu_info
+      rebuild_header
       update
     end
 
-    # Rebuilds the window's lines (CPU/RAM/disk bars) from the current cache data.
+    # @return [Tuile::Component::List] the metric list — the pane's focus target
+    attr_reader :list
+
+    # Focuses the metric list. The pane itself is passive layout; the list is what owns
+    # the cursor and the keyboard.
+    # @return [void]
+    def focus
+      @list.focus
+    end
+
+    # Rebuilds the pane's lines (CPU/RAM/disk bars) from the current cache data, and
+    # recomputes the allowed cursor positions (the bar rows; section headers and disk
+    # name rows are skipped).
     # @return [void]
     def update
       theme = screen.theme
-      content.build_lines do |lines|
+      cursor_positions = []
+      @list.build_lines do |lines|
         # CPU
         lines << header('CPU', @cpu_info, :cpu)
         host_cpu_usage = @virt_cache.host_cpu_usage.to_i
+        cursor_positions << lines.size
         lines << progress_bar("Used:#{host_cpu_usage.to_s.rjust(3)}%", host_cpu_usage, 100, theme[:cpu],
                               "#{@virt_cache.cpu_info.cpus} t")
         vm_cpu_usage = @virt_cache.total_vm_cpu_usage.to_i
         up = @virt_cache.up
+        cursor_positions << lines.size
         lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, theme[:cpu_vm], "#{up} up")
 
         # Memory
         lines << header('RAM', '', :ram)
         host_ram = @virt_cache.host_mem_stat.ram
+        cursor_positions << lines.size
         lines << usage_bar('Used', host_ram, theme[:ram])
         total_vm_rss_usage = @virt_cache.total_vm_rss_usage
+        cursor_positions << lines.size
         lines << progress_bar(
           " VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
           total_vm_rss_usage, host_ram.total, theme[:ram_vm], format_byte_size(host_ram.total)
         )
         host_swap = @virt_cache.host_mem_stat.swap
+        cursor_positions << lines.size
         lines << usage_bar('Swap', host_swap, theme[:swap])
 
         # Disk
@@ -50,11 +81,20 @@ module UI
         lines << header('Disks', format_byte_size(disk_usage.total), :disk)
         disks.each do |name, usage|
           lines << theme.disk_label("#{name}:")
+          cursor_positions << lines.size
           lines << usage_bar('Used', usage.usage, theme[:disk])
+          cursor_positions << lines.size
           lines << usage_bar(' VMs', ResourceUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage),
                              theme[:disk_vm])
         end
       end
+      @list.cursor = Component::List::Cursor::Limited.new(cursor_positions, position: @list.cursor.position)
+    end
+
+    # @return [Tuile::StyledString] the pane's focus chip, inverted iff the pane owns the
+    #   keyboard. `[2]` mirrors {AppLayout}'s focus-key map.
+    def chip
+      Formatter.chip('2', 'System', focused: active?, theme: screen.theme)
     end
 
     # @return [String] the footer hint advertising the `h` (Help) key
@@ -77,12 +117,22 @@ module UI
       end
     end
 
+    # Rebuilds the header when the pane enters or leaves the focus chain — the chip's
+    # inverted/dim state is baked into the header label's text.
+    # @param value [Boolean]
+    # @return [void]
+    def active=(value)
+      super
+      rebuild_header
+    end
+
     protected
 
-    # Re-renders when the window width changes (bar widths depend on it).
+    # Re-renders when the pane width changes (bar widths depend on it).
     # @return [void]
     def on_width_changed
       super
+      rebuild_header
       update
     end
 
@@ -90,10 +140,17 @@ module UI
     # @return [void]
     def on_theme_changed
       super
+      rebuild_header
       update
     end
 
     private
+
+    # Rebuilds the header row — the focus chip.
+    # @return [void]
+    def rebuild_header
+      @header.text = chip
+    end
 
     # Builds the one-line CPU summary — model, then whichever of the notable
     # virtualization flags the host has:

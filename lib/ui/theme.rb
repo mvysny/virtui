@@ -72,7 +72,15 @@ module UI
                  warn: Tuile::Color::YELLOW,
                  error: Tuile::Color::RED,
                  off: Tuile::Color::RED3, # 124 — Rainbow's :darkred
-                 tab_inactive: Tuile::Color::WHITE # bg of the "Guest/Host usage" border captions
+                 # Secondary-pane (System/log) background and the separator hairline on it.
+                 # These are the fixed-tint *floor* — the values used when the terminal
+                 # answers no OSC 11 (Screen#background_color is nil), assuming the common
+                 # near-black ground; when the actual background RGB is known the derived
+                 # tint replaces them (see {.derived}). Toward-grey per DECISIONS.md
+                 # D_tint_toward_grey; exact floor values pending the eyeball pass
+                 # (ideas/borderless-panes.md).
+                 pane_bg: Tuile::Color.hex('#121212'),
+                 pane_frame: Tuile::Color.hex('#333333')
                })
 
     # Darker counterparts legible on light terminal backgrounds. Named ANSI
@@ -95,7 +103,9 @@ module UI
                   warn: Tuile::Color::ORANGE3, # 172 — yellow is unreadable on white
                   error: Tuile::Color::RED,
                   off: Tuile::Color::RED3,
-                  tab_inactive: Tuile::Color::GREY82 # 252 — matches LIGHT active_bg
+                  # The light-variant fixed-tint floor — see the DARK counterpart's note.
+                  pane_bg: Tuile::Color.hex('#f0f0f0'),
+                  pane_frame: Tuile::Color.hex('#cccccc')
                 })
 
     # The dark/light pair; assign to `screen.theme_def=`.

@@ -22,14 +22,14 @@ module Tuile
       layout
     end
 
-    it 'advertises the 1/2/3 focus keys in the window captions' do
-      assert_equal '[1]-VMs', layout.vms.caption.to_s
-      assert_equal '[2]-System', layout.system.caption.to_s
-      assert_equal '[3]-Log', layout.log.caption.to_s
+    it 'advertises the 1/2/3 focus keys in the pane chips' do
+      assert_equal ' [1]-VMs ', layout.vms.chip.to_s
+      assert_equal ' [2]-System ', layout.system.chip.to_s
+      assert_equal ' [3]-Log ', layout.log.chip.to_s
     end
 
     context('handle_key') do
-      it 'focuses the window bound to the pressed digit' do
+      it 'focuses the pane bound to the pressed digit' do
         assert layout.handle_key('2')
         assert layout.system.active?
         refute layout.vms.active?
@@ -39,39 +39,47 @@ module Tuile
         refute layout.system.active?
       end
 
-      it 'declines a key it has no window for' do
+      it 'declines a key it has no pane for' do
         refute layout.handle_key('z')
       end
     end
 
-    it 'rect= tiles VMs on top, system + log along the bottom, status on the last row' do
+    it 'rect= tiles VMs on top, system │ log along the bottom, status on the last row' do
       layout.rect = Rect.new(0, 0, 100, 40)
       # The status line takes the last row, leaving 39; system width =
-      # (100/2).clamp(0,60) = 50; system height = 13; VMs take the rest.
+      # (100/2).clamp(0,60) = 50; then the 1-cell separator column; system
+      # height = 13; VMs take the rest.
       assert_equal [0, 0, 100, 26], rect_of(layout.vms)
       assert_equal [0, 26, 50, 13], rect_of(layout.system)
-      assert_equal [50, 26, 50, 13], rect_of(layout.log)
+      assert_equal [51, 26, 49, 13], rect_of(layout.log)
       assert_equal [0, 39, 100, 1], rect_of(layout.status)
     end
 
-    it 'refresh_status advertises quit plus the focused window\'s own hint' do
+    it 'refresh_status advertises the focused pane\'s chip, quit, and its own hint' do
       layout.rect = Rect.new(0, 0, 100, 40)
       layout.vms.focus
       layout.refresh_status
       text = layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
+      assert_includes text, '[1]-VMs'
       assert_includes text, 'quit'
       assert_includes text, 'Power', text
     end
 
-    it 'rect= clamps the system window width to 60 on a wide screen' do
+    it 'rect= clamps the system pane width to 60 on a wide screen' do
       layout.rect = Rect.new(0, 0, 200, 40)
       assert_equal 60, layout.system.rect.width
-      assert_equal 140, layout.log.rect.width # remainder after the clamped system column
+      assert_equal 139, layout.log.rect.width # remainder after the clamped system column + separator
     end
 
-    it 'update_data refreshes the windows without raising' do
+    it 'tints the secondary panes, leaving the VM pane on the terminal default' do
+      assert_equal UI::Theme::DARK[:pane_bg], layout.system.effective_bg_color
+      assert_equal UI::Theme::DARK[:pane_bg], layout.log.effective_bg_color
+      assert_nil layout.vms.effective_bg_color
+    end
+
+    it 'update_data refreshes the panes without raising' do
       layout.update_data
-      refute_empty layout.vms.content.items
+      refute_empty layout.vms.list.items
     end
 
     def rect_of(component)
