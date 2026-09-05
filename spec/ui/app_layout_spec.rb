@@ -79,10 +79,20 @@ module Tuile
       assert_equal 139, layout.log.rect.width # remainder after the clamped system column + separator
     end
 
+    # The background a pane actually painted, read off the buffer rather than from the
+    # component: `Component#effective_bg_color` is protected, and the painted cell is the
+    # claim worth asserting anyway.
+    # @param pane [Tuile::Component]
+    # @return [Tuile::Color, nil] the bg of the pane's bottom-left cell
+    def painted_bg(pane)
+      Screen.instance.repaint
+      Screen.instance.buffer.cell(pane.rect.left, pane.rect.top + pane.rect.height - 1).style.bg
+    end
+
     it 'tints the secondary panes, leaving the VM pane on the terminal default' do
-      assert_equal UI::Theme::DARK[:pane_bg], layout.system.effective_bg_color
-      assert_equal UI::Theme::DARK[:pane_bg], layout.log.effective_bg_color
-      assert_nil layout.vms.effective_bg_color
+      assert_equal UI::Theme::DARK[:pane_bg], painted_bg(layout.system)
+      assert_equal UI::Theme::DARK[:pane_bg], painted_bg(layout.log)
+      assert_nil painted_bg(layout.vms)
     end
 
     it 'derives the pane tint from a reported terminal background, and tracks a change' do
@@ -91,7 +101,7 @@ module Tuile
       Screen.instance.background_color = mocha
       derived = UI::Theme.derived(mocha).dark
       assert_equal derived[:pane_bg], Screen.instance.theme[:pane_bg]
-      assert_equal derived[:pane_bg], layout.system.effective_bg_color # the Ref re-resolves
+      assert_equal derived[:pane_bg], painted_bg(layout.system) # the Ref re-resolves
       assert_equal derived[:frame], Screen.instance.theme[:frame]
     end
 
