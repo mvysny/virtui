@@ -15,10 +15,12 @@ records the invariant.
 ## Commands
 
 ```bash
-bundle exec rake spec             # Run all tests
+bundle exec rake                  # The gate: all tests + lint (same as `rake check`)
+bundle exec rake check            # ditto, spelled out; this is what CI runs
+bundle exec rake spec             # Just the tests
 bundle exec rspec spec/path/to_spec.rb          # Run a single spec file
 bundle exec rspec spec/path/to_spec.rb:LINE     # Run a specific test by line number
-bundle exec rubocop               # Lint
+bundle exec rubocop               # Just the lint
 ```
 
 ## Autoloading (Zeitwerk)

@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'rake/testtask'
 require 'yard'
 require 'rspec/core/rake_task'
 require 'rubocop/rake_task'
@@ -16,6 +15,13 @@ YARD::Rake::YardocTask.new do |t|
 end
 
 RSpec::Core::RakeTask.new(:spec)
+
+# The one gate: everything CI and a pre-push check should agree on. `spec` runs first so a
+# real failure surfaces before style nits.
+desc 'Run the full test suite and the linter'
+task check: %i[spec rubocop]
+
+task default: :check
 
 # XDG: create a launcher icon
 require 'fileutils'
