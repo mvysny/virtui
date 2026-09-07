@@ -94,6 +94,58 @@ rejection is crowding out the live design.
 
 ---
 
+## D_achromatic_hints — keyboard hints and captions are grey with bold keys, not an accent hue (2026-09-07)
+
+**Status:** Accepted; shipped as {UI::Theme}'s `hint_color` override and
+{UI::Theme#key}.
+
+**Context.** Every `theme.hint(…)` call — the footer keys, `q quit`, the
+unfocused pane chip, the Guest/Host column captions, the CPU-flag help
+descriptions — painted in Tuile's default `hint_color`: a cadet-blue teal
+(palette 109 dark, 30 light) inherited from the framework status bar, which
+Tuile has since removed. VirTUI never chose that hue; it was the one colour on
+screen with no meaning behind it. Meanwhile every saturated hue in
+{UI::Theme} already names something: blue is CPU, maroon/magenta RAM, violet
+swap, orange and gold disk, green/yellow/red VM state.
+
+**Decision.** Chrome carries no hue. The shortcut *letter* is bold in the
+terminal's own foreground ({UI::Theme#key}); the caption after it, the
+unfocused chip and the column captions are a mid-grey: GREY58 (246, ~6.4:1
+on black) on dark, GREY42 (242, ~5.7:1 on white) on light — both above the
+4.5:1 text threshold, both a step darker than Tuile's `placeholder_color`
+so a hint reads as *secondary text*, not as an absent value. The hues stay
+reserved for metrics and states; D_labeled_focus_cues' "dim otherwise"
+chip is now literally true.
+
+**Alternatives rejected.**
+
+- *Keep a hue for hints — the desaturated steel-blue family (146) or teal
+  itself.* Tuile's yardoc wants `hint_color` to "pull the eye", but in a
+  screen where every hue is a metric, a coloured hint is read as a ninth
+  metric (or, next to the CPU blue, as a paler CPU). Teal only survived
+  because it happened to be the one hue nobody had claimed.
+- *Paint hints in the badge colour — the inverse chip's background, i.e. the
+  terminal's default foreground.* Zero-token and theme-proof, but the
+  unfocused chip and the Guest/Host captions then look identical to body
+  text. Telling them apart needs dim (SGR 2), which `Tuile::StyledString`
+  does not model and which several terminals render as no-op or as a
+  colour shift. Bold-key-plus-grey-caption gets the same "no hue" result
+  with a colour that is actually under our control.
+- *Reuse one metric hue (the CPU blue) as a brand accent.* The `CPU`
+  caption in the VM rows is painted in that same token; a footer in it
+  would read as CPU-related.
+
+**Consequences.** `theme.hint` stays the one caption verb and
+{UI::Formatter.chip} keeps reading `hint_color`, so the override restyles
+everything at once; no call site knows the colour. Keys go through
+{UI::Theme#key} — a bare `"p #{t.hint('Power')}"` would silently drop the
+bold, and no spec reads the footer's SGR codes, so the reader is the only
+guard. If the derived pane tint ({UI::Tint}) ever lands on a mid-grey
+background, the grey hint may need to join `GUARD_TOKENS`; today the tint
+stops well short of it.
+
+---
+
 ## D_panes_are_layouts — the borderless panes are Layout::Verticals, not frameless Windows (2026-08-31)
 
 **Status:** Accepted; shipped as {UI::VMPane}, {UI::SystemPane}, {UI::LogPane}.

@@ -18,4 +18,13 @@ describe UI::Theme do
       end
     end
   end
+
+  # DECISIONS.md D_achromatic_hints: chrome carries no hue, so a hint can't be misread as a metric.
+  it 'hints are grey and keys are bold in the terminal foreground, in both variants' do
+    assert_equal Tuile::Color::GREY58, UI::Theme::DARK.hint_color
+    assert_equal Tuile::Color::GREY42, UI::Theme::LIGHT.hint_color
+    [UI::Theme::DARK, UI::Theme::LIGHT].each do |theme|
+      assert_equal "\e[1mp\e[0m", theme.key('p')
+    end
+  end
 end

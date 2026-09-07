@@ -99,7 +99,7 @@ module UI
 
     # @return [String] the footer hint advertising the `h` (Help) key
     def keyboard_hint
-      "h #{screen.theme.hint('Help')}"
+      "#{screen.theme.key('h')} #{screen.theme.hint('Help')}"
     end
 
     # Handles a key press: `h` opens {CpuFlagsWindow}.

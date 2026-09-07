@@ -87,7 +87,7 @@ module UI
     def refresh_status
       cursor = screen.focused
       cursor = cursor.parent until cursor.nil? || cursor.respond_to?(:keyboard_hint)
-      @status.text = ["q #{screen.theme.hint('quit')}", cursor&.keyboard_hint]
+      @status.text = ["#{screen.theme.key('q')} #{screen.theme.hint('quit')}", cursor&.keyboard_hint]
                      .compact.reject(&:empty?).join('  ')
     end
 

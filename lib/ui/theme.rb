@@ -48,12 +48,23 @@ module UI
     # @return [String] `text` in the powered-off color.
     def off(text) = fg(:off, text)
 
+    # @param text [String]
+    # @return [String] `text` in bold, in the terminal's own foreground — the
+    #   shortcut letter in a hint (`"#{theme.key('p')} #{theme.hint('Power')}"`).
+    def key(text) = Tuile::StyledString.styled(text, bold: true).to_ansi
+
     # @!endgroup
 
     # Tuned for dark terminal backgrounds: Rainbow's X11 color names, quantized
     # to the 256-color palette.
+    #
+    # `hint_color` overrides Tuile's cadet-blue with a grey: every hue in the
+    # palette below already names a metric or a VM state, so chrome (the hints,
+    # the unfocused chip, the column captions) stays achromatic — see
+    # DECISIONS.md D_achromatic_hints.
     # @return [Theme]
     DARK = new(**Tuile::Theme::DARK.to_h,
+               hint_color: Tuile::Color::GREY58, # 246, 6.4:1 on black
                custom: {
                  cpu: Tuile::Color::DEEP_SKY_BLUE1, # 39 — Rainbow's :dodgerblue
                  cpu_vm: Tuile::Color::CORNFLOWER_BLUE, # 69 — Rainbow's :royalblue
@@ -85,9 +96,11 @@ module UI
 
     # Darker counterparts legible on light terminal backgrounds. Named ANSI
     # colors (green, red, magenta) stay symbolic — the terminal's own palette
-    # remaps them to light-appropriate shades.
+    # remaps them to light-appropriate shades. `hint_color` is the grey
+    # counterpart of {DARK}'s.
     # @return [Theme]
     LIGHT = new(**Tuile::Theme::LIGHT.to_h,
+                hint_color: Tuile::Color::GREY42, # 242, 5.7:1 on white
                 custom: {
                   cpu: Tuile::Color::DODGER_BLUE3, # 26
                   cpu_vm: Tuile::Color::ROYAL_BLUE1, # 63

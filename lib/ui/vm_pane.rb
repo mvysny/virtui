@@ -226,10 +226,11 @@ module UI
     #   search-close hint while searching)
     def keyboard_hint
       t = screen.theme
-      return "ESC #{t.hint('close search')}" if @search
+      return "#{t.key('ESC')} #{t.hint('close search')}" if @search
 
-      "p #{t.hint('Power')}  v #{t.hint('run Viewer')}  m #{t.hint('Memory')}  " \
-        "d #{t.hint('toggle Disk stat')}  / #{t.hint('Search')}"
+      "#{t.key('p')} #{t.hint('Power')}  #{t.key('v')} #{t.hint('run Viewer')}  " \
+        "#{t.key('m')} #{t.hint('Memory')}  #{t.key('d')} #{t.hint('toggle Disk stat')}  " \
+        "#{t.key('/')} #{t.hint('Search')}"
     end
 
     # Rebuilds the header when the pane enters or leaves the focus chain — the chip's
