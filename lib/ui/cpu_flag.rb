@@ -5,7 +5,7 @@ module UI
   # detect it, and what having it buys a KVM guest.
   #
   # {ALL} is the whole glossary and the single source of truth for both readers —
-  # {SystemWindow}'s one-line CPU summary renders the {#name}s, {CpuFlagsWindow}
+  # {SystemPane}'s one-line CPU summary renders the {#name}s, {CpuFlagsWindow}
   # renders the {#description}s — so the two can no longer drift apart (they had:
   # the summary and the help each carried their own copy of the flag list).
   #

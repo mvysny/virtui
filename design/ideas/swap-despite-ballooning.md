@@ -430,7 +430,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    **The read half is built (2026-08-21).** `balloon.swap_in`/`swap_out` are parsed
    into `MemoryStat`, and `Cache::VMCache#swap_out_rate` differences them into
    bytes/s — the same seam that already derives `cpu_usage` and
-   `mem_data_age_seconds`, so it inherits their lifecycle. `UI::VMWindow` renders a
+   `mem_data_age_seconds`, so it inherits their lifecycle. `UI::VMPane` renders a
    `SWAP` row per swapping VM — since 2026-08-21 with the guest's actual swap
    *level* beside it, read through the guest agent (D_guest_swap_level): root
    cause 3's erased evidence recovered rather than estimated. Nothing acts on
@@ -911,7 +911,7 @@ size it via `min_actual`/the reserve rather than by leaving it unbounded".
   climbing *with* 4.3 GiB of cache, **the thrash is not a size problem** and cause
   1's fallback needs a different explanation. Measurement and consequences:
   `swap-via-qemu-guest-agent.md`. Still worth surfacing `disk_caches` (already in
-  `MemoryStat`, still thrown away) in `UI::VMWindow`.
+  `MemoryStat`, still thrown away) in `UI::VMPane`.
 - Should `disk_caches` be a *second* input to the controller — e.g. refuse to
   shrink a VM whose page cache is already below some floor, on the grounds that
   there is no cheap reclaim victim left? Same shape as gating shrink on swap

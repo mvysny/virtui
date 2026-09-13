@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module UI
-  # The `h` help popup of {SystemWindow}: one paragraph per virtualization CPU flag
+  # The `h` help popup of {SystemPane}: one paragraph per virtualization CPU flag
   # this host has, taken from the {CpuFlag} glossary — the glossary for the flag list
   # the CPU summary line shows.
   #
