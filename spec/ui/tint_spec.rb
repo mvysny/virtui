@@ -4,7 +4,7 @@ require_relative '../spec_helper'
 
 module Tuile
   # The representative terminal backgrounds the derivation was measured against
-  # (DECISIONS.md D_tint_toward_grey): the two poles plus popular dark and light themes.
+  # (design/decisions.md D_tint_toward_grey): the two poles plus popular dark and light themes.
   TINT_SPEC_BACKGROUNDS = {
     'pure black' => '#000000',
     'Catppuccin Mocha' => '#1e1e2e',

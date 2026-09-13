@@ -2,7 +2,7 @@
 
 module UI
   # The log pane: `$log`'s console output, word-wrapped and auto-scrolled. A borderless
-  # `Layout::Vertical` (see DECISIONS.md D_panes_are_layouts): a one-row header carrying
+  # `Layout::Vertical` (see design/decisions.md D_panes_are_layouts): a one-row header carrying
   # the focus chip, over a {Tuile::Component::LogTextView} — deliberately a text view and
   # not a list, so long lines (stacktraces, wide log records) wrap rather than ellipsize.
   # Point a logger at a `LogTextView::IO` wrapping this pane; {#log} is any-thread safe

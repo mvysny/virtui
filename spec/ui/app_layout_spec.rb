@@ -62,7 +62,7 @@ module Tuile
       text = layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
       assert_includes text, 'quit'
       assert_includes text, 'Power', text
-      # The chip lives in the pane header only (DECISIONS.md D_labeled_focus_cues).
+      # The chip lives in the pane header only; the status line is keys.
       refute_includes text, '[1]-VMs', text
     end
 

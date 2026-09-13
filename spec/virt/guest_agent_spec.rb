@@ -94,7 +94,7 @@ describe Virt::GuestAgent do
   end
 
   # The class of the error, not the log level, is what a caller polling this hangs its
-  # write-off and its log level off — see DECISIONS.md D_guest_agent_backoff.
+  # write-off and its log level off — see design/decisions.md D_guest_agent_backoff.
   context 'failure classification' do
     # @param replies [Hash{String => String, StandardError}] the scripted agent
     # @return [StandardError] what {Virt::GuestAgent#read_file} raised against it

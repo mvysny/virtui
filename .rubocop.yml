@@ -14,7 +14,7 @@ Style/GlobalVars:
     - $log
 
 # Value objects are defined as `class X < Data.define(...)` throughout — the project's
-# canonical idiom (see the "Data.define for value objects" convention in CLAUDE.md).
+# canonical idiom (see the "Ruby, no Rails" convention in AGENTS.md).
 Style/DataInheritance:
   Enabled: false
 
@@ -29,7 +29,7 @@ Naming/PredicateMethod:
   Enabled: false
 
 # This project favours a few longer, expressive methods over many tiny indirections
-# (see the "Readable, not obfuscated" convention in CLAUDE.md). The Metrics department's
+# (see the "Readable, not obfuscated" convention in AGENTS.md). The Metrics department's
 # size/complexity thresholds fight that style, so it's turned off wholesale.
 Metrics:
   Enabled: false

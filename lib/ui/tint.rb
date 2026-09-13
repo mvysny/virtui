@@ -13,15 +13,15 @@ module UI
   # toward-the-pole because the pole rule dies exactly at `#000`/`#fff`, the two most
   # common terminal backgrounds, where toward-grey's failure case (a mid-grey terminal)
   # exists on no real terminal; the measured contrast cost at {DELTA} never pushes a
-  # passing token under the floor. See DECISIONS.md D_tint_toward_grey for the ratios.
+  # passing token under the floor. See design/decisions.md D_tint_toward_grey for the ratios.
   module Tint
     module_function
 
     # How far the pane background steps toward mid-grey, in HSL lightness. Measured safe
     # across `#000`/Mocha/One Dark/`#fff`/Latte/Solarized Light: the binding token (the
     # LIGHT theme's `:cpu`, 5.8:1 on white) still clears {CONTRAST_FLOOR} at 0.04 and
-    # sits on the line at 0.05 (DECISIONS.md D_tint_toward_grey). Perceptibility on
-    # washed-out displays is the open eyeball item (ideas/borderless-panes.md).
+    # sits on the line at 0.05 (design/decisions.md D_tint_toward_grey). Perceptibility on
+    # washed-out displays is the open eyeball item.
     DELTA = 0.04
 
     # How far a hairline (`:frame` / `:pane_frame`) steps from the ground it rules on.
@@ -40,7 +40,7 @@ module UI
     # The secondary-pane background: `background` stepped {DELTA} toward mid-grey, unless
     # that would drag a guarded foreground token under {CONTRAST_FLOOR} — then the step
     # flips away from grey instead. The flip is expected dead on every real terminal
-    # (see DECISIONS.md D_tint_toward_grey); it protects the backgrounds never measured.
+    # (see design/decisions.md D_tint_toward_grey); it protects the backgrounds never measured.
     #
     # @param background [Tuile::Color] the terminal background; must carry RGB
     # @param guard [Array<Tuile::Color>] foreground tokens rendered on the pane; entries

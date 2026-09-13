@@ -1,10 +1,10 @@
 # Guest OS detection, wave 3: don't ask the agent — let the read be the probe
 
 **Status:** waves 1 and 2 shipped (2026-08-23); their arguments, roads not taken
-and caveats live in **DECISIONS.md D_guest_os_from_xml** and
-**D_guest_os_glyph**. Wave 3 is *decided but unimplemented* (2026-08-27): the
+and caveats live in **design/decisions.md D_guest_os_from_xml** and
+the yardoc of `UI::VMPane::GUEST_OS_GLYPHS`. Wave 3 is *decided but unimplemented* (2026-08-27): the
 agent is **not** getting `guest-get-osinfo`, and the gate widens by one `&&`
-instead. Nothing here has been written to DECISIONS.md yet — see *Graduation*.
+instead. Nothing here has been written to design/decisions.md yet — see *Graduation*.
 
 ## What killed the corroborating-agent plan
 
@@ -15,7 +15,7 @@ feeds exactly two places and nothing else:
 | consumer | what a wrong answer costs |
 |---|---|
 | `Virt::Cache#update`'s gate on the swap read (`cache.rb:244`) | a missing swap gauge, or doomed agent RPCs |
-| `UI::VMWindow`'s per-row glyph (`vm_window.rb:379`, D_guest_os_glyph) | the wrong flag emoji on one row |
+| `UI::VMWindow`'s per-row glyph (`vm_window.rb:379`) | the wrong flag emoji on one row |
 
 The glyph is chrome — nowhere near worth an RPC per domain plus new machinery.
 And the gate doesn't need a classification *at all*, because **the read is its
@@ -130,11 +130,11 @@ showing `-`. Which wording is right depends on check 1.
 
 ## Graduation
 
-On implementing the one-liner, write a new DECISIONS.md entry — *"a guest that
+On implementing the one-liner, write a new design/decisions.md entry — *"a guest that
 declares no OS is asked for `/proc/meminfo` rather than classified first, and
 `guest-get-osinfo` is not added"*, slug suggestion **read-is-the-probe** —
 carrying the consumer table, the four bills, and the two *Also considered*
-bullets. (Written without the `D_` prefix on purpose: CLAUDE.md's grep tripwire
+bullets. (Written without the `D_` prefix on purpose: AGENTS.md's grep tripwire
 treats every `D_`-prefixed token in the repo as a citation that must already have
 a heading, and this one does not yet.) Then amend the guest-OS-from-XML entry:
 its "declares no OS → no swap level" consequence is

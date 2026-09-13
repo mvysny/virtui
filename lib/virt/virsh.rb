@@ -4,7 +4,7 @@ module Virt
   # A libvirt client that drives libvirt by shelling out to the `virsh` CLI (parsing its
   # text output). Install it with `sudo apt install libvirt-clients`.
   #
-  # Not the ruby-libvirt binding — see DECISIONS.md D_virsh_cli.
+  # Not the ruby-libvirt binding — see design/decisions.md D_virsh_cli.
   #
   # Every call to the outside world goes through a *runner* ({VirshSession} for a
   # persistent child, {VirshSpawn} for a process per command), so this class holds nothing
@@ -49,7 +49,7 @@ module Virt
     # The guest's own view of how full its swap device is.
     #
     # Kept out of {#domain_data} deliberately: that is one `domstats` call for the whole
-    # fleet, while this is three agent calls *per VM* that fail per VM — see DECISIONS.md
+    # fleet, while this is three agent calls *per VM* that fail per VM — see design/decisions.md
     # D_guest_swap_level.
     #
     # @param domain_name [String] VM name; must be running
@@ -63,7 +63,7 @@ module Virt
     #   virsh.guest_os('BASE')    # => unknown — nothing declared, or an unknown vendor
     #
     # Works on a *shut-off* domain, and needs no guest agent — which is the whole reason
-    # virtui reads the declaration rather than asking the running guest (DECISIONS.md
+    # virtui reads the declaration rather than asking the running guest (design/decisions.md
     # D_guest_os_from_xml). Cheap but not free: one `virsh` round-trip per call, so callers
     # memoize it per domain ({Cache#update} does).
     #
@@ -215,7 +215,7 @@ module Virt
     # `balloon.rss`) keep updating — making RAM look stuck even as CPU moves. The period is
     # a live property of the running QEMU process, so it must be re-armed after every full
     # power-off; {Cache#update} does that. Why virtui arms it at all instead of asking the
-    # user to configure the domain XML: DECISIONS.md D_mem_stats_self_armed.
+    # user to configure the domain XML: design/decisions.md D_mem_stats_self_armed.
     #
     # Runs asynchronously (failures logged, not raised): a VM without a
     # balloon device rejects this command, and that must not abort the refresh loop.

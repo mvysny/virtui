@@ -20,7 +20,7 @@ module Virt
         # The 10-point gap to that trigger is a deadband, and it is narrower than it looks:
         # raising by 30% takes a guest reading 65% straight down to 50%, five points *under*
         # this trigger, so a raise is followed by a shrink as soon as the back-off lapses.
-        # See `ideas/swap-despite-ballooning.md` for the arithmetic.
+        # See `design/ideas/swap-despite-ballooning.md` for the arithmetic.
         @trigger_at = 55
 
         # {Integer | nil} the usage the latest sample reported, `nil` before the first one

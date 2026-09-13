@@ -22,7 +22,7 @@ module Virt
         # read it as `100 - vm.swappiness`, which is what it used to claim: swappiness
         # weights the anon LRU against the file LRU once reclaim has *already* been entered
         # and says nothing about when reclaim starts. A guest at 61% was measured holding
-        # 2 GiB of swap — see `ideas/swap-despite-ballooning.md`.
+        # 2 GiB of swap — see `design/ideas/swap-despite-ballooning.md`.
         @trigger_at = 65
 
         # {Integer | nil} the usage the latest sample reported, `nil` before the first one

@@ -23,3 +23,14 @@ jobs:
     - name: Run tests
       run: bundle exec rake
 
+  # The doc-layer checks alone (also part of `rake` above): bash + git, no Ruby needed.
+  design-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Design-doc tripwires
+      run: design/verify_design_tripwires.sh
+

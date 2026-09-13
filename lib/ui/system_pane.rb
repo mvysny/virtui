@@ -5,7 +5,7 @@ module UI
   # usage — each as a labelled progress bar built from {Virt::Cache} data. Pressing `h`
   # opens {CpuFlagsWindow}, explaining the host's virtualization CPU flags.
   #
-  # A borderless `Layout::Vertical` (see DECISIONS.md D_panes_are_layouts): a one-row
+  # A borderless `Layout::Vertical` (see design/decisions.md D_panes_are_layouts): a one-row
   # header carrying the focus chip, over the {Tuile::Component::List}. The list carries a
   # {Tuile::Component::List::Cursor::Limited} over the bar rows — focus indication
   # consistent with {VMPane}, and keyboard scrolling when the disk list overflows the

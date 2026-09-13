@@ -1,7 +1,10 @@
 # virtui
 
-A TUI client for libvirt/virsh. Requires Ruby 3.3+.
-Currently only tested on Linux host: probably won't work on Windows nor MacOS.
+A terminal UI for the KVM/QEMU virtual machines on a Linux host, driven through `virsh`: one
+screen with every VM's CPU, RAM, disk and swap next to the host's own, the power keys, and an
+automatic memory balloon that grows a guest the moment it is short and shrinks it slowly as it
+idles. libvirt owns the VMs and the balloon device; virtui owns the polling, the display and
+the decision of how much memory to move. Requires Ruby 3.3+; tested on Linux only.
 
 ![Screenshot](docs/screenshot.png)
 
@@ -197,14 +200,16 @@ $ bundle config set --local path ~/.gem
 $ bundle install
 ```
 
-Run tests via:
+Run the whole gate — tests, lint and the design-doc checks — via:
 ```
-$ bundle exec rake spec
+$ bundle exec rake
 ```
+Just the tests: `bundle exec rake spec`. Contributor orientation is in `AGENTS.md`; the
+design rationale under `design/`.
 
 # Future plans
 
 - `+-` increases/shrinks active memory by 10% and disables automatic ballooning
 - Add [libvirt](https://ruby.libvirt.org/) client instead of shelling out to `virsh`: blocked by
-  [bug #1](https://github.com/mvysny/virtui/issues/1). See `DECISIONS.md` `D_virsh_cli`.
+  [bug #1](https://github.com/mvysny/virtui/issues/1). See `design/decisions.md` `D_virsh_cli`.
 

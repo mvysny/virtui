@@ -6,7 +6,7 @@ module UI
   # via key shortcuts: power menu (`p`), launch viewer (`v`), memory menu (`m`), toggle disk
   # stats (`d`) and search (`/`).
   #
-  # A borderless `Layout::Vertical`, not a `Window` (see DECISIONS.md D_panes_are_layouts):
+  # A borderless `Layout::Vertical`, not a `Window` (see design/decisions.md D_panes_are_layouts):
   # a one-row header — the focus chip plus the Guest/Host column captions — over the
   # {Tuile::Component::List}, with the incremental-search {Tuile::Component::TextField}
   # appearing as a third row while open (a row in the pane's own layout, not an overlay:
@@ -30,8 +30,10 @@ module UI
     # alarm scale and not a ratio: it is set high enough that a guest thrashing hard still has
     # bar left to grow into, which costs sensitivity at the bottom — on a ~100-column terminal
     # the gauge's first character lights at ~0.8 MiB/s, so a trickle below that reads as an
-    # empty bar and only the warn-colored label reports it. See DECISIONS.md
-    # D_swap_rate_full_scale for the self-scaling alternatives this rejects.
+    # empty bar and only the warn-colored label reports it. Not self-scaled to each VM's own
+    # peak: a per-VM denominator makes the bar mean something different per row and per
+    # minute, and comparing VMs down the list is what the column is for. Not a log scale
+    # either — it reads as linear to anyone who does not know it isn't.
     SWAP_RATE_FULL_SCALE = 20.MiB
 
     # Width of the swap row's `↕traffic` tail — the arrow plus a 5-char byte size. Fixed, so
@@ -41,7 +43,9 @@ module UI
     # The guest-OS marker drawn between a VM's state glyph and its name, keyed by
     # {Virt::GuestOS#family}. Emoji, because the overview line is already read by its glyphs
     # (▶/⏹/🎈/🐢), and a family with no entry here — `:unknown` — falls through to the
-    # dim `?` {#format_guest_os} draws instead. See DECISIONS.md D_guest_os_glyph.
+    # dim `?` {#format_guest_os} draws instead. It sits *left* of the name because the
+    # declaration never changes while virtui runs; the things that do (balloon, arrow, turtle)
+    # stay right of the name, where a tick-by-tick change costs nothing.
     #
     # One entry per {Virt::GuestOS::FAMILIES} key, so every declaration osinfo-db can express
     # draws something. Where a project has a mascot the mascot wins (🐧 Tux, 😈 Beastie,
@@ -51,7 +55,9 @@ module UI
     # the obvious ☀️ for Solaris and 🕸️ for NetWare measure **1**, being variation sequences,
     # and are why those two rows are 🌞 and 🌐.
     GUEST_OS_GLYPHS = {
-      linux: "\u{1F427}",        # 🐧 Tux
+      linux: "\u{1F427}", # 🐧 Tux
+      # 🪟 is Emoji 13 (2020), the set's one font-coverage risk: a tofu box is usually one
+      # cell and shifts the name. Fallback if it bites: a padded "W ".
       windows: "\u{1FA9F}",      # 🪟
       freebsd: "\u{1F608}",      # 😈 Beastie, the BSD daemon
       openbsd: "\u{1F421}",      # 🐡 Puffy the pufferfish
@@ -267,8 +273,9 @@ module UI
     # The captions are load-bearing column headers — every VM row renders guest-side |
     # host-side bar pairs and these are the only thing saying which is which — but they are
     # static dim labels, deliberately not flipping with focus: the chip is the pane's one
-    # inverted element (see DECISIONS.md D_labeled_focus_cues). Centered at 1/4 and 3/4 of
-    # the pane width, over the middle of each bar column.
+    # inverted element, and a two-shade caption flip is a relative cue the reader must remember
+    # the resting shade to read. Centered at 1/4 and 3/4 of the pane width, over the middle of
+    # each bar column.
     #
     # @return [void]
     def rebuild_header
@@ -463,15 +470,17 @@ module UI
     #          ^level, or unknown                        ^rate now      traffic since boot^
     #
     # Why the rate sits on the host side rather than beside the level: {#swap_io_bar}. Why an
-    # unknown level is dashes rather than blank: {#swap_level_bar}. Both in DECISIONS.md
-    # D_swap_row_two_cells.
+    # unknown level is dashes rather than blank: {#swap_level_bar}. Two cells rather than
+    # three figures in the guest cell because at ~100 columns a cell is ~42 characters, and a
+    # level bar squeezed to ~10 loses the comparison against the RAM bar above it that makes
+    # the level worth showing.
     #
     # Rendered whether or not the guest is swapping, so the warn coloring on the label rather
     # than the row's presence is what draws the eye: hiding the row at rest made every VM
     # below it jump a row on each swap burst. Absent *counters* are the one case that still
-    # hides it, because that state never flips back — see DECISIONS.md D_swap_row_always_on.
-    # (A guest that reports a level but no counters therefore gets no row at all; no distro
-    # kernel builds without `CONFIG_VM_EVENT_COUNTERS`, so that combination stays theoretical.)
+    # hides it, because that state never flips back while the reader is looking. (A guest
+    # that reports a level but no counters therefore gets no row at all; no distro kernel
+    # builds without `CONFIG_VM_EVENT_COUNTERS`, so that combination stays theoretical.)
     #
     # @param cache [Virt::Cache::VMCache] the VM's cache entry
     # @param column_width [Integer] width of one usage-bar column, so the separator lines up

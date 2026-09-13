@@ -13,7 +13,7 @@ module Virt
   # is a normal state, not an internal error. This is the one read path in the project that
   # swallows; the {GuestAgent} underneath raises loudly, and a caller wanting the failure
   # rather than a blank gauge asks it directly — deliberately not a decorator over it, see
-  # DECISIONS.md D_swap_sampler_split.
+  # design/decisions.md D_swap_sampler_split.
   #
   # == Implementation details
   #
@@ -24,7 +24,7 @@ module Virt
   # A {GuestAgent::Unavailable} — the failure a healthy host produces on its own — stays at
   # `debug`, since every VM start passes through one while `qemu-ga` comes up; anything else
   # says so once, at `warn`, so a misconfigured agent is not swallowed with the rest. See
-  # DECISIONS.md D_guest_agent_backoff.
+  # design/decisions.md D_guest_agent_backoff.
   #
   # Timer-thread-confined: the strike counts are unguarded, and the sample under them is
   # three RPCs against a guest that may be sick — exactly the stall that must never reach
@@ -36,7 +36,7 @@ module Virt
     # spent 6s after libvirt calls the domain running, long before `qemu-ga` connects, so
     # every VM start writes its own guest off and waits the backoff out with a blank swap
     # gauge. The strike count then survives a lapse ({#backing_off?}), making a still-mute
-    # guest cost one probe a minute rather than three. See DECISIONS.md D_guest_agent_backoff.
+    # guest cost one probe a minute rather than three. See design/decisions.md D_guest_agent_backoff.
     FAILURES_BEFORE_BACKOFF = 3
     # @see FAILURES_BEFORE_BACKOFF
     BACKOFF_SECONDS = 60

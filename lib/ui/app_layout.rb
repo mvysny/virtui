@@ -6,12 +6,13 @@ module UI
   # line. Also redirects `$log`'s console output into the log pane and owns the `1`/`2`/`3`
   # focus keys (see {#handle_key}).
   #
-  # The panes carry no frames (DECISIONS.md D_panes_are_layouts); what tells them apart is
+  # The panes carry no frames (design/decisions.md D_panes_are_layouts); what tells them apart is
   # the background: the VM pane — the "editor", where all interaction lives — keeps the
   # terminal's default background, while the System and log panes are tinted one step
   # toward mid-grey (`:pane_bg`, see {Theme}) and separated from each other by a one-cell
   # `│` column. Focus is *labeled* instead of frame-colored: the pane's own header chip,
-  # once, and the list cursor (DECISIONS.md D_labeled_focus_cues).
+  # once, and the list cursor — absolute cues, where a background lift is a relative one
+  # that needs the resting shade remembered.
   #
   # Tuile draws no status bar and reserves no row (see its DECISIONS.md
   # `D-status-bar`), so the bottom line is ours: {#refresh_status} rebuilds it and
@@ -39,8 +40,10 @@ module UI
       $log.add_handler [:console, { output: Component::LogTextView::IO.new(@log), enable_color: true }]
       add([@vms, @system, @separator, @log, @status])
       # Tint the secondary panes; a {Theme::Ref} re-resolves on every theme swap by itself.
-      # The VM pane deliberately keeps the terminal default (DECISIONS.md
-      # D_tint_secondaries_only).
+      # The VM pane deliberately keeps the terminal default: painting every background would
+      # make virtui own every contrast pairing (including the LIGHT theme's symbolic ANSI
+      # colors, which only the terminal can place) and kill terminal transparency. A VM
+      # dashboard is furniture in the terminal, not a destination app that owns its ground.
       @system.bg_color = Theme.ref(:pane_bg)
       @log.bg_color = Theme.ref(:pane_bg)
       @separator.bg_color = Theme.ref(:pane_bg)
@@ -75,7 +78,8 @@ module UI
 
     # Rebuilds the status line: the global quit key, then the focused pane's hint. Keys
     # only — the row does not repeat the focus chip, which the pane's own header already
-    # carries (DECISIONS.md D_labeled_focus_cues). Walking *up* from the focused component
+    # carries; don't re-add it here to attribute the hints — two inverted blocks answer one
+    # question twice. Walking *up* from the focused component
     # mirrors the direction a key bubbles, so the row describes the keys that will actually
     # be delivered — the focused search field consumes `/` and `ESC` before {VMPane} sees
     # them, and its hint says so.

@@ -16,7 +16,7 @@ module Virt
   # Pair it with a {VirshSession}. One sample is three agent calls (open/read/close), each
   # ~13 ms of libvirtd+QMP+virtio-serial round-trip *plus* ~18 ms of process spawn on
   # {VirshSpawn} — that spawn, three times per VM per tick, is what makes the swap level a
-  # session-only feature. See DECISIONS.md D_guest_swap_level.
+  # session-only feature. See design/decisions.md D_guest_swap_level.
   #
   # Stateless, and loud: every failure raises, sorted into {Unavailable} (a guest that was
   # never going to answer — the normal state of a host with agent-less guests) and everything
@@ -52,7 +52,7 @@ module Virt
     #
     # Matching libvirt's error text is fragile on purpose-limited grounds: it picks the
     # error *class* only, never the write-off, so a miss costs one `warn` line from whoever
-    # is polling and a new libvirt phrasing cannot change what virtui does. See DECISIONS.md
+    # is polling and a new libvirt phrasing cannot change what virtui does. See design/decisions.md
     # D_guest_agent_backoff.
     EXPECTED_FAILURES = ['guest agent is not responding', 'guest agent disappeared',
                          'has not been found', 'domain is not running',
@@ -92,7 +92,7 @@ module Virt
     # Deliberately not `guest-exec`: reading a world-readable file needs neither remote root
     # exec nor a process spawned in the guest, and `guest-exec` is asynchronous — its reply
     # carries only a PID, so the output takes a second `guest-exec-status` round-trip that
-    # cannot be issued until the guest process has exited. See DECISIONS.md
+    # cannot be issued until the guest process has exited. See design/decisions.md
     # D_guest_swap_level.
     #
     # @param domain [String] VM name

@@ -24,7 +24,7 @@ actually work gate everything else here.
 
 ## Blocked on three fundamentals
 
-Nothing below should be turned into a code change or a `DECISIONS.md` entry until
+Nothing below should be turned into a code change or a `design/decisions.md` entry until
 these are answered. They are deliberately **not** brainstormed here — each is a
 "how does the machinery actually work" question, and guessing at them is how the
 `100 - swappiness` comment got written in the first place. Every open item further
@@ -52,7 +52,7 @@ down resolves differently depending on the answers.
    one that decides the guideline.
 
 Where the answers land, per the doc rules: the guideline itself → a
-`DECISIONS.md` entry (it has a real fork and a real road not taken); why a
+`design/decisions.md` entry (it has a real fork and a real road not taken); why a
 threshold has its specific value → the yardoc next to that constant; anything a
 user must configure in the guest → README.
 
@@ -386,7 +386,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    `lib/virt/ballooning_vm/` — `SwapOutRaiseVoter` (rate over a 1 MiB/s noise floor →
    the same `+30%` the usage trigger takes) and `SwapOutShrinkVetoer` (a 60 s veto from
    the last such sample, i.e. the cooldown of correction 2 rather than the literal
-   per-sample form). Rationale and roads not taken: `DECISIONS.md` D_swap_raise_vote and
+   per-sample form). Rationale and roads not taken: `design/decisions.md` D_swap_raise_vote and
    D_swap_shrink_veto; constants and their provenance sit next to their values in each
    class. **What is left of this fix is the bound on the raise** — see the open item
    below; everything else here is kept only where it still argues that.
@@ -485,7 +485,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
       plus a check that the growth actually helped.
    2. ~~**The shrink veto needs a cooldown, not per-sample "advancing".**~~
       **Graduated** — this is the shape that shipped, and the argument for it now
-      lives in `DECISIONS.md` D_swap_shrink_veto.
+      lives in `design/decisions.md` D_swap_shrink_veto.
 
    **And the veto alone is not enough** — worth stating plainly because it is easy to
    conclude the opposite from "accept the swapping, just stop making it worse". The
@@ -552,7 +552,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
    rather than rate-limiting the output, and **size `reserve_floor` from the
    observed burst** — 3 GiB observed means ~4 GiB, not the ~2 GiB first guessed.
 
-   The shapes considered and rejected, kept for the eventual `DECISIONS.md` entry:
+   The shapes considered and rejected, kept for the eventual `design/decisions.md` entry:
 
    - *proportional with an absolute cap* (`min(30% × actual, cap)`) — bounds the
      blast radius of one false-positive read on a big VM, which is its real merit,
@@ -603,7 +603,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
 **Overtaken in part, 2026-08-21 (later the same day): the swap *level* is now read
 straight from the guest.** {Virt::GuestAgent} fetches `SwapTotal`/`SwapFree` from
 the guest's own `/proc/meminfo` through `qemu-guest-agent`, and the `SWAP` row
-shows it beside the rate (DECISIONS.md D_guest_swap_level, D_swap_row_two_cells).
+shows it beside the rate (design/decisions.md D_guest_swap_level; the two-cell layout is argued at `UI::VMPane#format_swap_line`).
 What that does to this section:
 
 - the **`debt` candidate below is now the fallback, not the plan.** For a guest
@@ -621,7 +621,7 @@ What that does to this section:
   precondition;
 - what is **not** answered: a level says nothing about *pressure*. If PSI turns
   out to be the better controlled variable
-  (`ideas/swap-via-qemu-guest-agent.md`), this section is arguing about the wrong
+  (`design/ideas/swap-via-qemu-guest-agent.md`), this section is arguing about the wrong
   input.
 
 Brainstormed 2026-08-21, on the back of the quiet-at-rest observation in fix 1 —
@@ -750,7 +750,7 @@ comparison and wrong for fix 7's target rule, which needs the un-clamped demand.
 Stated as a general rule to live by, not a one-off tweak, because it would guide
 other decisions (past ones too): *don't cache the same bytes twice — the guest's
 disk cache occupies host memory as well, so it is host RAM spent on a copy the
-host already has.* Bound for `DECISIONS.md` once fundamental 3 is answered; the
+host already has.* Bound for `design/decisions.md` once fundamental 3 is answered; the
 verdict below is **provisional** and section 5 is the reason it can't be signed
 off yet.
 
@@ -924,10 +924,10 @@ size it via `min_actual`/the reserve rather than by leaving it unbounded".
 ## Where the nuggets land when this graduates
 
 The intro to "Blocked on three fundamentals" covers the guideline's targets; this
-is the rest, per the CLAUDE.md graduation map.
+is the rest, per the AGENTS.md graduation map.
 
 - the response to a non-zero `swap_out` finally chosen, with the three rejected
-  shapes and the `HALF_LIFE` fork → **DECISIONS.md**. Both halves landed on
+  shapes and the `HALF_LIFE` fork → **design/decisions.md**. Both halves landed on
   2026-08-26 (D_swap_shrink_veto, D_swap_raise_vote); what is left to land is the
   *bound* on the raise, and it belongs in D_swap_raise_vote, which already names its
   absence as a consequence. Whatever constant survives
@@ -936,7 +936,7 @@ is the rest, per the CLAUDE.md graduation map.
   half-life's being "corrects the phantom debt from slots freed without a
   fault-in", not a tuning opinion.
 - the grow rule finally chosen, **with the prior-art table as its provenance**, and
-  the rejected shapes under fix 7 → **DECISIONS.md**. There is no entry covering
+  the rejected shapes under fix 7 → **design/decisions.md**. There is no entry covering
   the grow rule yet, so whichever shape wins earns the first one; the table is the
   strongest available argument for any constant that survives, and the rejected
   shapes are exactly the roads-not-taken material that file is for.
@@ -946,7 +946,7 @@ is the rest, per the CLAUDE.md graduation map.
 - the user-visible behaviour change → **README**, "Automatic Balloon
   inflate/deflate", which currently states the flat 30% / 10% pair as fact.
 - "damp the input, don't rate-limit the output" and "never call the guest agent
-  from the UI thread" (if fix 8 lands) → **CLAUDE.md**, as cross-cutting
+  from the UI thread" (if fix 8 lands) → **AGENTS.md**, as cross-cutting
   invariants.
 - if fix 8 wins, `Committed_AS` as a controlled variable → merges into
   `swap-via-qemu-guest-agent.md`'s open question (it already carries the

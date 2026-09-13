@@ -32,8 +32,9 @@ module UI
     # The focused variant is inverse video (SGR 7 swaps whatever colors are in effect, so it
     # reads on any terminal theme without a color token pair); the unfocused variant is dim,
     # in the hint color.
-    # Plain inverted block on purpose — no powerline glyphs, see DECISIONS.md
-    # D_no_powerline_glyphs.
+    # Plain inverted block on purpose, no powerline terminator: the Nerd Font arrow (U+E0B0) is
+    # tofu on a stock terminal and the client's font is undetectable server-side, and the
+    # half-block `▐` looks like a hard edge anyway.
     #
     # @param key [String] the focus key, e.g. `'1'`
     # @param label [String] the pane name, e.g. `'VMs'`

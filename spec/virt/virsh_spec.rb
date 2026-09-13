@@ -14,7 +14,7 @@ VIRSH_NODEINFO = <<~EOF
 EOF
 
 # One running VM's domstats, trimmed to the balloon fields. The swap counters are the pair
-# measured in ideas/swap-despite-ballooning.md, where they were cross-checked against the
+# measured in design/ideas/swap-despite-ballooning.md, where they were cross-checked against the
 # guest's own /proc/vmstat: swap_out 3_205_344 KiB == pswpout 801_336 pages x 4096.
 VIRSH_DOMSTATS_SWAPPING = <<~EOF
   Domain: 'swapper'

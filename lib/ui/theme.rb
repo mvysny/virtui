@@ -60,8 +60,9 @@ module UI
     #
     # `hint_color` overrides Tuile's cadet-blue with a grey: every hue in the
     # palette below already names a metric or a VM state, so chrome (the hints,
-    # the unfocused chip, the column captions) stays achromatic — see
-    # DECISIONS.md D_achromatic_hints.
+    # the unfocused chip, the column captions) stays achromatic — a coloured hint reads as
+    # a ninth metric. Grey rather than dim (SGR 2), which `Tuile::StyledString` does not model
+    # and several terminals render as a no-op or a colour shift.
     # @return [Theme]
     DARK = new(**Tuile::Theme::DARK.to_h,
                hint_color: Tuile::Color::GREY58, # 246, 6.4:1 on black
@@ -87,9 +88,9 @@ module UI
                  # These are the fixed-tint *floor* — the values used when the terminal
                  # answers no OSC 11 (Screen#background_color is nil), assuming the common
                  # near-black ground; when the actual background RGB is known the derived
-                 # tint replaces them (see {.derived}). Toward-grey per DECISIONS.md
-                 # D_tint_toward_grey; exact floor values pending the eyeball pass
-                 # (ideas/borderless-panes.md).
+                 # tint replaces them (see {.derived}). Toward-grey per design/decisions.md
+                 # D_tint_toward_grey; exact floor values pending an eyeball pass on real
+                 # terminals.
                  pane_bg: Tuile::Color.hex('#121212'),
                  pane_frame: Tuile::Color.hex('#333333')
                })

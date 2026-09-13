@@ -16,10 +16,12 @@ end
 
 RSpec::Core::RakeTask.new(:spec)
 
+Dir.glob('tasks/*.rake').each { |r| load r }
+
 # The one gate: everything CI and a pre-push check should agree on. `spec` runs first so a
-# real failure surfaces before style nits.
-desc 'Run the full test suite and the linter'
-task check: %i[spec rubocop]
+# real failure surfaces before style nits; the doc-layer tripwires run last.
+desc 'Run the full test suite, the linter and the design-doc tripwires'
+task check: %i[spec rubocop design_tripwires]
 
 task default: :check
 
