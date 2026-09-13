@@ -100,8 +100,8 @@ module Virt
     def forget_guest(name); end
 
     # Builds a ready-made demo fleet: BASE (shut off), Ubuntu (running), win11 (running),
-    # Fedora (shut off). Three OS declarations between them, so the guest-OS marker in
-    # {UI::VMWindow} has a penguin, a window and an undeclared `?` to draw.
+    # Fedora (shut off). Three OS declarations between them, so the guest-OS marker has a
+    # penguin, a window and an undeclared `?` to draw.
     #
     # @return [VMEmulator] a {Virsh}-compatible emulator pre-populated with four VMs
     def self.demo

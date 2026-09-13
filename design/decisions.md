@@ -222,8 +222,17 @@ it needs the agent up, and the agentless Windows guest is the *common* Windows g
 (`virtio-win` is a manual install), so the guest that caused the problem is the one an
 agent-based detector can never classify; beside that it is blind for the 20–40 s of boot and
 for a shut-off VM, needs its own `--timeout`, and drags in the whole strike-count machinery.
-Don't re-add it as the *only* source; it is the right *second* source, outranking the
-declaration when the agent is up and classifying an `:unknown` guest live. Why not
+Don't re-add it as a second source either, which this entry first proposed: `GuestOS` feeds
+two consumers, `Cache#update`'s gate on the swap read and the VM pane's per-row glyph, and the
+gate needs no classification at all because **the read is its own test** — `guest-file-open
+/proc/meminfo` succeeding or failing observes exactly the capability the gate tries to predict,
+and it already happens. That leaves a flag emoji paying for a second classifier vocabulary (the
+reply carries the guest's `/etc/os-release` `id`, not an osinfo-db URL, so `VENDORS` cannot
+consume it), its own failure bookkeeping (a pre-2.10 `qemu-ga` refuses `guest-get-osinfo` while
+`guest-file-*` works, so sharing `D_guest_agent_backoff`'s strike count would cost such a guest
+the very swap level detection exists to protect), and a per-domain observation sticky enough to
+survive a shutdown and a reinstall. Probing `/proc/meminfo` once and feeding the result to the
+glyph is free of the first bill and pays the other two, for the same cosmetic gain. Why not
 `virsh guestinfo --os`: no `--timeout` flag, which is the one thing keeping a wedged agent from
 becoming a session read timeout that kills the child. Why not `dumpxml` plus a parser:
 `metadata --uri` returns the element alone — one regex over three lines, no XML dependency. Why
