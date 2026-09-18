@@ -50,7 +50,7 @@ screen.on_error = ->(e) { $log.fatal('Uncaught event loop exception', e) }
 layout = UI::AppLayout.new(virt_cache, ballooning)
 screen.content = layout
 # Tuile owns no status bar; the layout draws its own bottom row and this is what
-# keeps it current (tuile DECISIONS.md `D-status-bar`).
+# keeps it current (tuile design/decisions.md `D-status-bar`).
 screen.on_focus_changed = -> { layout.refresh_status }
 layout.vms.focus
 

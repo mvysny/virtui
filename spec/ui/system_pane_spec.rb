@@ -61,7 +61,7 @@ module Tuile
     context('help window') do
       it 'opens on h and explains the present flags' do
         w = window_for(cpu_flags: %w[vmx ept tsc_deadline_timer pcid vpid invpcid pdpe1gb xsaveopt])
-        w.handle_key('h')
+        w.handle_key?('h')
         popups = Screen.instance.popups
         assert_equal 1, popups.length
         assert_equal UI::CpuFlagsWindow, popups[0].content.class
@@ -69,13 +69,13 @@ module Tuile
       end
 
       it 'explains AMD flags' do
-        window_for(cpu_flags: %w[svm npt]).handle_key('h')
+        window_for(cpu_flags: %w[svm npt]).handle_key?('h')
         assert help_text.include?('svm'), help_text
         assert help_text.include?('npt'), help_text
       end
 
       it 'explains software emulation when no virtualization flag is present' do
-        window_for(cpu_flags: []).handle_key('h')
+        window_for(cpu_flags: []).handle_key?('h')
         assert help_text.include?('software'), help_text
       end
     end
@@ -86,7 +86,7 @@ module Tuile
       end
 
       it 'returns false for an unhandled key' do
-        refute window_for.handle_key('z')
+        refute window_for.handle_key?('z')
       end
     end
 

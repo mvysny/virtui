@@ -65,7 +65,7 @@ module UI
 
     # Re-renders the header when the theme changes, so the chip follows the new palette.
     # @return [void]
-    def on_theme_changed
+    def handle_theme_changed
       super
       rebuild_header
     end

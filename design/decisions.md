@@ -538,7 +538,7 @@ Tab recovers. The embedded row costs one explicit `list.focus` in `VMPane#close_
 strictly simpler. Don't re-try the overlay without re-reading `overlay.rb`'s implementation
 notes. What it costs: a `Layout` pane repairs nothing on child removal, so `close_search` must
 re-focus the list itself; and while the search field is focused, digits are consumed by the
-field before `AppLayout#handle_key` sees them.
+field before `AppLayout#handle_key?` sees them.
 
 ## D_tint_toward_grey — Why does the pane tint step the terminal background toward mid-grey rather than toward the theme's pole?
 

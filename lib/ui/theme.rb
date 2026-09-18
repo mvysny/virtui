@@ -53,20 +53,26 @@ module UI
     #   shortcut letter in a hint (`"#{theme.key('p')} #{theme.hint('Power')}"`).
     def key(text) = Tuile::StyledString.styled(text, bold: true).to_ansi
 
+    # @param text [String]
+    # @return [String] `text` in the de-emphasized chrome color — a hint caption, a
+    #   column header, an unfocused chip.
+    def hint(text) = fg(:hint, text)
+
     # @!endgroup
 
     # Tuned for dark terminal backgrounds: Rainbow's X11 color names, quantized
     # to the 256-color palette.
     #
-    # `hint_color` overrides Tuile's cadet-blue with a grey: every hue in the
-    # palette below already names a metric or a VM state, so chrome (the hints,
-    # the unfocused chip, the column captions) stays achromatic — a coloured hint reads as
-    # a ninth metric. Grey rather than dim (SGR 2), which `Tuile::StyledString` does not model
-    # and several terminals render as a no-op or a colour shift.
+    # `hint` is a grey, and an app token because Tuile declines to carry a
+    # de-emphasized-text color of its own: every hue in the palette below
+    # already names a metric or a VM state, so chrome (the hints, the unfocused chip, the
+    # column captions) stays achromatic — a coloured hint reads as a ninth metric. Grey
+    # rather than dim (SGR 2), which `Tuile::StyledString` does not model and several
+    # terminals render as a no-op or a colour shift.
     # @return [Theme]
     DARK = new(**Tuile::Theme::DARK.to_h,
-               hint_color: Tuile::Color::GREY58, # 246, 6.4:1 on black
                custom: {
+                 hint: Tuile::Color::GREY58, # 246, 6.4:1 on black
                  cpu: Tuile::Color::DEEP_SKY_BLUE1, # 39 — Rainbow's :dodgerblue
                  cpu_vm: Tuile::Color::CORNFLOWER_BLUE, # 69 — Rainbow's :royalblue
                  ram: Tuile::Color.palette(168), # Rainbow's :maroon (X11 #B03060; dup-named cell, no constant)
@@ -97,12 +103,12 @@ module UI
 
     # Darker counterparts legible on light terminal backgrounds. Named ANSI
     # colors (green, red, magenta) stay symbolic — the terminal's own palette
-    # remaps them to light-appropriate shades. `hint_color` is the grey
+    # remaps them to light-appropriate shades. `hint` is the grey
     # counterpart of {DARK}'s.
     # @return [Theme]
     LIGHT = new(**Tuile::Theme::LIGHT.to_h,
-                hint_color: Tuile::Color::GREY42, # 242, 5.7:1 on white
                 custom: {
+                  hint: Tuile::Color::GREY42, # 242, 5.7:1 on white
                   cpu: Tuile::Color::DODGER_BLUE3, # 26
                   cpu_vm: Tuile::Color::ROYAL_BLUE1, # 63
                   ram: Tuile::Color::MEDIUM_VIOLET_RED, # 126

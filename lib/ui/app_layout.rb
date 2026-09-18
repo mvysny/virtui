@@ -14,7 +14,7 @@ module UI
   # once, and the list cursor — absolute cues, where a background lift is a relative one
   # that needs the resting shade remembered.
   #
-  # Tuile draws no status bar and reserves no row (see its DECISIONS.md
+  # Tuile draws no status bar and reserves no row (see its design/decisions.md
   # `D-status-bar`), so the bottom line is ours: {#refresh_status} rebuilds it and
   # `bin/virtui` hangs it off `Tuile::Screen#on_focus_changed=`.
   #
@@ -68,7 +68,7 @@ module UI
     #
     # @param key [String] the pressed key
     # @return [Boolean] true if the key was handled
-    def handle_key(key)
+    def handle_key?(key)
       pane = @focus_keys[key]
       return false if pane.nil?
 
@@ -139,7 +139,7 @@ module UI
     # construction: the derivation is deterministic, so the nested assignment resolves
     # to an equal theme and `Screen#theme=` no-ops.
     # @return [void]
-    def on_theme_changed
+    def handle_theme_changed
       super
       screen.theme_def = Theme.derived(screen.background_color)
       rebuild_separator

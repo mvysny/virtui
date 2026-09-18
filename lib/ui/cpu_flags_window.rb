@@ -52,7 +52,7 @@ module UI
 
     # Re-renders when the theme changes, so the flag names follow the new palette.
     # @return [void]
-    def on_theme_changed
+    def handle_theme_changed
       super
       rebuild
     end

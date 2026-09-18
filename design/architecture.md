@@ -72,7 +72,7 @@ UI-thread-confined).
 
 **A power key** (UI thread only):
 
-1. `UI::VMPane#handle_key` sees `p`, then the power submenu letter, for the selected VM.
+1. `UI::VMPane#handle_key?` sees `p`, then the power submenu letter, for the selected VM.
 2. `@virt_cache.virt.start(name)` → `Virsh#start` → `runner.async('start', name)` →
    `VirshSpawn#async` → `Run.async`: a process of its own, failure logged rather than raised.
 3. Nothing on screen changes until the next tick's `domstats` reports the new state.

@@ -45,7 +45,7 @@ module UI
       text = " [#{key}]-#{label} "
       return Tuile::StyledString.styled(text, inverse: true) if focused
 
-      Tuile::StyledString.styled(text, fg: theme.hint_color)
+      Tuile::StyledString.styled(text, fg: theme[:hint])
     end
 
     # Renders a labelled progress-bar segment: `left` caption (left-padded to `label_width`,

@@ -191,7 +191,7 @@ module UI
     #
     # @param key [String] the pressed key
     # @return [Boolean] true if the key was handled
-    def handle_key(key)
+    def handle_key?(key)
       return true if super
       return false if @search&.active?
 
@@ -252,7 +252,7 @@ module UI
 
     # Re-renders when the pane width changes (bar widths and caption centering depend on it).
     # @return [void]
-    def on_width_changed
+    def handle_width_changed
       super
       rebuild_header
       update
@@ -260,7 +260,7 @@ module UI
 
     # Re-renders when the theme changes, so colors follow the new palette.
     # @return [void]
-    def on_theme_changed
+    def handle_theme_changed
       super
       rebuild_header
       update

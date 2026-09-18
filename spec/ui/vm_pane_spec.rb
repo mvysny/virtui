@@ -33,8 +33,8 @@ module Tuile
     # everything logged while doing so.
     def pick(pos, menu, option)
       window.list.cursor.go(pos)
-      window.handle_key(menu)
-      picker.handle_key(option)
+      window.handle_key?(menu)
+      picker.handle_key?(option)
       @log.string
     end
 
@@ -76,13 +76,13 @@ module Tuile
     end
 
     it 'show_power_popup opens picker' do
-      window.handle_key('p')
+      window.handle_key?('p')
       assert(Screen.instance.popups.any? { |it| it.content.is_a?(Component::PickerWindow) })
     end
 
     it 'show_memory_popup opens picker for running VM' do
       window.list.cursor.go(4) # Ubuntu is running
-      window.handle_key('m')
+      window.handle_key?('m')
       assert(Screen.instance.popups.any? { |it| it.content.is_a?(Component::PickerWindow) })
     end
 
@@ -90,97 +90,97 @@ module Tuile
       it 'moves cursor down correctly' do
         assert_equal 0, window.list.cursor.position
         # first VM is stopped and takes 2 lines
-        window.list.handle_key(Keys::DOWN_ARROW)
+        window.list.handle_key?(Keys::DOWN_ARROW)
         assert_equal 2, window.list.cursor.position
         # second VM is running and takes 3 lines
-        window.list.handle_key(Keys::DOWN_ARROW)
+        window.list.handle_key?(Keys::DOWN_ARROW)
         assert_equal 4, window.list.cursor.position
         # third VM is running, so it takes 5 lines (header, CPU, RAM, SWAP, disk)
-        window.list.handle_key(Keys::DOWN_ARROW)
+        window.list.handle_key?(Keys::DOWN_ARROW)
         assert_equal 9, window.list.cursor.position
         # no more VMs
-        window.list.handle_key(Keys::DOWN_ARROW)
+        window.list.handle_key?(Keys::DOWN_ARROW)
         assert_equal 9, window.list.cursor.position
       end
       it 'moves cursor up correctly' do
         window.list.cursor.go(9)
         assert_equal 9, window.list.cursor.position
-        window.list.handle_key(Keys::UP_ARROW)
+        window.list.handle_key?(Keys::UP_ARROW)
         assert_equal 4, window.list.cursor.position
-        window.list.handle_key(Keys::UP_ARROW)
+        window.list.handle_key?(Keys::UP_ARROW)
         assert_equal 2, window.list.cursor.position
-        window.list.handle_key(Keys::UP_ARROW)
+        window.list.handle_key?(Keys::UP_ARROW)
         assert_equal 0, window.list.cursor.position
-        window.list.handle_key(Keys::UP_ARROW)
+        window.list.handle_key?(Keys::UP_ARROW)
         assert_equal 0, window.list.cursor.position
       end
     end
 
     context('search') do
       it 'opens a TextField row on /' do
-        window.handle_key('/')
+        window.handle_key?('/')
         assert_instance_of Component::TextField, window.search
       end
 
       it 'ESC closes the search' do
-        window.handle_key('/')
-        window.search.handle_key(Keys::ESC)
+        window.handle_key?('/')
+        window.search.handle_key?(Keys::ESC)
         assert_nil window.search
       end
 
       it 'ENTER closes the search' do
-        window.handle_key('/')
-        window.search.handle_key(Keys::ENTER)
+        window.handle_key?('/')
+        window.search.handle_key?(Keys::ENTER)
         assert_nil window.search
       end
 
       # The invariant outside a search: cursor visible ⟺ the VM pane owns the keyboard.
       it 'shows the inactive-list cursor only while searching' do
         refute window.list.show_cursor_when_inactive
-        window.handle_key('/')
+        window.handle_key?('/')
         assert window.list.show_cursor_when_inactive
-        window.search.handle_key(Keys::ESC)
+        window.search.handle_key?(Keys::ESC)
         refute window.list.show_cursor_when_inactive
       end
 
       it 'jumps to the matching VM as the user types' do
-        window.handle_key('/')
-        window.search.handle_key('w') # win11
+        window.handle_key?('/')
+        window.search.handle_key?('w') # win11
         assert_equal 9, window.list.cursor.position
       end
 
       it 'is case-insensitive and matches substrings' do
-        window.handle_key('/')
+        window.handle_key?('/')
         window.search.text = 'FED' # Fedora
         assert_equal 2, window.list.cursor.position
       end
 
       it 'down arrow jumps to the next match' do
-        window.handle_key('/')
+        window.handle_key?('/')
         window.search.text = 'a' # matches base (0) and Fedora (2)
         assert_equal 0, window.list.cursor.position # lands on base (include_current)
-        window.search.handle_key(Keys::DOWN_ARROW)
+        window.search.handle_key?(Keys::DOWN_ARROW)
         assert_equal 2, window.list.cursor.position # Fedora
       end
 
       it 'up arrow jumps to the previous match' do
-        window.handle_key('/')
+        window.handle_key?('/')
         window.search.text = 'a' # matches base (0) and Fedora (2)
         window.list.cursor.go(2) # Fedora
-        window.search.handle_key(Keys::UP_ARROW)
+        window.search.handle_key?(Keys::UP_ARROW)
         assert_equal 0, window.list.cursor.position # base
       end
 
       it 'down/up wrap around the list' do
-        window.handle_key('/')
+        window.handle_key?('/')
         window.search.text = 'a' # matches base (0) and Fedora (2)
         window.list.cursor.go(2) # Fedora — last match
-        window.search.handle_key(Keys::DOWN_ARROW)
+        window.search.handle_key?(Keys::DOWN_ARROW)
         assert_equal 0, window.list.cursor.position # wraps to base
       end
 
       it 'only lands on cursor-allowed positions (VM header rows)' do
-        window.handle_key('/')
+        window.handle_key?('/')
         window.search.text = 'cpu' # appears on stat rows, never on header rows
         # No VM header line contains 'cpu', and stat rows are not allowed positions,
         # so cursor stays put.
@@ -191,17 +191,17 @@ module Tuile
     context('key handling') do
       it "'d' toggles disk stats" do
         assert window.show_disk_stat
-        assert window.handle_key('d')
+        assert window.handle_key?('d')
         refute window.show_disk_stat
       end
 
       it 'returns false for an unhandled key' do
-        refute window.handle_key('z')
+        refute window.handle_key?('z')
       end
 
       it 'ignores VM shortcuts while the search row is active' do
-        window.handle_key('/')
-        refute window.handle_key('p')
+        window.handle_key?('/')
+        refute window.handle_key?('p')
         assert_nil picker # no power menu opened
       end
     end
@@ -214,7 +214,7 @@ module Tuile
       end
 
       it 'shows the search-close hint while searching' do
-        window.handle_key('/')
+        window.handle_key?('/')
         assert window.keyboard_hint.include?('close search'), window.keyboard_hint
       end
     end
@@ -269,7 +269,7 @@ module Tuile
 
       it 'refuses to open the memory menu for a shut-off VM' do
         window.list.cursor.go(base)
-        window.handle_key('m')
+        window.handle_key?('m')
         assert_nil picker
         assert @log.string.include?("'BASE' is not running")
       end

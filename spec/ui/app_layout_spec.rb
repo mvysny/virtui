@@ -28,19 +28,19 @@ module Tuile
       assert_equal ' [3]-Log ', layout.log.chip.to_s
     end
 
-    context('handle_key') do
+    context('handle_key?') do
       it 'focuses the pane bound to the pressed digit' do
-        assert layout.handle_key('2')
+        assert layout.handle_key?('2')
         assert layout.system.active?
         refute layout.vms.active?
 
-        assert layout.handle_key('3')
+        assert layout.handle_key?('3')
         assert layout.log.active?
         refute layout.system.active?
       end
 
       it 'declines a key it has no pane for' do
-        refute layout.handle_key('z')
+        refute layout.handle_key?('z')
       end
     end
 
