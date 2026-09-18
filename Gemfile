@@ -6,7 +6,7 @@ ruby '>= 3.3'
 gem 'concurrent-ruby'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
-gem 'tuile', '>= 0.15.0', path: '../tuile' # PORT: tuile master, until the next release
+gem 'tuile', '~> 0.16' # floor: the handle_ overrides, and :hint as a custom token
 gem 'zeitwerk', '~> 2.7'
 
 group :development do
