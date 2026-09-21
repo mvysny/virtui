@@ -14,8 +14,22 @@ module Tuile
     let(:layout) do
       l = UI::AppLayout.new(cache, Virt::Ballooning.new(cache))
       Screen.instance.content = l
-      l.rect = Rect.new(0, 0, 100, 40)
+      resize(l, 100, 40)
       l
+    end
+
+    # Assigns the layout's rect and runs the relayout it just marked, so the pane rects
+    # are readable in the same example (tuile's layout is deferred to the event settle,
+    # which no spec reaches).
+    #
+    # @param layout [UI::AppLayout]
+    # @param width [Integer]
+    # @param height [Integer]
+    # @return [UI::AppLayout] `layout`
+    def resize(layout, width, height)
+      layout.rect = Rect.new(0, 0, width, height)
+      layout.flush_layout
+      layout
     end
 
     it 'smokes' do
@@ -44,8 +58,8 @@ module Tuile
       end
     end
 
-    it 'rect= tiles VMs on top, system │ log along the bottom, status on the last row' do
-      layout.rect = Rect.new(0, 0, 100, 40)
+    it 'relayout tiles VMs on top, system │ log along the bottom, status on the last row' do
+      resize(layout, 100, 40)
       # The status line takes the last row, leaving 39; system width =
       # (100/2).clamp(0,60) = 50; then the 1-cell separator column; system
       # height = 13; VMs take the rest.
@@ -56,7 +70,7 @@ module Tuile
     end
 
     it 'refresh_status advertises quit plus the focused pane\'s own hint, and no chip' do
-      layout.rect = Rect.new(0, 0, 100, 40)
+      resize(layout, 100, 40)
       layout.vms.focus
       layout.refresh_status
       text = layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
@@ -67,14 +81,14 @@ module Tuile
     end
 
     it 'refresh_status falls back to quit alone for a pane that advertises no keys' do
-      layout.rect = Rect.new(0, 0, 100, 40)
+      resize(layout, 100, 40)
       layout.log.focus
       layout.refresh_status
       assert_equal 'q quit', layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
     end
 
-    it 'rect= clamps the system pane width to 60 on a wide screen' do
-      layout.rect = Rect.new(0, 0, 200, 40)
+    it 'relayout clamps the system pane width to 60 on a wide screen' do
+      resize(layout, 200, 40)
       assert_equal 60, layout.system.rect.width
       assert_equal 139, layout.log.rect.width # remainder after the clamped system column + separator
     end
@@ -86,7 +100,8 @@ module Tuile
     # @return [Tuile::Color, nil] the bg of the pane's bottom-left cell
     def painted_bg(pane)
       Screen.instance.repaint
-      Screen.instance.buffer.cell(pane.rect.left, pane.rect.top + pane.rect.height - 1).style.bg
+      r = pane.absolute_rect # the buffer is screen space; a pane's own rect is not
+      Screen.instance.buffer.cell(r.left, r.top + r.height - 1).style.bg
     end
 
     it 'tints the secondary panes, leaving the VM pane on the terminal default' do

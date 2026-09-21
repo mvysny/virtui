@@ -16,7 +16,7 @@ module UI
   #
   # Tuile draws no status bar and reserves no row (see its design/decisions.md
   # `D-status-bar`), so the bottom line is ours: {#refresh_status} rebuilds it and
-  # `bin/virtui` hangs it off `Tuile::Screen#on_focus_changed=`.
+  # `bin/virtui` hangs it off `Tuile::Screen#on_focus_changed`.
   #
   # UI-thread-confined.
   class AppLayout < Tuile::Component::Layout::Absolute
@@ -33,7 +33,7 @@ module UI
       @vms = VMPane.new(virt_cache, ballooning)
       @log = LogPane.new
       # The one-cell `│` column between the System and log panes; its text is rebuilt to
-      # the row height by {#rect=}, its colors by {#on_theme_changed}.
+      # the row height by {#relayout}, its colors by {#handle_theme_changed}.
       @separator = Component::Label.new
       @status = Component::Label.new
       $log.remove_handler :console
@@ -106,28 +106,27 @@ module UI
       screen.repaint
     end
 
-    # Lays out the three panes within `rect`: VMs on top spanning the full width, with
-    # the system pane and log side-by-side along the bottom, a one-cell separator column
-    # between them.
+    protected
+
+    # Tiles the three panes over {Tuile::Component#local_rect}: VMs on top spanning the full
+    # width, with the system pane and log side-by-side along the bottom, a one-cell separator
+    # column between them, and the status line on the last row.
     #
-    # @param rect [Tuile::Rect] the area assigned to this layout
-    def rect=(rect)
-      super
-      system_pane_width = (rect.width / 2).clamp(0, 60)
+    # @return [void]
+    def relayout
+      system_pane_width = (width / 2).clamp(0, 60)
       system_height = 13
       # One row goes to the status line; the panes share what is left.
-      body_height = [rect.height - 1, 0].max
+      body_height = [height - 1, 0].max
       vms_height = [body_height - system_height, 0].max
-      @vms.rect = Rect.new(rect.left, rect.top, rect.width, vms_height)
-      @system.rect = Rect.new(rect.left, rect.top + vms_height, system_pane_width, system_height)
-      @separator.rect = Rect.new(rect.left + system_pane_width, rect.top + vms_height, 1, system_height)
-      @log.rect = Rect.new(rect.left + system_pane_width + 1, rect.top + vms_height,
-                           [rect.width - system_pane_width - 1, 0].max, system_height)
-      @status.rect = Rect.new(rect.left, rect.top + body_height, rect.width, 1)
+      @vms.rect = Rect.new(0, 0, width, vms_height)
+      @system.rect = Rect.new(0, vms_height, system_pane_width, system_height)
+      @separator.rect = Rect.new(system_pane_width, vms_height, 1, system_height)
+      @log.rect = Rect.new(system_pane_width + 1, vms_height,
+                           [width - system_pane_width - 1, 0].max, system_height)
+      @status.rect = Rect.new(0, body_height, width, 1)
       rebuild_separator
     end
-
-    protected
 
     # Re-derives the background-dependent theme tokens, then re-bakes the labels whose
     # colors are flattened into their text — the separator column and the status line.

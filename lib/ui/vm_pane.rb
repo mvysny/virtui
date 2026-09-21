@@ -310,11 +310,14 @@ module UI
       return if @search
 
       field = Component::TextField.new
-      field.on_escape = method(:close_search)
-      field.on_enter = method(:close_search)
-      field.on_change = ->(text) { @list.select_next(text, include_current: true) }
-      field.on_key_down = -> { @list.select_next(field.text) }
-      field.on_key_up = -> { @list.select_prev(field.text) }
+      # ESC closes the row instead of tuile's default of merely dropping focus — which
+      # would leave the search field on screen with nothing focusing it back.
+      field.on_escape.remove(field.method(:default_on_escape))
+      field.on_escape << method(:close_search)
+      field.on_enter << method(:close_search)
+      field.on_change { |e| @list.select_next(e.text, include_current: true) }
+      field.on_key_down { @list.select_next(field.text) }
+      field.on_key_up { @list.select_prev(field.text) }
       @search = field
       @list.show_cursor_when_inactive = true
       add(field, Fixed[1])
