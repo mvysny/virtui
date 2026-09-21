@@ -69,7 +69,10 @@ rescue StandardError => e
 end
 begin
   scheduler.execute
-  screen.run_event_loop
+  # :drag, one rung above the default :clicks, is what makes the VM and System lists'
+  # scrollbar handles draggable — the bar is a real component now, and without motion
+  # reports it can only be paged by pressing its track.
+  screen.run_event_loop(capture_mouse: :drag)
 ensure
   scheduler.shutdown
   screen.close
