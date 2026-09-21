@@ -18,7 +18,7 @@ describe Virt::BallooningVM::MemLevelShrinkVoter do
             Virt::MemoryStat.new(2.GiB, total - used, total, total - used, 0, 0, 0, 2.GiB, 1_762_378_459)
           end
     Virt::Cache::VMCache.new(Virt::DomainData.new(info, :running, 1_762_378_459_000, 0, mem, []),
-                             0.0, 0, nil, nil, Virt::GuestOS::UNKNOWN)
+                             0.0, 0, nil, nil, Virt::GuestOS::UNKNOWN, nil)
   end
 
   def voter = Virt::BallooningVM::MemLevelShrinkVoter.new

@@ -64,6 +64,11 @@ module Virt
     #   or `nil` for an unknown, stopped, or agent-less VM
     def guest_swap(name) = @vms[name]&.swap
 
+    # @param name [String] VM name
+    # @return [String, nil] the simulated VM's address (see {VMEmulator::VM#ip_address}), or
+    #   `nil` for an unknown or stopped VM
+    def ip_address(name) = @vms[name]&.ip_address
+
     # What the VM declares — {LINUX} unless its {VMEmulator::VM#guest_os} was set. Mirrors
     # {Virsh#guest_os} so {Cache} can call it backend-agnostically, including the part where
     # a domain that declares nothing answers {GuestOS::UNKNOWN} rather than `nil`.
@@ -121,6 +126,8 @@ module Virt
       e.vm('win11').guest_os = WINDOWS
       # BASE is the hand-written definition that names no OS at all.
       e.vm('BASE').guest_os = GuestOS::UNKNOWN
+      e.vm('Ubuntu').address = '192.168.122.84'
+      e.vm('win11').address = '192.168.122.23'
       e
     end
 

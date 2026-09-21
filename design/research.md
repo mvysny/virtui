@@ -106,6 +106,22 @@ later one trims to its length.
 - A hand-written domain XML usually carries no libosinfo metadata; on the author's
   virt-manager fleet 4/4 domains did. **[verified 2026-08-23]**
 
+## R_virsh_domifaddr — `virsh domifaddr` and its three address sources
+
+- With no `--source`, `domifaddr` reads `lease`, byte-identical output. **[verified 2026-09-21]**
+- A header row, a `---` rule, then one row per address: Name, MAC address, Protocol, Address,
+  whitespace-separated; a further address of the same interface has `-` in Name and MAC.
+  **[verified 2026-09-21]**
+- `lease` and `arp` name the host-side tap (`vnet0`); `agent` names the guest's own interface
+  (`enp1s0`) and also lists `lo` (`127.0.0.1/8`, `::1/128`) and the link-local IPv6.
+  **[verified 2026-09-21]**
+- `arp` reports every address with prefix `/0`: a neighbour entry has no netmask.
+  **[verified 2026-09-21]**
+- `lease` knows only what libvirt's own dnsmasq handed out, so a bridged guest has none; `arp`
+  knows only what is in the host's neighbour table. **[docs]**
+- A guest with no lease prints the header and the rule with no rows, not an `error:`.
+  **[unverified]**
+
 ## R_linux_swap — how the Linux guest kernel treats swapped pages
 
 - Pages in swap are the tail of the anonymous LRU: everything still out there is out there

@@ -18,7 +18,7 @@ describe Virt::BallooningVM::SwapOutShrinkVetoer do
     info = Virt::DomainInfo.new('vm0', 1, 16.GiB)
     mem = Virt::MemoryStat.new(2.GiB, 1.GiB, 2.GiB, 1.GiB, 0, 0, 0, 2.GiB, at)
     data = Virt::DomainData.new(info, :running, at * 1000, 0, mem, [])
-    Virt::Cache::VMCache.new(data, 0.0, 0, rate, nil, Virt::GuestOS::UNKNOWN)
+    Virt::Cache::VMCache.new(data, 0.0, 0, rate, nil, Virt::GuestOS::UNKNOWN, nil)
   end
 
   def vetoer = Virt::BallooningVM::SwapOutShrinkVetoer.new

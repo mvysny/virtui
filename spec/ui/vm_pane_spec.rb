@@ -75,6 +75,23 @@ module Tuile
       assert_equal '    vda: 50%   64G   128G │', content[13]
     end
 
+    context('address inset') do
+      def overview(width, address)
+        window.rect = Rect.new(0, 0, width, 20)
+        e = Virt::Cache::VMCache.diff(nil, cache.data('Ubuntu'), nil, Virt::GuestOS::UNKNOWN, address)
+        window.send(:format_vm_overview_line, e).gsub(/\e\[[\d;:]*m/, '')
+      end
+
+      it 'sits at the right end of the rule, the line keeping its width' do
+        assert_equal '▶ ?  Ubuntu 🎈─────────── 192.168.122.84 ─', overview(46, '192.168.122.84')
+        assert_equal '▶ ?  Ubuntu 🎈────────────────────────────', overview(46, nil)
+      end
+
+      it 'is dropped whole rather than clipped when the rule has no room' do
+        assert_equal '▶ ?  Ubuntu 🎈────', overview(22, '192.168.122.84')
+      end
+    end
+
     it 'show_power_popup opens picker' do
       window.handle_key?('p')
       assert(Screen.instance.popups.any? { |it| it.content.is_a?(Component::PickerWindow) })

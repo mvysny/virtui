@@ -87,6 +87,30 @@ module Virt
       GuestOS::UNKNOWN
     end
 
+    # The VM's address as the host knows it: the first row of `virsh domifaddr --source
+    # lease`, or of `--source arp` when libvirt's DHCP handed out no lease.
+    #
+    #   virsh.ip_address('Flow')   # => "192.168.122.137"
+    #
+    # IPv4 in practice, prefix dropped (`arp` reports every address as `/0`). `lease` covers
+    # guests on libvirt's own networks, `arp` bridged ones in the host's neighbour table — which
+    # can still hold an address the guest has moved off (design/research.md R_virsh_domifaddr).
+    #
+    # Not `--source agent`: an agent-less guest fails that read rather than answering an empty
+    # table, making the address a second read allowed to go quiet.
+    #
+    # @param domain_name [String] VM name; must be running
+    # @param lease [String, nil] canned `domifaddr --source lease` output for testing; runs
+    #   the real command when `nil`
+    # @param arp [String, nil] canned `domifaddr --source arp` output, likewise
+    # @return [String, nil] the address, or `nil` if neither table has a row
+    # @raise [RuntimeError] if `virsh domifaddr` fails, or prints a row it does not document
+    def ip_address(domain_name, lease = nil, arp = nil)
+      lease ||= @runner.query('domifaddr', domain_name, '--source', 'lease')
+      first_address(lease) ||
+        first_address(arp || @runner.query('domifaddr', domain_name, '--source', 'arp'))
+    end
+
     # Drops what the swap sampler remembers about a VM's failed samples.
     #
     # @param domain_name [String] VM name, typically one that has just stopped running (see
@@ -172,6 +196,22 @@ module Virt
         end
       end
       result
+    end
+
+    # The Address column of the first row under the `---` rule of a `virsh domifaddr` table,
+    # without its `/prefix`.
+    #
+    # @param domifaddr [String] the table; empty or header-only means no rows
+    # @return [String, nil] the address, or `nil` if the table has no rows
+    # @raise [RuntimeError] if a row does not have the four documented columns
+    private def first_address(domifaddr)
+      row = domifaddr.lines.drop_while { |it| !it.start_with?('---') }.drop(1).find { |it| !it.strip.empty? }
+      return nil if row.nil?
+
+      columns = row.split # Name, MAC address, Protocol, Address
+      raise "unparseable domifaddr row: #{row.inspect}" unless columns.size == 4 && columns[3].include?('/')
+
+      columns[3].split('/').first
     end
 
     # @return [Boolean] whether `virsh` is installed and on the `PATH`

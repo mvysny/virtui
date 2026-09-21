@@ -214,6 +214,25 @@ describe Virt::Cache do
     end
   end
 
+  context 'ip_address' do
+    it 'is carried on the entry of a running VM, and nil for a stopped one' do
+      e = Virt::VMEmulator.demo
+      e.vm('BASE').address = '192.168.122.99' # held, but not while shut off
+      c = Virt::Cache.new(e, System::Emulator.new)
+      assert_equal '192.168.122.84', c.cache('Ubuntu').ip_address
+      assert_nil c.cache('BASE').ip_address
+    end
+
+    it 'follows the VM on every tick' do
+      e = Virt::VMEmulator.demo
+      start = Time.now
+      c = Timecop.freeze(start) { Virt::Cache.new(e, System::Emulator.new) }
+      e.vm('Ubuntu').address = '192.168.122.85'
+      Timecop.freeze(start + 2) { c.update }
+      assert_equal '192.168.122.85', c.cache('Ubuntu').ip_address
+    end
+  end
+
   context 'arming guest mem-stat collection' do
     it 'arms a running VM once, on the not-running -> running transition' do
       e = RecordingEmulator.new

@@ -150,8 +150,12 @@ module Virt
     #   @return [GuestOS] the OS family this VM's definition declares. Asked once per domain
     #     and carried on every tick after, so reading it costs nothing — and unlike
     #     {#guest_swap} it is populated for a shut-off VM too
+    # @!attribute [r] ip_address
+    #   @return [String, nil] the VM's address as the host knows it, re-read every tick (see
+    #     {Virsh#ip_address}); `nil` for a stopped VM, or one neither the DHCP leases nor the
+    #     host's neighbour table has seen
     class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds, :swap_out_rate, :guest_swap,
-                                :guest_os)
+                                :guest_os, :ip_address)
       # Builds a cache entry by diffing the previous entry against the current snapshot
       # (for CPU usage, memory-data age and swap-out rate).
       #
@@ -159,14 +163,15 @@ module Virt
       # @param next_data [DomainData] current VM snapshot
       # @param guest_swap [ResourceUsage, nil] this tick's guest-agent swap level, if any
       # @param guest_os [GuestOS] what this domain's definition declares
+      # @param ip_address [String, nil] this tick's address, if any
       # @return [VMCache] the derived cache entry
-      def self.diff(prev_cache, next_data, guest_swap = nil, guest_os = GuestOS::UNKNOWN)
+      def self.diff(prev_cache, next_data, guest_swap = nil, guest_os = GuestOS::UNKNOWN, ip_address = nil)
         prev_data = prev_cache&.data
         # Age is wall-clock (sampled_at minus last_updated), never the delta between two
         # polls' last_updated — see design/decisions.md D_wall_clock_mem_age.
         age = next_data.mem_stat.nil? ? nil : ((next_data.sampled_at / 1000) - next_data.mem_stat.last_updated)
         VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age,
-                    swap_out_rate(prev_cache, next_data), guest_swap, guest_os)
+                    swap_out_rate(prev_cache, next_data), guest_swap, guest_os, ip_address)
       end
 
       # Bytes-per-second at which the guest wrote to swap between the previous sample and
@@ -242,12 +247,14 @@ module Virt
           # cost is per-VM rather than per-fleet (see {Virsh#guest_swap}).
           if data.running?
             guest_swap = guest_os.no_proc_meminfo? ? nil : @virt.guest_swap(did)
+            ip_address = @virt.ip_address(did)
           else
             # Strikes burned during the shutdown must not greet the next boot.
             guest_swap = nil
+            ip_address = nil
             @virt.forget_guest(did)
           end
-          cache[did] = VMCache.diff(old_cache[did], data, guest_swap, guest_os)
+          cache[did] = VMCache.diff(old_cache[did], data, guest_swap, guest_os, ip_address)
           # A VM just (re)started: arm its guest mem-stat collection, or the balloon stats
           # stay frozen (see {Virsh#set_mem_stats_period}).
           @virt.set_mem_stats_period(did, STATS_PERIOD_SECONDS) if data.running? && !prev_data&.running?

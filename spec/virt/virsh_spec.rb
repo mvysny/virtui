@@ -105,6 +105,40 @@ describe Virt::Virsh do
     end
   end
 
+  # The fixtures are guest `Flow` on the NAT `default` network, as measured on the author's
+  # host (2026-09-21).
+  context 'ip_address' do
+    let(:lease) { File.read('spec/virt/domifaddr_lease.txt') }
+    let(:arp) { File.read('spec/virt/domifaddr_arp.txt') }
+    # The header and rule with no row under them. Assumed, not yet recorded: a guest with no lease.
+    let(:none) { lease.lines.first(2).join }
+
+    it 'takes the lease, without its prefix' do
+      assert_equal '192.168.122.137', Virt::Virsh.new.ip_address('Flow', lease, '')
+    end
+
+    it 'falls back to arp, whose /0 prefix is dropped too' do
+      assert_equal '192.168.122.137', Virt::Virsh.new.ip_address('Flow', none, arp)
+      assert_equal '192.168.122.137', Virt::Virsh.new.ip_address('Flow', '', arp)
+    end
+
+    it 'is nil when neither table has a row' do
+      assert_nil Virt::Virsh.new.ip_address('Flow', none, none)
+    end
+
+    it 'asks lease first and arp only when lease has no row' do
+      runner = RecordingRunner.new
+      Virt::Virsh.new(runner: runner).ip_address("it's")
+      assert_equal [[:query, 'domifaddr', "it's", '--source', 'lease'],
+                    [:query, 'domifaddr', "it's", '--source', 'arp']], runner.calls
+    end
+
+    it 'raises on a row it does not recognise' do
+      garbled = "#{none} vnet0 52:54:00:ae:9d:2f ipv4\n"
+      assert_raises(RuntimeError) { Virt::Virsh.new.ip_address('Flow', garbled, '') }
+    end
+  end
+
   it 'hostinfo' do
     info = Virt::Virsh.new.hostinfo(VIRSH_NODEINFO)
     assert_equal 'x86_64: 1/8/2', info.to_s

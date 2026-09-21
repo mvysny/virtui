@@ -407,14 +407,16 @@ module UI
     end
 
     # Builds a VM's overview line: state glyph, guest-OS marker, name, and (when running) a
-    # balloon emoji with a ballooning-direction indicator and a "stale data" turtle.
+    # balloon emoji with a ballooning-direction indicator, a "stale data" turtle and the VM's
+    # address at the rule's right end.
     #
-    #     ▶ 🐧 Ubuntu 🎈↑────
-    #     ⏹ ?  BASE───────
+    #     ▶ 🐧 Ubuntu 🎈↑───────── 192.168.122.84 ─
+    #     ⏹ ?  BASE──────────────────────────────
     #
     # What sits on which side of the name is the rule to keep: left of it goes what the VM
     # *is* — facts that hold still while the user reads — and right of it what it is *doing*
-    # right now. A live indicator on the left would shift the name column on every tick.
+    # right now. A live indicator on the left would shift the name column on every tick. The
+    # address is right-aligned for the same reason: appearing or changing, it moves nothing.
     #
     # @param cache [Virt::Cache::VMCache] the VM's cache entry
     # @return [String] the rendered overview line
@@ -440,7 +442,7 @@ module UI
         end
         line += " \u{1F422}" if cache.stale?
       end
-      header(line)
+      header(line, cache.ip_address)
     end
 
     # The guest-OS marker for a VM's overview line: what the VM's definition declares, as one
@@ -549,14 +551,20 @@ module UI
     end
 
     # Draws a row header: `left` caption followed by a frame rule filling the rest of the
-    # pane width.
+    # pane width, with `right` inset near the rule's end (see {#format_vm_overview_line}).
+    # `right` is dropped whole, never truncated, when the rule has no room for it: a clipped
+    # address is a wrong address.
     #
     # @param left [String] the caption (may contain styling)
+    # @param right [String, nil] unstyled text to inset, or `nil` for a plain rule
     # @return [String] the rendered header line
-    def header(left)
-      left_size = StyledString.parse(left).display_width
-      frame = '─' * (rect.width - left_size - 4).clamp(0, nil)
-      left + screen.theme.frame(frame)
+    def header(left, right = nil)
+      theme = screen.theme
+      rule = rect.width - StyledString.parse(left).display_width - 4
+      # Room for `─ right ─`: a space either side and at least one '─' before and after.
+      return left + theme.frame('─' * rule.clamp(0, nil)) if right.nil? || rule < right.length + 4
+
+      "#{left}#{theme.frame('─' * (rule - right.length - 3))} #{right} #{theme.frame('─')}"
     end
 
     # Renders one labelled progress-bar segment: `left` caption, the bar, then `right`

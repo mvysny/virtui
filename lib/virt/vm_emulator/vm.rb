@@ -69,6 +69,14 @@ module Virt
       #   {VMEmulator::WINDOWS} or {GuestOS::UNKNOWN} to simulate a guest {Cache} won't ask
       attr_accessor :guest_os
 
+      # @return [String, nil] the address this simulated VM holds while running; `nil` (the
+      #   default) simulates a guest the host has no address for
+      attr_accessor :address
+
+      # @return [String, nil] {#address} while running, as {Virsh#ip_address} would report it;
+      #   `nil` when stopped
+      def ip_address = running? ? address : nil
+
       # @return [Integer, nil] size of the simulated guest's swap device (4 GiB by default);
       #   `nil` simulates a guest whose level cannot be read at all — no guest agent, or no
       #   swap configured — which is the other half {Virt::GuestSwapSampler#swap} can return

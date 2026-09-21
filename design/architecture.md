@@ -22,8 +22,8 @@ doc-comment content has crept in.
   swap_sampler)` → `Virt::GuestSwapSampler(Virt::GuestAgent(runner))` and
   `Virt::VirshSession`.
 - The backend is a role, not a class: `Virt::Virsh` and `Virt::VMEmulator` answer the same calls
-  (`domain_data`, `guest_os`, `guest_swap`, `set_actual`, the power commands), so demo mode and
-  most specs run the whole stack over the emulator with nothing faked apart.
+  (`domain_data`, `guest_os`, `guest_swap`, `ip_address`, `set_actual`, the power commands), so
+  demo mode and most specs run the whole stack over the emulator with nothing faked apart.
 - Under `Virt::Virsh` sits the *runner* seam — `query` / `sync` / `async`, a subcommand without
   the word `virsh`, splatted one argument per word — with two implementations: the long-lived
   `Virt::VirshSession` serves `query`, `Virt::VirshSpawn` runs `sync` / `async` as one process
@@ -62,6 +62,8 @@ UI-thread-confined).
 3. Per domain: `guest_os` from the memo or one `virsh metadata` read; if running and declared
    Linux, `Virsh#guest_swap` → `GuestSwapSampler#swap` → `GuestAgent#swap` (open / read / close
    of the guest's `/proc/meminfo`), or `nil` when the guest is written off or the read fails.
+   If running, `Virsh#ip_address` → `virsh domifaddr --source lease`, then `--source arp` if
+   the lease table is empty.
    `VMCache.diff` derives CPU usage, swap-out rate and balloon-data age from the previous entry.
 4. `System::Info` reads host memory and CPU, and `df` for every qcow2 file the fleet uses.
 5. `screen.event_queue.submit { ballooning.update; layout.update_data }` — the hand-off.
