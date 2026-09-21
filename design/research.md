@@ -109,9 +109,9 @@ later one trims to its length.
 ## R_virsh_domifaddr — `virsh domifaddr` and its three address sources
 
 - With no `--source`, `domifaddr` reads `lease`, byte-identical output. **[verified 2026-09-21]**
-- A header row, a `---` rule, then one row per address: Name, MAC address, Protocol, Address,
-  whitespace-separated; a further address of the same interface has `-` in Name and MAC.
-  **[verified 2026-09-21]**
+- One row per address: Name, MAC address, Protocol, Address, whitespace-separated; a further
+  address of the same interface has `-` in Name and MAC. Without `-q` a header row and a `---`
+  rule come first; `-q` drops both. **[verified 2026-09-21]**
 - `lease` and `arp` name the host-side tap (`vnet0`); `agent` names the guest's own interface
   (`enp1s0`) and also lists `lo` (`127.0.0.1/8`, `::1/128`) and the link-local IPv6.
   **[verified 2026-09-21]**
@@ -119,8 +119,7 @@ later one trims to its length.
   **[verified 2026-09-21]**
 - `lease` knows only what libvirt's own dnsmasq handed out, so a bridged guest has none; `arp`
   knows only what is in the host's neighbour table. **[docs]**
-- A guest with no lease prints the header and the rule with no rows, not an `error:`.
-  **[unverified]**
+- With `-q`, a guest with no lease prints nothing, not an `error:`. **[unverified]**
 
 ## R_linux_swap — how the Linux guest kernel treats swapped pages
 

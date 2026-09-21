@@ -78,6 +78,10 @@ design/verify_design_tripwires.sh # the doc-layer checks alone
 bin/virtui                        # run; demo mode when no virsh is on the PATH
 ```
 
+A `virsh` command handed to the user to run on the host carries `-q`, as both runners do: without
+it the output differs from what virtui parses (a table's header and rule, a trailing blank line).
+See `R_virsh_repl`.
+
 ## Skills this project follows
 
 - **Component-oriented:** self-sufficient tuile components that read `Virt::Cache` directly, no MVC layers; the `cop` skill has the rules and `tuile` the UI-thread rendering rule.

@@ -105,13 +105,13 @@ describe Virt::Virsh do
     end
   end
 
-  # The fixtures are guest `Flow` on the NAT `default` network, as measured on the author's
-  # host (2026-09-21).
+  # The fixtures are `virsh -q domifaddr` of guest `Flow` on the NAT `default` network, as
+  # measured on the author's host (2026-09-21).
   context 'ip_address' do
     let(:lease) { File.read('spec/virt/domifaddr_lease.txt') }
     let(:arp) { File.read('spec/virt/domifaddr_arp.txt') }
-    # The header and rule with no row under them. Assumed, not yet recorded: a guest with no lease.
-    let(:none) { lease.lines.first(2).join }
+    # Assumed, not yet recorded: what `-q` prints for a guest with no lease.
+    let(:none) { '' }
 
     it 'takes the lease, without its prefix' do
       assert_equal '192.168.122.137', Virt::Virsh.new.ip_address('Flow', lease, '')
@@ -119,7 +119,6 @@ describe Virt::Virsh do
 
     it 'falls back to arp, whose /0 prefix is dropped too' do
       assert_equal '192.168.122.137', Virt::Virsh.new.ip_address('Flow', none, arp)
-      assert_equal '192.168.122.137', Virt::Virsh.new.ip_address('Flow', '', arp)
     end
 
     it 'is nil when neither table has a row' do
@@ -134,8 +133,14 @@ describe Virt::Virsh do
     end
 
     it 'raises on a row it does not recognise' do
-      garbled = "#{none} vnet0 52:54:00:ae:9d:2f ipv4\n"
-      assert_raises(RuntimeError) { Virt::Virsh.new.ip_address('Flow', garbled, '') }
+      assert_raises(RuntimeError) { Virt::Virsh.new.ip_address('Flow', " vnet0 52:54:00:ae:9d:2f ipv4\n", none) }
+    end
+
+    # What a transport without `-q` would hand over: raising is what keeps it from reading as
+    # "no address".
+    it 'raises on a table header' do
+      header = " Name       MAC address          Protocol     Address\n#{'-' * 79}\n"
+      assert_raises(RuntimeError) { Virt::Virsh.new.ip_address('Flow', header + lease, none) }
     end
   end
 

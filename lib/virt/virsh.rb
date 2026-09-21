@@ -198,14 +198,16 @@ module Virt
       result
     end
 
-    # The Address column of the first row under the `---` rule of a `virsh domifaddr` table,
-    # without its `/prefix`.
+    # The Address column of a `virsh -q domifaddr` table's first row, without its `/prefix`.
     #
-    # @param domifaddr [String] the table; empty or header-only means no rows
+    # `-q` drops the header and the `---` rule, so every non-blank line is a row, and a header
+    # that does reach here raises rather than hiding the address behind it.
+    #
+    # @param domifaddr [String] the table; empty means no rows
     # @return [String, nil] the address, or `nil` if the table has no rows
     # @raise [RuntimeError] if a row does not have the four documented columns
     private def first_address(domifaddr)
-      row = domifaddr.lines.drop_while { |it| !it.start_with?('---') }.drop(1).find { |it| !it.strip.empty? }
+      row = domifaddr.lines.find { |it| !it.strip.empty? }
       return nil if row.nil?
 
       columns = row.split # Name, MAC address, Protocol, Address
