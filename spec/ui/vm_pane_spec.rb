@@ -328,6 +328,15 @@ module Tuile
                      markers.map { |m| StyledString.parse(m).display_width }.uniq
       end
 
+      # The header's column captions: measured in display columns, so an emoji or a styled
+      # chip before the caption doesn't push it off its column.
+      it 'places a caption at a display column, and drops it when the line is already past' do
+        chip = "\e[7m🐧\e[0m" # 2 columns, 1 character, wrapped in SGR
+        placed = StyledString.parse(window.send(:place, chip, 5, 'Guest'))
+        assert_equal '🐧   Guest', placed.to_s
+        assert_equal chip, window.send(:place, chip, 1, 'Guest')
+      end
+
       it 'draws a glyph for every family a definition can declare' do
         assert_equal Virt::GuestOS::FAMILIES.keys.sort, UI::VMPane::GUEST_OS_GLYPHS.keys.sort
       end

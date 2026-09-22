@@ -308,10 +308,10 @@ module UI
     # @param text [String] ANSI-styled text to place
     # @return [String] the extended row
     def place(line, at, text)
-      pad = at - StyledString.parse(line).display_width
-      return line if pad.negative?
+      styled = StyledString.parse(line)
+      return line if styled.display_width > at
 
-      line + (' ' * pad) + text
+      styled.ljust(at).to_ansi + text
     end
 
     # Opens the incremental-search text field as a bottom row of the pane, wiring its events
@@ -501,7 +501,7 @@ module UI
     # @return [String] the marker, {GUEST_OS_WIDTH} cells wide, styling not counted
     def format_guest_os(guest_os)
       glyph = GUEST_OS_GLYPHS[guest_os.family] || screen.theme.frame('?')
-      glyph + (' ' * (GUEST_OS_WIDTH - StyledString.parse(glyph).display_width).clamp(0, nil))
+      StyledString.parse(glyph).ljust(GUEST_OS_WIDTH).to_ansi
     end
 
     # The swap row, one per running VM that reports swap counters. Two cells, two questions:
