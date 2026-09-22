@@ -19,7 +19,7 @@ module UI
   # `bin/virtui` hangs it off `Tuile::Screen#on_focus_changed`.
   #
   # UI-thread-confined.
-  class AppLayout < Tuile::Component::Layout::Absolute
+  class AppLayout < Tuile::Component::Layout
     include Tuile
 
     # @param virt_cache [Virt::Cache] the runtime cache the panes read from

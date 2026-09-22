@@ -25,8 +25,7 @@ module Tuile
     def window_for(cpu_flags: %w[svm npt pdpe1gb], disks: {})
       cache = Virt::Cache.new(Virt::VMEmulator.demo, FakeSysInfo.new(cpu_flags: cpu_flags, disks: disks))
       w = UI::SystemPane.new(cache)
-      Screen.instance.content = w
-      w.rect = Rect.new(0, 0, 40, 20)
+      mount_at(w, Rect.new(0, 0, 40, 20))
       w
     end
 

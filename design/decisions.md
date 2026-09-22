@@ -531,8 +531,8 @@ keeps the class for its name — and against tuile 0.13 everything the frame see
 already elsewhere: `List`/`TextView` own their scrollbars, `Screen#focused=` sets `active` on
 every ancestor so a `Layout` pane reads focus-within for free, and `List` paints its whole rect
 so click-to-focus lands. Why not the search field as a popup or overlay, the design's first pick
-for the screen's own focus repair: `Popup` self-centers (`reposition` resolves `declared_size`
-and centers), so anchoring it under the pane means a subclass override, while tuile explicitly
+for the screen's own focus repair: a `Popup` is modal — anchoring one under the pane is only an
+`Overlay::At` placement now, but the list behind it stops taking keys — while tuile explicitly
 forbids the lighter shape, a focusable non-modal `Overlay` — every keystroke goes dead until
 Tab recovers. The embedded row costs one explicit `list.focus` in `VMPane#close_search`,
 strictly simpler. Don't re-try the overlay without re-reading `overlay.rb`'s implementation

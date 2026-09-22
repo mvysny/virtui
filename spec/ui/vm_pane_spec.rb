@@ -18,8 +18,7 @@ module Tuile
         cache.update
         UI::VMPane.new(cache, ballooning)
       end
-      Screen.instance.content = w
-      w.rect = Rect.new(0, 0, 20, 20)
+      mount_at(w, Rect.new(0, 0, 20, 20))
       w.active = true
       w.list.active = true
       w.show_disk_stat = true
@@ -77,7 +76,7 @@ module Tuile
 
     context('address inset') do
       def overview(width, address)
-        window.rect = Rect.new(0, 0, width, 20)
+        mount_at(window, Rect.new(0, 0, width, 20))
         e = Virt::Cache::VMCache.diff(nil, cache.data('Ubuntu'), nil, Virt::GuestOS::UNKNOWN, address)
         window.send(:format_vm_overview_line, e).gsub(/\e\[[\d;:]*m/, '')
       end
@@ -383,7 +382,7 @@ module Tuile
       end
 
       it 'renders nothing when the window is too narrow' do
-        window.rect = Rect.new(0, 0, 10, 20) # column_width = (10-16)/2 < 0 -> early return
+        mount_at(window, Rect.new(0, 0, 10, 20)) # column_width = (10-16)/2 < 0 -> early return
         window.update # must not raise
       end
     end

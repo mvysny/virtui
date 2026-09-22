@@ -18,17 +18,15 @@ module Tuile
       l
     end
 
-    # Assigns the layout's rect and runs the relayout it just marked, so the pane rects
-    # are readable in the same example (tuile's layout is deferred to the event settle,
-    # which no spec reaches).
+    # Resizes the fake terminal; the screen hands its content the new size and settles
+    # the layout, so the pane rects are readable in the same example.
     #
-    # @param layout [UI::AppLayout]
+    # @param layout [UI::AppLayout] the screen's content
     # @param width [Integer]
     # @param height [Integer]
     # @return [UI::AppLayout] `layout`
     def resize(layout, width, height)
-      layout.rect = Rect.new(0, 0, width, height)
-      layout.flush_layout
+      Screen.instance.resize_terminal(width, height)
       layout
     end
 

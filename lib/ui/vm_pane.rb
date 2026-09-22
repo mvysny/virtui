@@ -10,7 +10,7 @@ module UI
   # a one-row header — the focus chip plus the Guest/Host column captions — over the
   # {Tuile::Component::List}, with the incremental-search {Tuile::Component::TextField}
   # appearing as a third row while open (a row in the pane's own layout, not an overlay:
-  # `Popup` self-centers away from the pane, and a focusable non-modal `Overlay` is
+  # a `Popup` is modal, and a focusable non-modal `Overlay` is
   # forbidden upstream — the row plus one explicit {#close_search} re-focus is strictly
   # simpler).
   #

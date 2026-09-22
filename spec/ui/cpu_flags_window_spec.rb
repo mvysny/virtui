@@ -11,8 +11,7 @@ module Tuile
     # fake screen so the assertions read the actual glyphs.
     def window_for(*flags)
       w = UI::CpuFlagsWindow.new(flags.to_set)
-      Screen.instance.content = w
-      w.rect = Rect.new(0, 0, 40, 30)
+      mount_at(w, Rect.new(0, 0, 40, 30))
       Screen.instance.repaint
       w
     end

@@ -57,3 +57,23 @@ module Helpers
     result
   end
 end
+
+# Mounts `component` at `rect` under a {Tuile::Component::Layout::Absolute} holder, the
+# one way a spec sizes a component: `rect=` raises outside the parent's `relayout`, and
+# straight onto `screen.content` the pane would hand it the whole screen. A second call
+# on the same component moves it within its holder.
+#
+# @param component [Tuile::Component]
+# @param rect [Tuile::Rect]
+# @return [Tuile::Component] `component`, settled
+def mount_at(component, rect)
+  if component.parent.nil?
+    holder = Tuile::Component::Layout::Absolute.new
+    holder.add(component, rect)
+    Tuile::Screen.instance.content = holder
+  else
+    component.parent.constrain(component, rect)
+  end
+  Tuile::Screen.instance.flush_layout
+  component
+end
