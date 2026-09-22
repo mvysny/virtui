@@ -99,8 +99,8 @@ module Tuile
     end
 
     it 'tints the secondary panes, leaving the VM pane on the terminal default' do
-      assert_equal UI::Theme::DARK[:pane_bg], painted_bg(layout.system)
-      assert_equal UI::Theme::DARK[:pane_bg], painted_bg(layout.log)
+      assert_equal UI::Theme::DARK.resolve(nil)[:pane_bg], painted_bg(layout.system)
+      assert_equal UI::Theme::DARK.resolve(nil)[:pane_bg], painted_bg(layout.log)
       assert_nil painted_bg(layout.vms)
     end
 
@@ -108,7 +108,7 @@ module Tuile
       layout # build on the floor theme first
       mocha = Color.hex('#1e1e2e')
       Screen.instance.background_color = mocha
-      derived = UI::Theme.derived(mocha).dark
+      derived = UI::Theme::DARK.resolve(mocha)
       assert_equal derived[:pane_bg], Screen.instance.theme[:pane_bg]
       assert_equal derived[:pane_bg], painted_bg(layout.system) # the Ref re-resolves
       assert_equal derived[:frame], Screen.instance.theme[:frame]

@@ -3,9 +3,37 @@
 module UI
   # VirTUI's color theme: Tuile's built-in tokens plus app-specific ones, with
   # one coloring reader per custom token. Assign {THEME_DEF} to
-  # `screen.theme_def=` so the screen picks the right variant for the terminal
-  # background and follows OS light/dark flips.
+  # `screen.theme_def=` once: the screen picks the right variant for the terminal
+  # background, follows OS light/dark flips, and re-resolves the background-derived
+  # tokens ({.derived_tokens}) whenever the reported background changes.
   class Theme < Tuile::Theme
+    # The custom tokens {.derived_tokens}' contrast guard defends — the foregrounds the
+    # tinted System pane renders. The VM-pane tokens (`ok`/`warn`/`error`/`off`,
+    # `vm_name`) are deliberately absent: that pane keeps the terminal default
+    # background, so no tint can hurt them. `ram_vm` is symbolic ANSI and skips
+    # itself (see `Tuile::Color#rgb`).
+    # @return [Array<Symbol>]
+    GUARD_TOKENS = %i[cpu cpu_vm ram ram_vm swap disk disk_vm disk_label].freeze
+
+    # The tokens derived from the terminal's actual background ({Tint}): `pane_bg` steps
+    # the background toward mid-grey, `frame` is a hairline on the terminal ground and
+    # `pane_frame` a hairline on the tinted ground — a hairline must be derived from the
+    # ground it rules on, or a fixed `#333333` goes a near-invisible 1.1:1 on a mid-dark
+    # terminal like One Dark. With no reported background (plenty of terminals answer no
+    # OSC 11) each falls back to a fixed floor tuned for the variant's usual ground.
+    #
+    # @param pane_bg [Tuile::Color] `pane_bg`'s floor
+    # @param hairline [Tuile::Color] the floor of both hairlines
+    # @return [Hash{Symbol => Proc}] the three derived custom tokens
+    def self.derived_tokens(pane_bg:, hairline:)
+      {
+        pane_bg: ->(bg, t) { bg ? Tint.pane_bg(bg, guard: GUARD_TOKENS.map { t[_1] }) : pane_bg },
+        frame: ->(bg) { bg ? Tint.hairline(bg) : hairline },
+        pane_frame: ->(bg, t) { bg ? Tint.hairline(t[:pane_bg]) : hairline }
+      }
+    end
+    private_class_method :derived_tokens
+
     # @!group Coloring readers, one per custom token
 
     # @param text [String]
@@ -84,21 +112,15 @@ module UI
                  disk: Tuile::Color::ORANGE1, # 214 — Rainbow's :goldenrod
                  disk_vm: Tuile::Color::ORANGE3, # 172 — Rainbow's :chocolate
                  disk_label: Tuile::Color::YELLOW1, # 226 — Rainbow's :gold
-                 frame: Tuile::Color.hex('#333333'),
                  vm_name: Tuile::Color::WHITE,
                  ok: Tuile::Color::GREEN,
                  warn: Tuile::Color::YELLOW,
                  error: Tuile::Color::RED,
                  off: Tuile::Color::RED3, # 124 — Rainbow's :darkred
-                 # Secondary-pane (System/log) background and the separator hairline on it.
-                 # These are the fixed-tint *floor* — the values used when the terminal
-                 # answers no OSC 11 (Screen#background_color is nil), assuming the common
-                 # near-black ground; when the actual background RGB is known the derived
-                 # tint replaces them (see {.derived}). Toward-grey per design/decisions.md
-                 # D_tint_toward_grey; exact floor values pending an eyeball pass on real
-                 # terminals.
-                 pane_bg: Tuile::Color.hex('#121212'),
-                 pane_frame: Tuile::Color.hex('#333333')
+                 # The floors assume the common near-black ground. Toward-grey per
+                 # design/decisions.md D_tint_toward_grey; exact floor values pending an
+                 # eyeball pass on real terminals.
+                 **derived_tokens(pane_bg: Tuile::Color.hex('#121212'), hairline: Tuile::Color.hex('#333333'))
                })
 
     # Darker counterparts legible on light terminal backgrounds. Named ANSI
@@ -117,59 +139,17 @@ module UI
                   disk: Tuile::Color::DARK_ORANGE3, # 130
                   disk_vm: Tuile::Color.palette(94), # xterm Orange4 (dup-named cell, no constant)
                   disk_label: Tuile::Color::DARK_GOLDENROD, # 136
-                  frame: Tuile::Color.hex('#cccccc'),
                   vm_name: Tuile::Color::BLACK,
                   ok: Tuile::Color::GREEN,
                   warn: Tuile::Color::ORANGE3, # 172 — yellow is unreadable on white
                   error: Tuile::Color::RED,
                   off: Tuile::Color::RED3,
-                  # The light-variant fixed-tint floor — see the DARK counterpart's note.
-                  pane_bg: Tuile::Color.hex('#f0f0f0'),
-                  pane_frame: Tuile::Color.hex('#cccccc')
+                  # The floors assume a near-white ground — see the DARK counterpart's note.
+                  **derived_tokens(pane_bg: Tuile::Color.hex('#f0f0f0'), hairline: Tuile::Color.hex('#cccccc'))
                 })
 
-    # The dark/light pair; assign to `screen.theme_def=` — or better, assign
-    # {.derived}, which folds the terminal's reported background in.
+    # The dark/light pair; assign to `screen.theme_def=` once, at startup.
     # @return [Tuile::ThemeDef]
     THEME_DEF = Tuile::ThemeDef.new(dark: DARK, light: LIGHT)
-
-    # The custom tokens {.derived}'s contrast guard defends — the foregrounds the
-    # tinted System pane renders. The VM-pane tokens (`ok`/`warn`/`error`/`off`,
-    # `vm_name`) are deliberately absent: that pane keeps the terminal default
-    # background, so no tint can hurt them. `ram_vm` is symbolic ANSI and skips
-    # itself (see `Tuile::Color#rgb`).
-    # @return [Array<Symbol>]
-    GUARD_TOKENS = %i[cpu cpu_vm ram ram_vm swap disk disk_vm disk_label].freeze
-
-    # The theme pair with the pane tint and the hairlines derived from the terminal's
-    # actual background ({Tint}), replacing the fixed floors: `pane_bg` steps the
-    # background toward mid-grey, `frame` becomes a hairline on the terminal ground and
-    # `pane_frame` a hairline on the tinted ground (the fixed `#333333` was a
-    # near-invisible 1.1:1 on mid-dark terminals like One Dark — a hairline must be
-    # derived from the ground it rules on). With no reported background (`nil` — plenty
-    # of terminals answer no OSC 11) the fixed-tint floor {THEME_DEF} stands.
-    #
-    # @param background [Tuile::Color, nil] `Screen#background_color`
-    # @return [Tuile::ThemeDef] the pair to assign to `screen.theme_def=`
-    def self.derived(background)
-      return THEME_DEF if background.nil?
-
-      Tuile::ThemeDef.new(dark: derive_variant(DARK, background), light: derive_variant(LIGHT, background))
-    end
-
-    # One variant with its derived tokens folded in — see {.derived}.
-    #
-    # @param base [Theme] {DARK} or {LIGHT}
-    # @param background [Tuile::Color] the terminal background RGB
-    # @return [Theme]
-    def self.derive_variant(base, background)
-      pane_bg = Tint.pane_bg(background, guard: GUARD_TOKENS.map { |token| base[token] })
-      base.with(custom: base.custom.merge(
-        pane_bg: pane_bg,
-        frame: Tint.hairline(background),
-        pane_frame: Tint.hairline(pane_bg)
-      ))
-    end
-    private_class_method :derive_variant
   end
 end

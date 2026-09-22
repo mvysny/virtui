@@ -71,9 +71,16 @@ module Tuile
       end
     end
 
-    context('the guard table (UI::Theme.derived)') do
-      it 'returns the fixed-tint floor when no background was reported' do
-        assert_same UI::Theme::THEME_DEF, UI::Theme.derived(nil)
+    context('the guard table (UI::Theme\'s derived tokens)') do
+      it 'falls back to the fixed-tint floor when no background was reported' do
+        dark = UI::Theme::DARK.resolve(nil)
+        assert_equal Color.hex('#121212'), dark[:pane_bg]
+        assert_equal Color.hex('#333333'), dark[:frame]
+        assert_equal Color.hex('#333333'), dark[:pane_frame]
+        light = UI::Theme::LIGHT.resolve(nil)
+        assert_equal Color.hex('#f0f0f0'), light[:pane_bg]
+        assert_equal Color.hex('#cccccc'), light[:frame]
+        assert_equal Color.hex('#cccccc'), light[:pane_frame]
       end
 
       # The spec form of the measurement that picked the direction and DELTA: across the
@@ -82,8 +89,7 @@ module Tuile
       TINT_SPEC_BACKGROUNDS.each do |name, hex|
         it "keeps every passing System-pane token above the floor on #{name}" do
           background = Color.hex(hex)
-          derived = UI::Theme.derived(background)
-          [derived.dark, derived.light].each do |theme|
+          [UI::Theme::DARK, UI::Theme::LIGHT].map { _1.resolve(background) }.each do |theme|
             pane_bg = theme[:pane_bg]
             UI::Theme::GUARD_TOKENS.each do |token|
               rgb = theme[token].rgb
@@ -98,7 +104,7 @@ module Tuile
       end
 
       it 'derives the hairlines from their actual grounds' do
-        derived = UI::Theme.derived(Color.hex('#282c34')).dark
+        derived = UI::Theme::DARK.resolve(Color.hex('#282c34'))
         assert_equal UI::Tint.hairline(Color.hex('#282c34')), derived[:frame]
         assert_equal UI::Tint.hairline(derived[:pane_bg]), derived[:pane_frame]
       end

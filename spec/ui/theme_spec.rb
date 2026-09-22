@@ -11,7 +11,7 @@ describe UI::Theme do
 
   it 'every custom coloring reader wraps but preserves the text' do
     %i[cpu ram disk_label frame vm_name ok warn error off].each do |token|
-      [UI::Theme::DARK, UI::Theme::LIGHT].each do |theme|
+      [UI::Theme::DARK, UI::Theme::LIGHT].map { _1.resolve(nil) }.each do |theme|
         colored = theme.public_send(token, 'hi')
         assert_kind_of String, colored
         assert colored.include?('hi'), "#{theme}.#{token} dropped the text"

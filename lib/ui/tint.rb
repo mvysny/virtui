@@ -3,8 +3,8 @@
 module UI
   # Derives the borderless-pane colors from the terminal's reported background RGB
   # (`Screen#background_color`, tuile#7): the secondary panes' background tint and the
-  # `─`/`│` hairline colors. Stateless; called by {Theme.derived} whenever the reported
-  # background changes, and unit-tested from canned backgrounds.
+  # `─`/`│` hairline colors. Stateless; called by {Theme}'s derived tokens whenever the
+  # reported background changes, and unit-tested from canned backgrounds.
   #
   # The derivation preserves hue — popular terminal themes are rarely neutral (Catppuccin
   # Mocha `#1e1e2e` is purple-blue) and a neutral-grey sidebar next to a tinted primary
