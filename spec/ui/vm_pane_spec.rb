@@ -180,13 +180,13 @@ module Tuile
 
       it 'is case-insensitive and matches substrings' do
         window.handle_key?('/')
-        window.search.text = 'FED' # Fedora
+        window.search.value = 'FED' # Fedora
         assert_equal 2, window.list.cursor.position
       end
 
       it 'down arrow jumps to the next match' do
         window.handle_key?('/')
-        window.search.text = 'a' # matches base (0) and Fedora (2)
+        window.search.value = 'a' # matches base (0) and Fedora (2)
         assert_equal 0, window.list.cursor.position # lands on base (include_current)
         window.search.handle_key?(Keys::DOWN_ARROW)
         assert_equal 2, window.list.cursor.position # Fedora
@@ -194,7 +194,7 @@ module Tuile
 
       it 'up arrow jumps to the previous match' do
         window.handle_key?('/')
-        window.search.text = 'a' # matches base (0) and Fedora (2)
+        window.search.value = 'a' # matches base (0) and Fedora (2)
         window.list.cursor.go(2) # Fedora
         window.search.handle_key?(Keys::UP_ARROW)
         assert_equal 0, window.list.cursor.position # base
@@ -202,7 +202,7 @@ module Tuile
 
       it 'down/up wrap around the list' do
         window.handle_key?('/')
-        window.search.text = 'a' # matches base (0) and Fedora (2)
+        window.search.value = 'a' # matches base (0) and Fedora (2)
         window.list.cursor.go(2) # Fedora — last match
         window.search.handle_key?(Keys::DOWN_ARROW)
         assert_equal 0, window.list.cursor.position # wraps to base
@@ -210,7 +210,7 @@ module Tuile
 
       it 'only lands on cursor-allowed positions (VM header rows)' do
         window.handle_key?('/')
-        window.search.text = 'cpu' # appears on stat rows, never on header rows
+        window.search.value = 'cpu' # appears on stat rows, never on header rows
         # No VM header line contains 'cpu', and stat rows are not allowed positions,
         # so cursor stays put.
         assert_equal 0, window.list.cursor.position
