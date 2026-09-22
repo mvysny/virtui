@@ -89,7 +89,7 @@ module Tuile
     end
 
     # The background a pane actually painted, read off the buffer rather than from the
-    # component: `Component#effective_bg_color` is protected, and the painted cell is the
+    # component: `Component#bg` (its `ComponentBackground`) is protected, and the painted cell is the
     # claim worth asserting anyway.
     # @param pane [Tuile::Component]
     # @return [Tuile::Color, nil] the bg of the pane's bottom-left cell
