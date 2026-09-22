@@ -114,6 +114,18 @@ module Tuile
       assert_equal derived[:frame], Screen.instance.theme[:frame]
     end
 
+    it 'rules a :pane_frame │ down the separator column, following a theme change' do
+      layout
+      Screen.instance.background_color = Color.hex('#1e1e2e')
+      Screen.instance.repaint
+      frame = Screen.instance.theme[:pane_frame]
+      (26...39).each do |row|
+        cell = Screen.instance.buffer.cell(50, row)
+        assert_equal '│', cell.grapheme, "row #{row}"
+        assert_equal frame, cell.style.fg, "row #{row}"
+      end
+    end
+
     it 'update_data refreshes the panes without raising' do
       layout.update_data
       refute_empty layout.vms.list.items

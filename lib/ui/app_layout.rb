@@ -43,9 +43,8 @@ module UI
       @system = SystemPane.new(virt_cache)
       @vms = VMPane.new(virt_cache, ballooning)
       @log = LogPane.new
-      # The one-cell `│` column between the System and log panes; its colors are rebuilt by
-      # {#handle_theme_changed}.
-      @separator = Component::Label.new
+      # The one-cell `│` column between the System and log panes.
+      @separator = Component::Fill.new('│', color: Theme.ref(:pane_frame))
       @status = Component::Label.new
       $log.remove_handler :console
       $log.add_handler [:console, { output: Component::LogTextView::IO.new(@log), enable_color: true }]
@@ -56,7 +55,6 @@ module UI
       add(@vms, Expand[1])
       add(bottom, Fixed[BOTTOM_HEIGHT])
       add(@status, Fixed[1])
-      rebuild_separator
       # Tint the secondary panes; a {Theme::Ref} re-resolves on every theme swap by itself.
       # The VM pane deliberately keeps the terminal default: painting every background would
       # make virtui own every contrast pairing (including the LIGHT theme's symbolic ANSI
@@ -126,9 +124,8 @@ module UI
 
     protected
 
-    # Re-derives the background-dependent theme tokens, then re-bakes the labels whose
-    # colors are flattened into their text — the separator column and the status line.
-    # (The panes rebuild their own headers.)
+    # Re-derives the background-dependent theme tokens, then re-bakes the status line,
+    # whose colors are flattened into its text. (The panes rebuild their own headers.)
     #
     # Both a light/dark variant flip and a fresh OSC-11 background RGB funnel into this
     # hook (a changed `Screen#background_color` fires it tree-wide), so there is no
@@ -139,19 +136,7 @@ module UI
     def handle_theme_changed
       super
       screen.theme_def = Theme.derived(screen.background_color)
-      rebuild_separator
       refresh_status
-    end
-
-    private
-
-    # Rebuilds the separator column's text: one `:pane_frame` `│` per row of the bottom
-    # strip. {BOTTOM_HEIGHT} rather than the rect's height, which a short terminal clips —
-    # a `Label` paints only the rows its rect has, so the surplus costs nothing.
-    # @return [void]
-    def rebuild_separator
-      bar = screen.theme.fg(:pane_frame, '│')
-      @separator.text = Array.new(BOTTOM_HEIGHT, bar).join("\n")
     end
   end
 end
