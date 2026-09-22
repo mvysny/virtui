@@ -53,6 +53,14 @@ module Tuile
     # 9, not 8: every running VM carries a SWAP line, so Ubuntu is 5 lines.
     def win11 = 9
 
+    # The first timer tick is 2 s away; the cache already holds a poll, so the pane must
+    # show it the moment it is built.
+    it 'lists the VMs as soon as it is built, before any tick' do
+      pane = UI::VMPane.new(cache, ballooning)
+      mount_at(pane, Rect.new(0, 0, 20, 20))
+      assert_equal '⏹ ?  BASE────────', list_rows(pane.list)[0]
+    end
+
     it 'has the right content' do
       content = list_rows(window.list)
       # BASE declares no OS, so it gets the dim '?' where Fedora gets a penguin

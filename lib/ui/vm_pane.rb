@@ -111,6 +111,7 @@ module UI
       add(@header, Fixed[1])
       add(@list, Expand[1])
       rebuild_header
+      update
     end
 
     # @return [Tuile::Component::List] the VM list — the pane's focus target
