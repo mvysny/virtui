@@ -1,6 +1,6 @@
 GIT
   remote: https://github.com/mvysny/tuile.git
-  revision: 64d04167bbb137bfffedc0fbfa381a78a297af9d
+  revision: 72545d3e610fe7cd459e91f9d4edc2d944457112
   branch: master
   specs:
     tuile (0.16.0)

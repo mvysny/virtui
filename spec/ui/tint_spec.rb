@@ -15,7 +15,7 @@ module Tuile
   }.freeze
 
   describe UI::Tint do
-    def lightness(color) = UI::Tint.to_hsl(UI::Tint.rgb_of(color))[2]
+    def lightness(color) = UI::Tint.to_hsl(color.rgb)[2]
 
     context('pane_bg') do
       it 'steps a dark background lighter and a light one darker — toward mid-grey' do
@@ -31,8 +31,8 @@ module Tuile
       end
 
       it 'preserves the hue of a tinted background' do
-        mocha = UI::Tint.rgb_of(Color.hex('#1e1e2e'))
-        tinted = UI::Tint.rgb_of(UI::Tint.pane_bg(Color.hex('#1e1e2e')))
+        mocha = Color.hex('#1e1e2e').rgb
+        tinted = UI::Tint.pane_bg(Color.hex('#1e1e2e')).rgb
         assert_in_delta UI::Tint.to_hsl(mocha)[0], UI::Tint.to_hsl(tinted)[0], 2.0
       end
 
@@ -42,7 +42,7 @@ module Tuile
         background = Color.hex('#255') # dark teal — toward grey = lighter
         token = Color.hex('#c4c4c4') # ~4.8:1 on the raw background, no headroom
         assert_operator UI::Tint.contrast(token, background), :>=, UI::Tint::CONTRAST_FLOOR
-        toward = Color.rgb(*UI::Tint.step(UI::Tint.rgb_of(background), UI::Tint::DELTA))
+        toward = Color.rgb(*UI::Tint.step(background.rgb, UI::Tint::DELTA))
         assert_operator UI::Tint.contrast(token, toward), :<, UI::Tint::CONTRAST_FLOOR
 
         chosen = UI::Tint.pane_bg(background, guard: [token])
@@ -86,7 +86,7 @@ module Tuile
           [derived.dark, derived.light].each do |theme|
             pane_bg = theme[:pane_bg]
             UI::Theme::GUARD_TOKENS.each do |token|
-              rgb = UI::Tint.rgb_of(theme[token])
+              rgb = theme[token].rgb
               next if rgb.nil? # symbolic ANSI — the terminal's scheme owns it
               next if UI::Tint.contrast(theme[token], background) < UI::Tint::CONTRAST_FLOOR
 

@@ -137,7 +137,7 @@ module UI
     # tinted System pane renders. The VM-pane tokens (`ok`/`warn`/`error`/`off`,
     # `vm_name`) are deliberately absent: that pane keeps the terminal default
     # background, so no tint can hurt them. `ram_vm` is symbolic ANSI and skips
-    # itself (see {Tint.rgb_of}).
+    # itself (see `Tuile::Color#rgb`).
     # @return [Array<Symbol>]
     GUARD_TOKENS = %i[cpu cpu_vm ram ram_vm swap disk disk_vm disk_label].freeze
 

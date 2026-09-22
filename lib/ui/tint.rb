@@ -48,12 +48,11 @@ module UI
     # @return [Tuile::Color] the pane background, 24-bit RGB
     # @raise [ArgumentError] when `background` has no knowable RGB
     def pane_bg(background, guard: [])
-      bg = rgb_of(background)
+      bg = background.rgb
       raise ArgumentError, "background must carry RGB, got #{background.inspect}" if bg.nil?
 
       toward = step(bg, direction(bg) * DELTA)
-      guarded = guard.filter_map { |color| rgb_of(color) }
-                     .select { |fg| contrast(fg, bg) >= CONTRAST_FLOOR }
+      guarded = guard.filter_map(&:rgb).select { |fg| contrast(fg, bg) >= CONTRAST_FLOOR }
       safe = guarded.all? { |fg| contrast(fg, toward) >= CONTRAST_FLOOR }
       Tuile::Color.rgb(*(safe ? toward : step(bg, -direction(bg) * DELTA)))
     end
@@ -66,7 +65,7 @@ module UI
     # @return [Tuile::Color] the hairline color, 24-bit RGB
     # @raise [ArgumentError] when `ground` has no knowable RGB
     def hairline(ground)
-      rgb = rgb_of(ground)
+      rgb = ground.rgb
       raise ArgumentError, "ground must carry RGB, got #{ground.inspect}" if rgb.nil?
 
       Tuile::Color.rgb(*step(rgb, direction(rgb) * HAIRLINE_DELTA))
@@ -80,7 +79,7 @@ module UI
     # @raise [ArgumentError] when either color has no knowable RGB
     def contrast(first, second)
       a, b = [first, second].map do |color|
-        rgb = color.is_a?(Array) ? color : rgb_of(color)
+        rgb = color.is_a?(Array) ? color : color.rgb
         raise ArgumentError, "color must carry RGB, got #{color.inspect}" if rgb.nil?
 
         luminance(rgb)
@@ -88,30 +87,6 @@ module UI
       a, b = b, a if a < b
       (a + 0.05) / (b + 0.05)
     end
-
-    # The RGB triple behind `color`, when one is knowable: RGB colors as-is, 256-palette
-    # indices via the xterm cube/grey-ramp formulas. Symbolic ANSI colors (and the 16
-    # low palette indices aliasing them) return nil — the terminal's own scheme decides
-    # what they look like, so no contrast can honestly be computed for them.
-    #
-    # @param color [Tuile::Color]
-    # @return [Array<Integer>, nil] red, green, blue (each 0..255), or nil
-    def rgb_of(color)
-      value = color.value
-      case value
-      when Array then value
-      when Integer
-        return nil if value < 16
-        return [8 + (10 * (value - 232))] * 3 if value >= 232
-
-        cube = value - 16
-        [CUBE_LEVELS[cube / 36], CUBE_LEVELS[(cube / 6) % 6], CUBE_LEVELS[cube % 6]]
-      end
-    end
-
-    # The xterm 6×6×6 color-cube channel levels (palette indices 16..231).
-    # @return [Array<Integer>]
-    CUBE_LEVELS = [0, 95, 135, 175, 215, 255].freeze
 
     # Which way mid-grey lies from `rgb`, on the HSL lightness axis.
     #
