@@ -23,6 +23,8 @@ module UI
       @virt_cache = virt_cache
       @header = Component::Label.new
       @list = Component::List.new
+      # Each item is a `(width) -> String` closure over one sample; see {#update}.
+      @list.renderer = ->(row, width) { row.call(width) }
       @list.scrollbar_visibility = :visible
       add(@header, Fixed[1])
       add(@list, Expand[1])
@@ -41,53 +43,55 @@ module UI
       @list.focus
     end
 
-    # Rebuilds the pane's lines (CPU/RAM/disk bars) from the current cache data, and
+    # Rebuilds the pane's rows (CPU/RAM/disk bars) from the current cache data, and
     # recomputes the allowed cursor positions (the bar rows; section headers and disk
-    # name rows are skipped).
+    # name rows are skipped). The rows lay themselves out at paint time, so a resize needs
+    # no call here.
     # @return [void]
     def update
       theme = screen.theme
       cursor_positions = []
-      @list.build_lines do |lines|
-        # CPU
-        lines << header('CPU', @cpu_info, :cpu)
-        host_cpu_usage = @virt_cache.host_cpu_usage.to_i
-        cursor_positions << lines.size
-        lines << progress_bar("Used:#{host_cpu_usage.to_s.rjust(3)}%", host_cpu_usage, 100, theme[:cpu],
-                              "#{@virt_cache.cpu_info.cpus} t")
-        vm_cpu_usage = @virt_cache.total_vm_cpu_usage.to_i
-        up = @virt_cache.up
-        cursor_positions << lines.size
-        lines << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, theme[:cpu_vm], "#{up} up")
+      rows = []
+      # CPU
+      rows << header('CPU', @cpu_info, :cpu)
+      host_cpu_usage = @virt_cache.host_cpu_usage.to_i
+      cursor_positions << rows.size
+      rows << progress_bar("Used:#{host_cpu_usage.to_s.rjust(3)}%", host_cpu_usage, 100, theme[:cpu],
+                           "#{@virt_cache.cpu_info.cpus} t")
+      vm_cpu_usage = @virt_cache.total_vm_cpu_usage.to_i
+      up = @virt_cache.up
+      cursor_positions << rows.size
+      rows << progress_bar(" VMs:#{vm_cpu_usage.to_s.rjust(3)}%", vm_cpu_usage, 100, theme[:cpu_vm], "#{up} up")
 
-        # Memory
-        lines << header('RAM', '', :ram)
-        host_ram = @virt_cache.host_mem_stat.ram
-        cursor_positions << lines.size
-        lines << usage_bar('Used', host_ram, theme[:ram])
-        total_vm_rss_usage = @virt_cache.total_vm_rss_usage
-        cursor_positions << lines.size
-        lines << progress_bar(
-          " VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
-          total_vm_rss_usage, host_ram.total, theme[:ram_vm], format_byte_size(host_ram.total)
-        )
-        host_swap = @virt_cache.host_mem_stat.swap
-        cursor_positions << lines.size
-        lines << usage_bar('Swap', host_swap, theme[:swap])
+      # Memory
+      rows << header('RAM', '', :ram)
+      host_ram = @virt_cache.host_mem_stat.ram
+      cursor_positions << rows.size
+      rows << usage_bar('Used', host_ram, theme[:ram])
+      total_vm_rss_usage = @virt_cache.total_vm_rss_usage
+      cursor_positions << rows.size
+      rows << progress_bar(
+        " VMs:#{(total_vm_rss_usage * 100 / host_ram.total).to_s.rjust(3)}% #{format_byte_size(total_vm_rss_usage).rjust(5)}",
+        total_vm_rss_usage, host_ram.total, theme[:ram_vm], format_byte_size(host_ram.total)
+      )
+      host_swap = @virt_cache.host_mem_stat.swap
+      cursor_positions << rows.size
+      rows << usage_bar('Swap', host_swap, theme[:swap])
 
-        # Disk
-        disks = @virt_cache.disks
-        disk_usage = disks.values.inject(ResourceUsage::ZERO) { |sum, obj| sum + obj.usage }
-        lines << header('Disks', format_byte_size(disk_usage.total), :disk)
-        disks.each do |name, usage|
-          lines << theme.disk_label("#{name}:")
-          cursor_positions << lines.size
-          lines << usage_bar('Used', usage.usage, theme[:disk])
-          cursor_positions << lines.size
-          lines << usage_bar(' VMs', ResourceUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage),
-                             theme[:disk_vm])
-        end
+      # Disk
+      disks = @virt_cache.disks
+      disk_usage = disks.values.inject(ResourceUsage::ZERO) { |sum, obj| sum + obj.usage }
+      rows << header('Disks', format_byte_size(disk_usage.total), :disk)
+      disks.each do |name, usage|
+        label = theme.disk_label("#{name}:")
+        rows << ->(_width) { label }
+        cursor_positions << rows.size
+        rows << usage_bar('Used', usage.usage, theme[:disk])
+        cursor_positions << rows.size
+        rows << usage_bar(' VMs', ResourceUsage.new(usage.usage.total, usage.usage.total - usage.vm_usage),
+                          theme[:disk_vm])
       end
+      @list.items = rows
       @list.cursor = Component::List::Cursor::Limited.new(cursor_positions, position: @list.cursor.position)
     end
 
@@ -128,14 +132,6 @@ module UI
 
     protected
 
-    # Re-renders when the pane width changes (bar widths depend on it).
-    # @return [void]
-    def handle_width_changed
-      super
-      rebuild_header
-      update
-    end
-
     # Re-renders when the theme changes, so colors follow the new palette.
     # @return [void]
     def handle_theme_changed
@@ -172,11 +168,13 @@ module UI
     # @param left [String] what to show to the left
     # @param right [String] what to show to the right
     # @param token [Symbol] the theme token to draw `left` and `right` with
-    # @return [String] the rendered header line
+    # @return [Proc] `(Integer width) -> String`, the header row
     def header(left, right, token)
       theme = screen.theme
-      frame = '─' * (rect.width - left.size - right.size - 4).clamp(0, nil)
-      theme.fg(token, left) + theme.frame(frame) + theme.fg(token, right)
+      lambda do |width|
+        frame = '─' * (width - left.size - right.size).clamp(0, nil)
+        theme.fg(token, left) + theme.frame(frame) + theme.fg(token, right)
+      end
     end
 
     # Renders one labelled progress-bar row: `left` caption, the bar filling the remaining
@@ -187,9 +185,11 @@ module UI
     # @param max [Numeric] max value, for drawing the progress bar
     # @param color [Tuile::Color] progress bar color
     # @param right [String] right caption (padded to 6 chars)
-    # @return [String] the rendered row, including ANSI color codes
+    # @return [Proc] `(Integer width) -> String`, the bar row, including ANSI color codes
     def progress_bar(left, value, max, color, right)
-      Formatter.labelled_bar(rect.width - 4, left, right, value, max, color, screen.theme[:frame], label_width: 16)
+      lambda do |width|
+        Formatter.labelled_bar(width, left, right, value, max, color, screen.theme[:frame], label_width: 16)
+      end
     end
 
     # Renders a {ResourceUsage} as a progress-bar row, captioning it with `tag`, the percent
@@ -198,7 +198,7 @@ module UI
     # @param tag [String] short (~4-char) label, e.g. `"Used"`/`"Swap"`
     # @param mem_usage [ResourceUsage] the resource usage to render
     # @param color [Tuile::Color] progress bar color
-    # @return [String] the rendered row
+    # @return [Proc] `(Integer width) -> String`, the bar row
     def usage_bar(tag, mem_usage, color)
       progress_bar("#{tag}:#{mem_usage.percent_used.to_s.rjust(3)}% #{format_byte_size(mem_usage.used).rjust(5)}",
                    mem_usage.used, mem_usage.total, color,

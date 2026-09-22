@@ -77,3 +77,13 @@ def mount_at(component, rect)
   Tuile::Screen.instance.flush_layout
   component
 end
+
+# Renders every row of `list` as it paints them — its renderer at its own text width — with
+# the styling stripped.
+#
+# @param list [Tuile::Component::List]
+# @return [Array<String>] one plain-text row per item
+def list_rows(list)
+  width = list.send(:text_width)
+  list.items.map { |item| Tuile::StyledString.parse(list.renderer.call(item, width).to_s).to_s }
+end

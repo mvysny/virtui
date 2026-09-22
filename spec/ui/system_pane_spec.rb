@@ -91,7 +91,7 @@ module Tuile
 
     it 'renders a row per disk' do
       disks = { 'sda' => System::DiskUsage.new(ResourceUsage.new(100.GiB, 40.GiB), 12.GiB, ['/x.qcow2']) }
-      lines = window_for(disks: disks).list.items.map(&:to_s)
+      lines = list_rows(window_for(disks: disks).list)
       assert(lines.any? { |l| l.include?('sda') }, lines.join("\n"))
     end
   end

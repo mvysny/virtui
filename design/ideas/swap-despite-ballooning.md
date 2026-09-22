@@ -603,7 +603,7 @@ Roughly in order of value. Not decided; 1 is the one that closes the inversion.
 **Overtaken in part, 2026-08-21 (later the same day): the swap *level* is now read
 straight from the guest.** {Virt::GuestAgent} fetches `SwapTotal`/`SwapFree` from
 the guest's own `/proc/meminfo` through `qemu-guest-agent`, and the `SWAP` row
-shows it beside the rate (design/decisions.md D_guest_swap_level; the two-cell layout is argued at `UI::VMPane#format_swap_line`).
+shows it beside the rate (design/decisions.md D_guest_swap_level; the two-cell layout is argued at `UI::VMPane#swap_row`).
 What that does to this section:
 
 - the **`debt` candidate below is now the fallback, not the plan.** For a guest

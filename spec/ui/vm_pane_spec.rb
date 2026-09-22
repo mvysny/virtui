@@ -38,13 +38,13 @@ module Tuile
     end
 
     # @return [Array<String>] every rendered guest swap-out line, top to bottom
-    def swap_lines = window.list.items.map(&:to_s).grep(/SWAP/)
+    def swap_lines = list_rows(window.list).grep(/SWAP/)
 
-    # One VM's swap row as text, styling stripped, at a width that leaves room for both bars.
+    # One VM's swap row as text, styling stripped, at a width that leaves 42-column cells.
     #
     # @param entry [Virt::Cache::VMCache] the VM's cache entry
     # @return [String] the rendered row
-    def swap_line(entry) = window.send(:format_swap_line, entry, 42).gsub(/\e\[[\d;:]*m/, '')
+    def swap_line(entry) = window.send(:swap_row, entry).render.call(95).gsub(/\e\[[\d;:]*m/, '')
 
     # Cursor positions of each demo VM (see the 'has the right content' test for the layout).
     # base + Fedora are shut off; Ubuntu + win11 are running.
@@ -54,40 +54,45 @@ module Tuile
     def win11 = 9
 
     it 'has the right content' do
-      content = window.list.items.map(&:to_s)
+      content = list_rows(window.list)
       # BASE declares no OS, so it gets the dim '?' where Fedora gets a penguin
-      assert_equal '⏹ ?  BASE───────', content[0]
-      assert_equal '    vda: 50%   64G   128G │', content[1]
-      assert_equal '⏹ 🐧 Fedora─────', content[2]
-      assert_equal '    vda: 50%   64G   128G │', content[3]
-      assert_equal '▶ 🐧 Ubuntu 🎈──', content[4]
+      assert_equal '⏹ ?  BASE────────', content[0]
+      assert_equal '    vda: 50%   64G   128G │ ', content[1]
+      assert_equal '⏹ 🐧 Fedora──────', content[2]
+      assert_equal '    vda: 50%   64G   128G │ ', content[3]
+      assert_equal '▶ 🐧 Ubuntu 🎈───', content[4]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[5]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[6]
       # Ubuntu swaps: 15M written in the 5s since boot, so a level to show and a live rate
       assert_equal '   SWAP:  0%   15M     4G │       3M/s  ↕  15M', content[7]
-      assert_equal '    vda: 50%   64G   128G │', content[8]
-      assert_equal '▶ 🪟 win11 🎈───', content[9]
+      assert_equal '    vda: 50%   64G   128G │ ', content[8]
+      assert_equal '▶ 🪟 win11 🎈────', content[9]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[10]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[11]
       # win11 is at rest and reports no level at all, so its guest cell is the '-' placeholder
       assert_equal '   SWAP:  -               │        0/s  ↕    0', content[12]
-      assert_equal '    vda: 50%   64G   128G │', content[13]
+      assert_equal '    vda: 50%   64G   128G │ ', content[13]
+    end
+
+    it 're-lays its rows out to a new width without an update' do
+      window
+      mount_at(window, Rect.new(0, 0, 40, 20)) # 37 text columns: less the gutters and scrollbar
+      assert_equal 37, StyledString.parse(list_rows(window.list)[base]).display_width
     end
 
     context('address inset') do
       def overview(width, address)
-        mount_at(window, Rect.new(0, 0, width, 20))
         e = Virt::Cache::VMCache.diff(nil, cache.data('Ubuntu'), nil, Virt::GuestOS::UNKNOWN, address)
-        window.send(:format_vm_overview_line, e).gsub(/\e\[[\d;:]*m/, '')
+        window.send(:overview_row, e).render.call(width).gsub(/\e\[[\d;:]*m/, '')
       end
 
       it 'sits at the right end of the rule, the line keeping its width' do
-        assert_equal '▶ ?  Ubuntu 🎈─────────── 192.168.122.84 ─', overview(46, '192.168.122.84')
-        assert_equal '▶ ?  Ubuntu 🎈────────────────────────────', overview(46, nil)
+        assert_equal '▶ ?  Ubuntu 🎈─────────── 192.168.122.84 ─', overview(42, '192.168.122.84')
+        assert_equal '▶ ?  Ubuntu 🎈────────────────────────────', overview(42, nil)
       end
 
       it 'is dropped whole rather than clipped when the rule has no room' do
-        assert_equal '▶ ?  Ubuntu 🎈────', overview(22, '192.168.122.84')
+        assert_equal '▶ ?  Ubuntu 🎈────', overview(18, '192.168.122.84')
       end
     end
 
@@ -295,7 +300,7 @@ module Tuile
       it 'shows the ballooning direction indicator once ballooners exist' do
         ballooning.update
         window.update
-        line = window.list.items.map(&:to_s)[ubuntu]
+        line = list_rows(window.list)[ubuntu]
         assert line.include?("\u{1F388}-"), line # balloon + "steady" (delta 0)
       end
 
@@ -303,12 +308,12 @@ module Tuile
         ballooning.update
         ballooning.enabled('Ubuntu', false)
         window.update
-        line = window.list.items.map(&:to_s)[ubuntu]
+        line = list_rows(window.list)[ubuntu]
         assert line.include?("\u{1F388}x"), line
       end
 
       it 'marks each VM with what its definition declares' do
-        content = window.list.items.map(&:to_s)
+        content = list_rows(window.list)
         assert_includes content[ubuntu], "\u{1F427} Ubuntu" # declared Linux
         assert_includes content[win11], "\u{1FA9F} win11" # declared Windows
         assert_includes content[base], '?  BASE' # declares nothing
@@ -378,12 +383,12 @@ module Tuile
       it 'drops the swap line entirely when the guest reports no swap counters' do
         entry = cache.cache('Ubuntu') # the emulator always reports them, so blank them out here
         entry = entry.with(data: entry.data.with(mem_stat: entry.data.mem_stat.with(swap_in: nil, swap_out: nil)))
-        assert_nil window.send(:format_swap_line, entry, 20)
+        assert_nil window.send(:swap_row, entry)
       end
 
-      it 'renders nothing when the window is too narrow' do
-        mount_at(window, Rect.new(0, 0, 10, 20)) # column_width = (10-16)/2 < 0 -> early return
-        window.update # must not raise
+      it 'renders rows narrower than their captions without raising' do
+        mount_at(window, Rect.new(0, 0, 10, 20)) # 7 text columns, so column_width clamps to 0
+        list_rows(window.list)
       end
     end
   end

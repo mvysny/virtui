@@ -22,9 +22,27 @@ module UI
     # separator column uses, so the two columns read as framed rather than piped apart.
     COLUMN_SEPARATOR = '│'
 
+    # Width of a split row's caption, colon included — `    CPU:`, `   SWAP:`, `    vda:` —
+    # so the guest column starts at the same place on every row.
+    ROW_CAPTION_WIDTH = 8
+
     # Width of the caption cell every row opens its column with, bar rows and the swap row
     # alike — what keeps their figures in one column.
     LABEL_WIDTH = 11
+
+    # One list row: the VM it belongs to, and how to draw it at the list's text width.
+    #
+    #   Row.new('Ubuntu', ->(width) { '─' * width })
+    #
+    # The cache is read when the row is built, never inside `render`: the list renders at
+    # paint time and again on every width change, and a row must keep showing the sample
+    # it was built from.
+    #
+    # @!attribute [r] vm
+    #   @return [String] the VM's name — what the power/memory keys act on
+    # @!attribute [r] render
+    #   @return [Proc] `(Integer width) -> String`, the row laid out to `width` columns
+    Row = Data.define(:vm, :render)
 
     # The rate that fills the swap-out gauge. A rate has no natural 100%, so this is a chosen
     # alarm scale and not a ratio: it is set high enough that a guest thrashing hard still has
@@ -82,13 +100,12 @@ module UI
       super()
       @virt_cache = virt_cache
       @ballooning = ballooning
-      # Array<String>: the VM name backing every rendered line, indexed by line position.
-      @line_data = []
       @show_disk_stat = false
       # TextField, nil: the incremental-search row while open — see {#open_search}.
       @search = nil
       @header = Component::Label.new
       @list = Component::List.new
+      @list.renderer = ->(row, width) { row.render.call(width) }
       @list.cursor = Component::List::Cursor.new
       @list.scrollbar_visibility = :visible
       add(@header, Fixed[1])
@@ -120,65 +137,56 @@ module UI
       update
     end
 
-    # Rebuilds every VM's lines (overview + guest/host CPU, RAM and disk bars) from the
-    # current cache data, and recomputes the allowed cursor positions. Paints nothing if
-    # the pane is too narrow.
+    # Rebuilds every VM's rows (overview + guest/host CPU, RAM and disk bars) from the
+    # current cache data, and recomputes the allowed cursor positions. The rows lay
+    # themselves out at paint time, so a resize needs no call here.
     #
     # @return [void]
     def update
-      column_width = (rect.width - 16) / 2
-      return if column_width.negative? # paint nothing if the pane is not big enough
-
       theme = screen.theme
       domains = @virt_cache.domains.sort_by(&:upcase) # Array<String>
       cursor_positions = [] # allowed cursor positions
       cpus = @virt_cache.cpu_info.cpus
       host_ram = @virt_cache.host_mem_stat.ram
-      @list.build_lines do |lines|
-        @line_data.clear
-        domains.each do |domain_name|
-          cursor_positions << lines.size
-          # {Virt::Cache::VMCache}
-          cache = @virt_cache.cache(domain_name)
-          # {Virt::DomainData}
-          data = cache.data
-          lines << format_vm_overview_line(cache)
-          @line_data << domain_name
+      rows = []
+      domains.each do |domain_name|
+        cursor_positions << rows.size
+        # {Virt::Cache::VMCache}
+        cache = @virt_cache.cache(domain_name)
+        # {Virt::DomainData}
+        data = cache.data
+        rows << overview_row(cache)
 
-          if data.running?
-            cpu_usage = cache.guest_cpu_usage.to_i
-            host_cpu_usage = (cache.cpu_usage / cpus).to_i
-            cpuguest = progress_bar("#{cpu_usage.to_s.rjust(3)}%", "#{data.info.cpus.to_s.rjust(3)} t", column_width,
-                                    cpu_usage, 100, theme[:cpu_vm])
-            cpuhost = progress_bar("#{host_cpu_usage.to_s.rjust(3)}%", "#{cpus.to_s.rjust(3)} t", column_width,
-                                   host_cpu_usage, 100, theme[:cpu])
-            lines << "    #{theme.cpu('CPU')}:#{cpuguest} #{COLUMN_SEPARATOR} #{cpuhost}"
-            @line_data << domain_name
-
-            guest_mem_usage = cache.data.mem_stat.guest_mem
-            host_mem_usage = cache.data.mem_stat.host_mem
-            memguest = usage_bar(column_width, guest_mem_usage, theme[:ram_vm])
-            memhost = usage_bar(column_width, ResourceUsage.of(host_ram.total, host_mem_usage.used), theme[:ram])
-            lines << "    #{theme.ram('RAM')}:#{memguest} #{COLUMN_SEPARATOR} #{memhost}"
-            @line_data << domain_name
-
-            swap = format_swap_line(cache, column_width)
-            unless swap.nil?
-              lines << swap
-              @line_data << domain_name
-            end
+        if data.running?
+          cpu_usage = cache.guest_cpu_usage.to_i
+          host_cpu_usage = (cache.cpu_usage / cpus).to_i
+          guest_cpus = data.info.cpus
+          rows << split_row(domain_name, "    #{theme.cpu('CPU')}") do |width|
+            [progress_bar("#{cpu_usage.to_s.rjust(3)}%", "#{guest_cpus.to_s.rjust(3)} t", width,
+                          cpu_usage, 100, theme[:cpu_vm]),
+             progress_bar("#{host_cpu_usage.to_s.rjust(3)}%", "#{cpus.to_s.rjust(3)} t", width,
+                          host_cpu_usage, 100, theme[:cpu])]
           end
-          next unless @show_disk_stat || data.running?
 
-          data.disk_stat.each do |ds| # {Virt::DiskStat}
-            name = theme.disk_label(ds.name[0..3].rjust(4))
-            guest_du = usage_bar(column_width, ds.guest_usage, theme[:disk_vm])
-            host_du = progress_bar_qcow2(column_width, ds)
-            lines << "   #{name}:#{guest_du} #{COLUMN_SEPARATOR} #{host_du}"
-            @line_data << domain_name
+          guest_mem_usage = data.mem_stat.guest_mem
+          host_mem_usage = ResourceUsage.of(host_ram.total, data.mem_stat.host_mem.used)
+          rows << split_row(domain_name, "    #{theme.ram('RAM')}") do |width|
+            [usage_bar(width, guest_mem_usage, theme[:ram_vm]), usage_bar(width, host_mem_usage, theme[:ram])]
+          end
+
+          swap = swap_row(cache)
+          rows << swap unless swap.nil?
+        end
+        next unless @show_disk_stat || data.running?
+
+        data.disk_stat.each do |ds| # {Virt::DiskStat}
+          host_du = @virt_cache.host_disk_usage(ds)
+          rows << split_row(domain_name, "   #{theme.disk_label(ds.name[0..3].rjust(4))}") do |width|
+            [usage_bar(width, ds.guest_usage, theme[:disk_vm]), progress_bar_qcow2(width, ds, host_du)]
           end
         end
       end
+      @list.items = rows
       @list.cursor = if cursor_positions.empty?
                        Component::List::Cursor.new
                      else
@@ -200,7 +208,6 @@ module UI
         return true
       end
 
-      current_vm = @line_data[@list.cursor.position] unless @list.cursor.position.nil?
       return false if current_vm.nil?
 
       if key == 'p' # Power menu
@@ -250,12 +257,12 @@ module UI
 
     protected
 
-    # Re-renders when the pane width changes (bar widths and caption centering depend on it).
+    # Re-centers the column captions when the pane width changes; the list re-lays its rows
+    # out by itself.
     # @return [void]
     def handle_width_changed
       super
       rebuild_header
-      update
     end
 
     # Re-renders when the theme changes, so colors follow the new palette.
@@ -267,6 +274,12 @@ module UI
     end
 
     private
+
+    # @return [String, nil] the VM the row under the cursor belongs to; nil with no cursor
+    def current_vm
+      position = @list.cursor.position
+      @list.items[position]&.vm unless position.nil?
+    end
 
     # Rebuilds the header row: the focus chip, then the Guest/Host column captions.
     #
@@ -341,7 +354,7 @@ module UI
     # memory and disable ballooning. No-op (logs an error) if the VM isn't running.
     # @return [void]
     def show_memory_popup
-      current_vm = @line_data[@list.cursor.position] || return
+      current_vm = self.current_vm || return
       state = @virt_cache.state(current_vm)
       if state != :running
         $log.error "'#{current_vm}' is not running"
@@ -365,7 +378,7 @@ module UI
     # reboot or hard reset. Each action logs an error if the VM is in the wrong state.
     # @return [void]
     def show_power_popup
-      current_vm = @line_data[@list.cursor.position] || return
+      current_vm = self.current_vm || return
       state = @virt_cache.state(current_vm)
       opts = [['s', 'Start'], ['o', 'shut dOwn gracefully'], ['O', 'force Off'], ['r', 'reboot (soft)'],
               ['R', 'Reset (hard)']]
@@ -409,7 +422,7 @@ module UI
       end
     end
 
-    # Builds a VM's overview line: state glyph, guest-OS marker, name, and (when running) a
+    # Builds a VM's overview row: state glyph, guest-OS marker, name, and (when running) a
     # balloon emoji with a ballooning-direction indicator, a "stale data" turtle and the VM's
     # address at the rule's right end.
     #
@@ -422,8 +435,8 @@ module UI
     # address is right-aligned for the same reason: appearing or changing, it moves nothing.
     #
     # @param cache [Virt::Cache::VMCache] the VM's cache entry
-    # @return [String] the rendered overview line
-    def format_vm_overview_line(cache)
+    # @return [Row] the overview row
+    def overview_row(cache)
       line = "#{format_domain_state(cache.data.state)} #{format_guest_os(cache.guest_os)} " \
              "#{screen.theme.vm_name(cache.info.name)}"
       if cache.data.running?
@@ -445,7 +458,34 @@ module UI
         end
         line += " \u{1F422}" if cache.stale?
       end
-      header(line, cache.ip_address)
+      address = cache.ip_address
+      Row.new(cache.info.name, ->(width) { header(width, line, address) })
+    end
+
+    # A guest │ host row: `caption` then the two cells, each as wide as {#column_width}.
+    #
+    #   split_row('Ubuntu', "    #{theme.ram('RAM')}") do |w|
+    #     [usage_bar(w, guest_mem_usage, theme[:ram_vm]), usage_bar(w, host_mem_usage, theme[:ram])]
+    #   end
+    #   # renders:    RAM: 25%    2G ###------  7.9G │   9%  3.1G #--------    32G
+    #
+    # @param vm [String] the VM the row belongs to
+    # @param caption [String] {ROW_CAPTION_WIDTH} - 1 columns wide, styling not counted
+    # @yieldparam column_width [Integer] the width of one cell
+    # @yieldreturn [Array(String, String)] the guest cell, then the host cell
+    # @return [Row]
+    def split_row(vm, caption, &cells)
+      Row.new(vm, lambda do |width|
+        guest, host = cells.call(column_width(width))
+        "#{caption}:#{guest} #{COLUMN_SEPARATOR} #{host}"
+      end)
+    end
+
+    # @param width [Integer] the list's text width
+    # @return [Integer] the width of one {#split_row} cell: half of what the caption and the
+    #   separator leave, never negative
+    def column_width(width)
+      [(width - ROW_CAPTION_WIDTH - " #{COLUMN_SEPARATOR} ".length) / 2, 0].max
     end
 
     # The guest-OS marker for a VM's overview line: what the VM's definition declares, as one
@@ -488,18 +528,18 @@ module UI
     # builds without `CONFIG_VM_EVENT_COUNTERS`, so that combination stays theoretical.)
     #
     # @param cache [Virt::Cache::VMCache] the VM's cache entry
-    # @param column_width [Integer] width of one usage-bar column, so the separator lines up
-    # @return [String, nil] the rendered line, or `nil` if the guest reports no swap counters
-    def format_swap_line(cache, column_width)
+    # @return [Row, nil] the swap row, or `nil` if the guest reports no swap counters
+    def swap_row(cache)
       mem_stat = cache.data.mem_stat
       return nil unless mem_stat&.swap_data_available?
 
       theme = screen.theme
-      label = cache.swap_out_rate&.positive? ? theme.warn('SWAP') : theme.swap('SWAP')
-      # 3 spaces, not 4: 'SWAP' is a character wider than 'CPU'/'RAM', and this lines its
-      # colon up with theirs — same trick as the 4-char disk labels above.
-      "   #{label}:#{swap_level_bar(column_width, cache.guest_swap)} " \
-        "#{COLUMN_SEPARATOR} #{swap_io_bar(column_width, cache.swap_out_rate, mem_stat)}"
+      rate = cache.swap_out_rate
+      level = cache.guest_swap
+      label = rate&.positive? ? theme.warn('SWAP') : theme.swap('SWAP')
+      split_row(cache.info.name, "   #{label}") do |width|
+        [swap_level_bar(width, level), swap_io_bar(width, rate, mem_stat)]
+      end
     end
 
     # How full the guest's swap device is — the guest half of the swap row.
@@ -553,17 +593,18 @@ module UI
       "#{caption}#{bar.to_ansi} #{traffic}"
     end
 
-    # Draws a row header: `left` caption followed by a frame rule filling the rest of the
-    # pane width, with `right` inset near the rule's end (see {#format_vm_overview_line}).
-    # `right` is dropped whole, never truncated, when the rule has no room for it: a clipped
-    # address is a wrong address.
+    # Draws a row header: `left` caption followed by a frame rule filling the rest of
+    # `width`, with `right` inset near the rule's end (see {#overview_row}). `right` is
+    # dropped whole, never truncated, when the rule has no room for it: a clipped address is
+    # a wrong address.
     #
+    # @param width [Integer] the list's text width
     # @param left [String] the caption (may contain styling)
     # @param right [String, nil] unstyled text to inset, or `nil` for a plain rule
     # @return [String] the rendered header line
-    def header(left, right = nil)
+    def header(width, left, right = nil)
       theme = screen.theme
-      rule = rect.width - StyledString.parse(left).display_width - 4
+      rule = width - StyledString.parse(left).display_width
       # Room for `─ right ─`: a space either side and at least one '─' before and after.
       return left + theme.frame('─' * rule.clamp(0, nil)) if right.nil? || rule < right.length + 4
 
@@ -618,9 +659,10 @@ module UI
     #
     # @param width [Integer] the width of the bar, in characters
     # @param ds [Virt::DiskStat] the VM disk to render
+    # @param host_du [ResourceUsage, nil] the host disk the qcow2 file lives on, as
+    #   {Virt::Cache#host_disk_usage} reports it
     # @return [String, nil] the rendered bar, or `nil` if the disk isn't tracked by the cache
-    def progress_bar_qcow2(width, ds)
-      host_du = @virt_cache.host_disk_usage(ds)
+    def progress_bar_qcow2(width, ds, host_du)
       return nil if host_du.nil?
 
       theme = screen.theme
