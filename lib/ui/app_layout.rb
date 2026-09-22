@@ -18,9 +18,20 @@ module UI
   # `D-status-bar`), so the bottom line is ours: {#refresh_status} rebuilds it and
   # `bin/virtui` hangs it off `Tuile::Screen#on_focus_changed`.
   #
+  # A `Layout::Vertical`: the VM pane takes what is left over a {BOTTOM_HEIGHT}-row
+  # `Horizontal` of System │ log, over the status line.
+  #
   # UI-thread-confined.
-  class AppLayout < Tuile::Component::Layout
+  class AppLayout < Tuile::Component::Layout::Vertical
     include Tuile
+
+    # Rows of the System │ log strip: exactly the System pane's content — the chip header,
+    # the CPU, RAM and disk sections — so the VM pane gets every other row.
+    BOTTOM_HEIGHT = 13
+
+    # The System pane's share of the width, capped: its bars read fine at 60 columns, and
+    # on a wide terminal every column past that is one taken from the log beside it.
+    SYSTEM_WIDTH = Percent[50].clamp(..60)
 
     # @param virt_cache [Virt::Cache] the runtime cache the panes read from
     # @param ballooning [Virt::Ballooning] the ballooning controller for {VMPane}
@@ -32,13 +43,20 @@ module UI
       @system = SystemPane.new(virt_cache)
       @vms = VMPane.new(virt_cache, ballooning)
       @log = LogPane.new
-      # The one-cell `│` column between the System and log panes; its text is rebuilt to
-      # the row height by {#relayout}, its colors by {#handle_theme_changed}.
+      # The one-cell `│` column between the System and log panes; its colors are rebuilt by
+      # {#handle_theme_changed}.
       @separator = Component::Label.new
       @status = Component::Label.new
       $log.remove_handler :console
       $log.add_handler [:console, { output: Component::LogTextView::IO.new(@log), enable_color: true }]
-      add([@vms, @system, @separator, @log, @status])
+      bottom = Component::Layout::Horizontal.new
+      bottom.add(@system, SYSTEM_WIDTH)
+      bottom.add(@separator, Fixed[1])
+      bottom.add(@log, Expand[1])
+      add(@vms, Expand[1])
+      add(bottom, Fixed[BOTTOM_HEIGHT])
+      add(@status, Fixed[1])
+      rebuild_separator
       # Tint the secondary panes; a {Theme::Ref} re-resolves on every theme swap by itself.
       # The VM pane deliberately keeps the terminal default: painting every background would
       # make virtui own every contrast pairing (including the LIGHT theme's symbolic ANSI
@@ -108,26 +126,6 @@ module UI
 
     protected
 
-    # Tiles the three panes over {Tuile::Component#local_rect}: VMs on top spanning the full
-    # width, with the system pane and log side-by-side along the bottom, a one-cell separator
-    # column between them, and the status line on the last row.
-    #
-    # @return [void]
-    def relayout
-      system_pane_width = (width / 2).clamp(0, 60)
-      system_height = 13
-      # One row goes to the status line; the panes share what is left.
-      body_height = [height - 1, 0].max
-      vms_height = [body_height - system_height, 0].max
-      @vms.rect = Rect.new(0, 0, width, vms_height)
-      @system.rect = Rect.new(0, vms_height, system_pane_width, system_height)
-      @separator.rect = Rect.new(system_pane_width, vms_height, 1, system_height)
-      @log.rect = Rect.new(system_pane_width + 1, vms_height,
-                           [width - system_pane_width - 1, 0].max, system_height)
-      @status.rect = Rect.new(0, body_height, width, 1)
-      rebuild_separator
-    end
-
     # Re-derives the background-dependent theme tokens, then re-bakes the labels whose
     # colors are flattened into their text — the separator column and the status line.
     # (The panes rebuild their own headers.)
@@ -148,11 +146,12 @@ module UI
     private
 
     # Rebuilds the separator column's text: one `:pane_frame` `│` per row of the bottom
-    # pane row.
+    # strip. {BOTTOM_HEIGHT} rather than the rect's height, which a short terminal clips —
+    # a `Label` paints only the rows its rect has, so the surplus costs nothing.
     # @return [void]
     def rebuild_separator
       bar = screen.theme.fg(:pane_frame, '│')
-      @separator.text = Array.new(@separator.rect.height, bar).join("\n")
+      @separator.text = Array.new(BOTTOM_HEIGHT, bar).join("\n")
     end
   end
 end

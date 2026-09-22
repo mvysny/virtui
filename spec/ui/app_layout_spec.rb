@@ -55,11 +55,10 @@ module Tuile
       end
     end
 
-    it 'relayout tiles VMs on top, system │ log along the bottom, status on the last row' do
+    it 'tiles VMs on top, system │ log along the bottom, status on the last row' do
       layout
-      # The status line takes the last row, leaving 39; system width =
-      # (100/2).clamp(0,60) = 50; then the 1-cell separator column; system
-      # height = 13; VMs take the rest.
+      # The status line takes the last row and the bottom strip 13, so the VMs get 26;
+      # system width = 50% of 100, under the 60 cap; then the 1-cell separator column.
       assert_equal [0, 0, 100, 26], rect_of(layout.vms)
       assert_equal [0, 26, 50, 13], rect_of(layout.system)
       assert_equal [51, 26, 49, 13], rect_of(layout.log)
@@ -82,7 +81,7 @@ module Tuile
       assert_equal 'q quit', layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
     end
 
-    it 'relayout clamps the system pane width to 60 on a wide screen' do
+    it 'caps the system pane width at 60 on a wide screen' do
       resize(layout, 200, 40)
       assert_equal 60, layout.system.rect.width
       assert_equal 139, layout.log.rect.width # remainder after the clamped system column + separator
@@ -120,8 +119,11 @@ module Tuile
       refute_empty layout.vms.list.items
     end
 
+    # @param component [Tuile::Component]
+    # @return [Array<Integer>] its screen-space rect — the panes sit in a nested box, so
+    #   their own `rect` is relative to it
     def rect_of(component)
-      r = component.rect
+      r = component.absolute_rect
       [r.left, r.top, r.width, r.height]
     end
   end
