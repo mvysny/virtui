@@ -5,7 +5,7 @@ require_relative '../spec_helper'
 module Tuile
   describe UI::AppLayout do
     before do
-      Screen.fake
+      Screen.fake(width: 100, height: 40)
       Helpers.setup_dummy_logger
     end
     after { Screen.close }
@@ -14,7 +14,6 @@ module Tuile
     let(:layout) do
       l = UI::AppLayout.new(cache, Virt::Ballooning.new(cache))
       Screen.instance.content = l
-      resize(l, 100, 40)
       l
     end
 
@@ -57,7 +56,7 @@ module Tuile
     end
 
     it 'relayout tiles VMs on top, system │ log along the bottom, status on the last row' do
-      resize(layout, 100, 40)
+      layout
       # The status line takes the last row, leaving 39; system width =
       # (100/2).clamp(0,60) = 50; then the 1-cell separator column; system
       # height = 13; VMs take the rest.
@@ -68,7 +67,6 @@ module Tuile
     end
 
     it 'refresh_status advertises quit plus the focused pane\'s own hint, and no chip' do
-      resize(layout, 100, 40)
       layout.vms.focus
       layout.refresh_status
       text = layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
@@ -79,7 +77,6 @@ module Tuile
     end
 
     it 'refresh_status falls back to quit alone for a pane that advertises no keys' do
-      resize(layout, 100, 40)
       layout.log.focus
       layout.refresh_status
       assert_equal 'q quit', layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
