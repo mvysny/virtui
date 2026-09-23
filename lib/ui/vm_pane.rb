@@ -107,7 +107,7 @@ module UI
       @list = Component::List.new
       @list.renderer = ->(row, width) { row.render.call(width) }
       @list.cursor = Component::List::Cursor.new
-      @list.scrollbar_visibility = :visible
+      @list.scrollbar_visibility = :auto
       add(@header, Fixed[1])
       add(@list, Expand[1])
       rebuild_header

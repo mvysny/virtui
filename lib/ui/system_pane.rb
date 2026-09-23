@@ -25,7 +25,7 @@ module UI
       @list = Component::List.new
       # Each item is a `(width) -> String` closure over one sample; see {#update}.
       @list.renderer = ->(row, width) { row.call(width) }
-      @list.scrollbar_visibility = :visible
+      @list.scrollbar_visibility = :auto
       add(@header, Fixed[1])
       add(@list, Expand[1])
       @cpu_info = format_cpu_info

@@ -16,6 +16,7 @@ module UI
       super
       @header = Component::Label.new
       @view = Component::LogTextView.new
+      @view.scrollbar_visibility = :auto
       add(@header, Fixed[1])
       add(@view, Expand[1])
       rebuild_header
