@@ -258,10 +258,11 @@ module UI
 
     protected
 
-    # Re-centers the column captions when the pane width changes; the list re-lays its rows
-    # out by itself.
+    # Re-centers the column captions on the pane's width; the list re-lays its rows out by
+    # itself. Runs after every mark, not only a resize — the rebuild is cheap and
+    # `Label#text=` skips an unchanged row.
     # @return [void]
-    def handle_width_changed
+    def relayout
       super
       rebuild_header
     end

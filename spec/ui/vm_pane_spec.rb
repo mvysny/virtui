@@ -61,6 +61,15 @@ module Tuile
       assert_equal '⏹ ?  BASE────────', list_rows(pane.list)[0]
     end
 
+    it 'moves the header captions with the pane width' do
+      header = -> { window.instance_variable_get(:@header).text.to_s }
+      mount_at(window, Rect.new(0, 0, 80, 20))
+      assert_equal 15, header.call.index('Guest usage')
+      mount_at(window, Rect.new(0, 0, 120, 20))
+      assert_equal 25, header.call.index('Guest usage')
+      assert_equal 85, header.call.index('Host usage')
+    end
+
     it 'has the right content' do
       content = list_rows(window.list)
       # BASE declares no OS, so it gets the dim '?' where Fedora gets a penguin
