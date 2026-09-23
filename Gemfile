@@ -6,11 +6,7 @@ ruby '>= 3.3'
 gem 'concurrent-ruby'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
-# Unreleased tuile: the relative-rect, Canvas, deferred-relayout and Listeners rework that
-# lands after 0.16.0 has no gem yet, so this rides master until it does — a git source rather
-# than `path: '../tuile'` so CI can resolve it too. To work against the sibling checkout:
-# `bundle config set --local local.tuile ../tuile`.
-gem 'tuile', git: 'https://github.com/mvysny/tuile.git', branch: 'master'
+gem 'tuile', '~> 0.17'
 gem 'zeitwerk', '~> 2.7'
 
 group :development do
