@@ -122,7 +122,10 @@ for f in "$DESIGN"/solution.md "$DESIGN"/solution-*.md; do
   if [ -e "$f" ]; then err "$f is retired — one normative $DESIGN/architecture.md, deliverables as sections"; fi
 done
 
-# --- per-entry sizes, informational: the cull's worklist ------------------------
+# --- per-entry sizes, informational: a reading list, not a cut list -------------
+# The first entry is the ruler; later ones land within 1-2x of it. An entry far off
+# that length is usually carrying facts that belong in research.md, or answering two
+# questions and wanting a split — neither is fixed by compressing it.
 sizes() {
   local file=$1 prefix=$2
   [ -f "$file" ] || return 0
