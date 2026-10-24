@@ -72,7 +72,7 @@ module UI
     def run_work(event_queue, on_done)
       result = @work.call(@cancellation)
       event_queue.submit { finish(result, on_done) }
-    rescue CanceledError => e
+    rescue Cancellation::CanceledError => e
       # One the user never asked for is a bug, and fails the task like one.
       if @cancellation.canceled?
         $log.debug("#{@caption}: canceled")

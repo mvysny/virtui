@@ -1,7 +1,7 @@
 # Background task with a progress dialog
 
 **Status:** built, no caller yet (2026-10-24). `UI::BackgroundTask`, `UI::ProgressWindow`,
-`Cancellation` and `CanceledError` exist, with specs. The first user is the `i` info window
+`Cancellation` exist, with specs. The first user is the `i` info window
 (`vm-info-window.md`). It needs a fresh `virsh dumpxml` when the key is pressed, and the UI thread
 cannot run that read itself. The doc changes under *What it changes in the docs* land with that
 first caller, since until then no backend read runs off the timer thread.
@@ -89,7 +89,7 @@ cancels its `Cancellation` (see `Q_close_hook` for how it hears of the close). T
 two methods:
 
 - `canceled?` returns whether the user has canceled.
-- `check_canceled` raises `CanceledError` if so, and does nothing otherwise.
+- `check_canceled` raises `Cancellation::CanceledError` if so, and does nothing otherwise.
 
 A quick block ignores it. Ruby drops a yielded argument that the block does not declare, so
 `{ virt.domain_config(vm) }` needs no change. A block with several steps opts in with
@@ -114,11 +114,12 @@ reason. Kotlin's `CancellationException` is a `RuntimeException`, and `runCatchi
 known trap there. `ensure` blocks still run, so cleanup happens. RuboCop's `Lint/InheritException`
 flags the class, so it carries a disable comment with this reason.
 
-**Both classes are top-level, not under `UI::`.** `Cancellation` and `CanceledError` live in
-`lib/`, namespace-free like `Cooldown`. A long block will want to pass the `Cancellation` down
-into a backend call, and nothing under `lib/virt/` may reference `UI::`. The task yields this
-separate object rather than itself, so the worker thread cannot reach `run` or the popup. Both
-classes later move to Tuile along with the task; see `Q_tuile_home`.
+**`Cancellation` is top-level, not under `UI::`.** It lives in `lib/`, namespace-free like
+`Cooldown`. A long block will want to pass the `Cancellation` down into a backend call, and
+nothing under `lib/virt/` may reference `UI::`. The task yields this separate object rather than
+itself, so the worker thread cannot reach `run` or the popup. The error is nested,
+`Cancellation::CanceledError`: the two always travel together, and the move to Tuile along with
+the task (see `Q_tuile_home`) is then one constant.
 
 **The flag sits behind a `Mutex`.** The UI thread writes it and the worker thread reads it. Under
 MRI's GVL a plain instance variable would work in practice, but Ruby has no memory model that
@@ -171,11 +172,11 @@ and a click all dismiss.
   shapes the API before Tuile commits to it. To keep the move cheap:
   - `UI::BackgroundTask` and `UI::ProgressWindow` use nothing from virtui except `$log`. In
     Tuile, `$log` becomes `Tuile.logger`.
-  - `Cancellation` and `CanceledError` go upstream too, as `Tuile::Cancellation` and
-    `Tuile::CanceledError`. They are not UI, but the background task is their only producer.
-    The backend must then never name either constant, or `lib/virt/` would depend on the Tuile
-    gem. Duck typing is enough for that: a backend call only ever calls `canceled?` and
-    `check_canceled` on the object it is given (see `Q_kill_child`).
+  - `Cancellation` goes upstream too, as `Tuile::Cancellation` with its nested error. It is not
+    UI, but the background task is its only producer. The backend must then never name the
+    class or its error, or `lib/virt/` would depend on the Tuile gem. Duck typing is enough for
+    that: a backend call only ever calls methods on the object it is given (see
+    `Q_kill_child`).
   - The PR adds Tuile's own specs for the class. virtui's specs then shrink to the one caller.
 - `Q_flash`: **accept the flicker; revisit once it bites.** `dumpxml` through a fresh process
   takes roughly 30–80 ms, so the progress popup appears for a frame or two before the info window
@@ -222,27 +223,67 @@ and a click all dismiss.
   also covers every other worker → `submit` path, virtui's poll thread included, and the class's
   own specs need it once it moves to Tuile (see `Q_tuile_home`). Until a Tuile release has it,
   virtui pins Tuile master, as it has before.
+- `Q_kill_child`: **`Cancellation#join` plus a `cancellation:` keyword on `Run.sync`, built with
+  the first long task; `Cancellation#sleep` with its first caller.** Checking the `Cancellation`
+  only helps between steps, and almost every background block is one blocking `virsh` call.
+  Nothing needs more yet, because `dumpxml` takes about 50 ms.
+  - `Cancellation#join(thread)` joins `thread` in rounds of `POLL_INTERVAL` and raises
+    `CanceledError` between rounds once canceled. About 0.1 s: instant to a human, free to run.
+    It returns the thread, as `Thread#join` does. It polls because Ruby cannot report the end of
+    an arbitrary thread. **It stops the waiting, not the thread**, and its yardoc says so.
+  - `Run.sync(*command, cancellation: nil)` starts the child with `popen3`, with reader threads
+    for stdout and stderr as `capture3` has inside, and waits with `join`. On cancel it stops
+    and reaps the child, then re-raises. That is the safe version of what `Thread#kill` does
+    badly: the child is stopped and reaped, not orphaned. Without a `cancellation:` it waits as
+    today.
 
-## Open questions
+    ```ruby
+    begin
+      cancellation.join(wait_thr)
+    ensure
+      if wait_thr.alive? # join raised, so the child is still running
+        Process.kill('TERM', wait_thr.pid)
+        wait_thr.join
+      end
+    end
+    ```
 
-- `Q_kill_child`: checking the `Cancellation` only helps between steps. Almost every background
-  block is one blocking `virsh` call, and `Run.sync`'s `Open3.capture3` cannot be checked from
-  inside. To make cancel quick there too, `Run.sync` could take an optional `Cancellation`, start
-  the child with `popen3`, and while waiting on `wait_thr` with a short timeout, look at
-  `canceled?`. On cancel it sends `TERM` to `wait_thr.pid`, reaps the child and calls
-  `check_canceled`, which raises. It never names `CanceledError` itself (see `Q_tuile_home`).
-  That is the safe version of what `Thread#kill` does badly: the child is stopped and reaped, not
-  orphaned. Nothing needs it yet, because `dumpxml` takes about 50 ms.
-  Build it with the first long task.
+    An `ensure` rather than a `rescue`, so `Run` never names the error class, and a child
+    outlives no other exception either. The cancel is handled before the non-zero-exit raise. A child killed by `TERM` has no exit
+    status, and would otherwise come out as "… failed with :" and an alert. `TERM` only: virsh
+    exits on it. A `KILL` after a grace period waits for a virsh that ignores `TERM`.
+  - The `Cancellation` reaches `Run` as an explicit keyword through each backend read that
+    needs it (`Virsh#ip_address(vm, cancellation:)` → `VirshSpawn` → `Run.sync`), and only on
+    the reads a long task uses.
+  - `Cancellation#sleep(seconds)` needs no polling. `cancel` broadcasts a `ConditionVariable` on
+    the existing `Mutex`, and `sleep` waits on it until a `Cooldown` deadline, looping over
+    spurious wakeups, then calls `check_canceled`.
+  - No other waits (`Queue#pop`, `IO#wait_readable`) until something needs one.
+
+  Rejected:
+  - Java-style interruption. Ruby's nearest is `Thread#raise`, which lands on whatever line the
+    thread is at, `ensure` included. Raised into `Open3.capture3`, it unwinds through
+    `popen_run`'s `ensure`, which waits for the child, so the worker would sit until virsh
+    exits by itself.
+  - A `canceled` block (`-> { … }`) instead of the object. `Run` would then have to pick the
+    error and name its class; with the object, `check_canceled` raises and `Run` never decides.
+  - An `on_cancel` listener on `Cancellation` that kills the child at once. There would be no
+    polling delay, but `Cancellation` grows a listener API, and the listener must be removed
+    before the child is reaped. Polling keeps `Cancellation` one flag plus its waits, and the
+    process handling in `Run`.
+  - A thread-local `Cancellation` that the task sets on its worker. Every subprocess on the
+    worker would become cancelable for free, but nothing in `Run.sync`'s signature would say
+    it can be canceled.
 
 ## Where the nuggets land when this graduates
 
 - The class itself, with its contract in its yardoc: UI-thread entry, the close-then-yield order,
   that the UI block's exceptions are not caught, and that cancel drops the result.
-- `Cancellation` and `CanceledError` in `lib/`, each with its contract in its yardoc. The
-  `CanceledError` yardoc says in one line why it inherits from `Exception`; the full argument
-  goes into `D_background_task`.
-- Once stable: a PR moving `BackgroundTask`, `ProgressWindow`, `Cancellation` and `CanceledError`
-  into Tuile, then a virtui commit that bumps Tuile and deletes the local copies.
+- `Cancellation` in `lib/`, with its contract in its yardoc. The `CanceledError` yardoc says in
+  one line why it inherits from `Exception`; the full argument goes into `D_background_task`.
+- With the first long task: `Cancellation#join` and `Run.sync(cancellation:)` as in
+  `Q_kill_child`, and the rejected alternatives into `D_background_task`.
+- Once stable: a PR moving `BackgroundTask`, `ProgressWindow` and `Cancellation` into Tuile,
+  then a virtui commit that bumps Tuile and deletes the local copies.
 - AGENTS.md's first invariant, architecture.md's *Threads* and a `D_background_task` entry, as
   listed above.

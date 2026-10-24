@@ -9,11 +9,18 @@
 #
 # Cooperative: work that never checks runs to its end, and no check can interrupt a step
 # blocked in a subprocess. Code handed one calls only {#canceled?} and {#check_canceled},
-# never naming this class or {CanceledError}, so a backend call can take one without
-# depending on where it lives.
+# never naming this class, so a backend call can take one without depending on where it
+# lives.
 #
 # Thread-safe.
 class Cancellation
+  # Raised by {Cancellation#check_canceled}: the user canceled the work, and nothing failed.
+  #
+  # An `Exception`, not a `StandardError`, so a `rescue => e` between the check and whatever
+  # runs the work cannot swallow the cancel; `ensure` blocks still run.
+  class CanceledError < Exception # rubocop:disable Lint/InheritException
+  end
+
   def initialize
     @lock = Mutex.new
     @canceled = false

@@ -90,7 +90,7 @@ module Tuile
     end
 
     it 'fails the task on a CanceledError nobody asked for' do
-      UI::BackgroundTask.new('Reading web01') { raise CanceledError, 'stray' }.run { nil }.join
+      UI::BackgroundTask.new('Reading web01') { raise Cancellation::CanceledError, 'stray' }.run { nil }.join
       Testing.loop
       assert_equal 'Reading web01 failed', alert.caption.to_s
     end
