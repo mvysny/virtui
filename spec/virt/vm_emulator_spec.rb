@@ -140,6 +140,20 @@ describe Virt::VMEmulator do
     assert_raises(Virt::GuestAgent::Unavailable) { e.guest_storage('BASE') }
   end
 
+  it 'health warns about win11 alone, and skips the guests that cannot answer' do
+    e = Virt::VMEmulator.demo
+    warnings = e.health('win11').findings.select { _1.severity == :warning }
+    assert_equal([['vda', "the host drops this disk's discards: space the guest frees stays taken"]],
+                 warnings.map { [_1.subject, _1.text] })
+    ubuntu = e.health('Ubuntu').findings
+    assert_equal([%w[ok balloon], %w[ok agent], %w[ok vda], %w[ok trim], %w[note vda]],
+                 ubuntu.map { [_1.severity.to_s, _1.subject] })
+    assert_equal 'M → Grow root filesystem', ubuntu.last.fix
+    assert_equal 'not running: start the VM for the guest checks', e.health('Fedora').findings.last.text
+    e.vm('BASE').start
+    assert_equal 'cannot answer: no guest agent channel', e.health('BASE').findings.last.text
+  end
+
   it 'domain_config raises for a VM it does not know' do
     assert_raises(RuntimeError) { Virt::VMEmulator.new.domain_config('nope') }
   end

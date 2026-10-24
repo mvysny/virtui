@@ -127,11 +127,13 @@ module Virt
     # @param domain_name [String] VM name
     # @param xml [String, nil] canned `dumpxml` output for testing; runs the real command
     #   when `nil`
+    # @param inactive [Boolean] the definition the next power-on brings (`--inactive`), rather
+    #   than the one running now
     # @return [DomainConfig]
     # @raise [RuntimeError] if `virsh dumpxml` fails, e.g. for an unknown domain
     # @raise [ArgumentError] if what it printed is not a domain definition
-    def domain_config(domain_name, xml = nil)
-      DomainConfig.from_xml(xml || @runner.sync('dumpxml', domain_name))
+    def domain_config(domain_name, xml = nil, inactive: false)
+      DomainConfig.from_xml(xml || @runner.sync('dumpxml', domain_name, *('--inactive' if inactive)))
     end
 
     # The running guest's own view of its disks: partitions, and what is mounted where.
@@ -161,6 +163,35 @@ module Virt
       GuestStorage.parse(guestinfo) do |path|
         guest_files ? guest_files.fetch(path) : @spawned_agent.read_file(domain_name, path)
       end
+    end
+
+    # Whether the VM is set up the way virtui and the host's disk need it (see {Health}).
+    #
+    #   virsh.health('vt-ubuntu').findings.reject { _1.severity == :ok }
+    #
+    # Both definitions, then, on a running VM whose agent is connected, {#guest_storage} and
+    # the guest files {Health.assess} asks for; all spawned, ~0.5 s on vt-ubuntu. A guest that
+    # cannot answer turns into a skipped finding rather than a failed check.
+    #
+    # @param domain_name [String] VM name
+    # @return [Health]
+    # @raise [RuntimeError] if `virsh` fails otherwise, or replies with something it does not
+    #   document
+    def health(domain_name)
+      live = domain_config(domain_name)
+      inactive = domain_config(domain_name, inactive: true)
+      guest = guest_or_reason(domain_name) if Health.ask_guest?(live)
+      Health.assess(live, inactive, guest, read_file: ->(path) { @spawned_agent.read_file(domain_name, path) },
+                                           file_exist: ->(path) { @spawned_agent.exist?(domain_name, path) })
+    end
+
+    # @param domain_name [String] a running VM with a connected agent
+    # @return [GuestStorage, String] the guest's disks, or virsh's reason it could not tell
+    private def guest_or_reason(domain_name)
+      guest_storage(domain_name)
+    rescue GuestAgent::Unavailable => e
+      # virsh's own `error: …` line, not the `Command '…' failed` wrapper around it.
+      e.message[/error: ([^\n]*)/, 1] || e.message.lines.first.strip
     end
 
     # The storage-pool volume behind a disk image, found by its path.

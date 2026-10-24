@@ -1,6 +1,6 @@
 # Disk reclaim: give a guest's freed space back to the host
 
-**On hold (2026-10-24)** behind [vm-health-check](vm-health-check.md): whether discard is
+**On hold (2026-10-24)** behind the health check (`D_health_check`, shipped): whether discard is
 wired comes first.
 
 A qcow2 image only grows: a block the guest writes is allocated on the host, and a file the
@@ -49,7 +49,7 @@ Its costs:
 
 The value is the **live trim**, not the convert: `discard='unmap'` in the XML, then `domfstrim`.
 No downtime, no copy, no root, and it gets the space back. That makes the
-[health check](vm-health-check.md) (is discard wired end to end?) the main feature, plus
+health check (`D_health_check`: is discard wired end to end?) the main feature, plus
 an `M` → "Trim free space" item that runs `virsh domfstrim`. That is one agent command,
 `guest-fstrim`, which only discards free blocks. It belongs with `GuestRootGrow`'s
 operator-confirmed writes, not with `GuestAgent`'s reads.
@@ -59,6 +59,11 @@ chain or internal snapshots rather than handle them.
 
 ## Open questions
 
+- `Q_negative_overhead`: after the live trim, the VM pane's host column for vt-ubuntu's vda read
+  `-79%  525M`. `DiskStat#overhead_percent` is `physical / allocation − 1`, and a trim drops
+  `physical` while `allocation` stays (`R_virsh_domstats_block`). A trim feature has to decide
+  what that column means once trims happen: show host bytes only, or measure against
+  something that shrinks.
 - `Q_what_shrank`: when convert "shrank the image considerably", was that `ls -l` or `du` /
   `qemu-img info`'s "disk size"? If it was the length only, the live trim already gave back the
   space and the convert was cosmetic. If `du` dropped a lot, discard was broken *and* the

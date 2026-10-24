@@ -155,6 +155,9 @@ later one trims to its length.
 - A qcow2 overlay on a base image reports its own `allocation` and `physical`, about equal.
   **[verified 2026-10-24]**
 
+- After a `domfstrim` on a running qcow2 with `discard='unmap'`, `physical` fell to 551 MB while
+  `allocation` stayed at 2.72 GB: `physical` follows the host's blocks, `allocation` does not
+  shrink. **[verified 2026-10-24, vt-ubuntu]**
 - A shut-off domain still gets `block.N.name`, `path`, `allocation`, `capacity` and `physical`,
   but none of the `rd`/`wr`/`fl` counters; `physical` (196616) can be below `allocation`
   (200704). **[verified 2026-10-24, on `vt-bios`]**
@@ -168,6 +171,8 @@ later one trims to its length.
 - The live agent channel reads `<target type='virtio' name='org.qemu.guest_agent.0'
   state='connected'/>`; `state` is live-only. A domain with no agent has no such channel.
   **[verified 2026-10-24]** for the live half, **[docs]** for live-only
+- A running domain's live XML opens `<domain type='kvm' id='5'>`; a shut-off domain's, and any
+  `--inactive` one, has no `id`. **[verified 2026-10-24]**
 - Plain `dumpxml` leaves the VNC/SPICE `passwd=` out; `--security-info` prints it.
   **[verified 2026-10-24, a VNC domain defined with `passwd=`]**
 - Every size comes out in KiB whatever unit it was defined in, and a shut-off domain's autoport

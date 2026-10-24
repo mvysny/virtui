@@ -42,11 +42,20 @@ describe Virt::DomainConfig do
 
     it 'reads a qcow2, a shareable raw disk and a read-only CD-ROM' do
       assert_equal [Virt::DomainConfig::Disk.new('vda', 'virtio', 'disk', 'file', 'qcow2',
-                                                 '/var/lib/libvirt/images/vt-ubuntu.qcow2', false, false),
+                                                 '/var/lib/libvirt/images/vt-ubuntu.qcow2', false, false, nil),
                     Virt::DomainConfig::Disk.new('vdb', 'virtio', 'disk', 'file', 'raw',
-                                                 '/var/lib/libvirt/images/vt-shared.raw', true, false),
+                                                 '/var/lib/libvirt/images/vt-shared.raw', true, false, nil),
                     Virt::DomainConfig::Disk.new('sda', 'sata', 'cdrom', 'file', 'raw',
-                                                 '/var/lib/libvirt/images/vt-seed.iso', false, true)], c.disks
+                                                 '/var/lib/libvirt/images/vt-seed.iso', false, true, nil)], c.disks
+    end
+
+    # `dumpxml --inactive`, recorded after `virt-xml --edit target=vda --disk discard=unmap`;
+    # the live fixture above predates it.
+    it 'reads the discard mode of the next power-on' do
+      inactive = config('vt-ubuntu-inactive')
+      assert_equal ['unmap', nil, nil], inactive.disks.map(&:discard)
+      assert_equal [:unknown, false], [inactive.agent, inactive.running]
+      assert c.running, 'the live XML carries the domain id'
     end
 
     it 'reads the virtiofs share, the network, the display and the other devices' do

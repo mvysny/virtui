@@ -210,6 +210,20 @@ module Virt
     # @raise [GuestAgent::Unavailable] for a stopped or agent-less VM
     def root_grow_plan(name) = GuestRootGrow.plan(guest_storage(name))
 
+    # Mirrors {Virsh#health}, through the same {Health.assess}. A simulated guest has
+    # `fstrim.timer` enabled and no device-mapper layers, so no other guest file is read.
+    #
+    # @param name [String] VM name
+    # @return [Health]
+    # @raise [RuntimeError] for an unknown VM
+    def health(name)
+      config = domain_config(name)
+      guest = guest_storage(name) if Health.ask_guest?(config)
+      Health.assess(config, config, guest,
+                    read_file: ->(path) { raise GuestAgent::Unavailable, "#{path}: No such file or directory" },
+                    file_exist: ->(path) { path == Health::TRIM_TIMER })
+    end
+
     # Mirrors {Virsh#grow_root}: the root partition takes the rest of the disk.
     #
     # @param name [String] VM name
@@ -269,6 +283,8 @@ module Virt
       e.vm('win11').guest_os = WINDOWS
       # BASE is the hand-written definition that names no OS at all.
       e.vm('BASE').guest_os = GuestOS::UNKNOWN
+      # A health warning for the demo to show: win11's host drops its discards.
+      e.vm('win11').discard = nil
       e.vm('Ubuntu').address = '192.168.122.84'
       e.vm('win11').address = '192.168.122.23'
       e

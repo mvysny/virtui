@@ -73,6 +73,24 @@ module Helpers
     files = vt_ubuntu_guest_files
     Virt::GuestStorage.parse(File.read('spec/virt/guestinfo_vt-ubuntu.txt')) { files.fetch(_1) }
   end
+
+  # vt-ubuntu's guest files as recorded 2026-10-24 with vdc hot-plugged: ext4 on LVM on LUKS
+  # without `allow-discards`, mounted at /mnt/hc, and `/` grown to 15 GiB; pair with
+  # `spec/virt/guestinfo_vt-ubuntu-luks.txt`.
+  # @return [Hash{String => String}] guest path to contents
+  def self.vt_ubuntu_luks_guest_files
+    vt_ubuntu_guest_files.merge('/proc/partitions' => File.read('spec/virt/guest_proc_partitions_luks.txt'),
+                                '/proc/self/mounts' => File.read('spec/virt/guest_mounts.txt'),
+                                '/sys/class/block/dm-0/queue/discard_max_bytes' => "0\n",
+                                '/sys/class/block/dm-1/queue/discard_max_bytes' => "0\n",
+                                '/etc/systemd/system/timers.target.wants/fstrim.timer' => "[Unit]\n")
+  end
+
+  # @return [Virt::GuestStorage] vt-ubuntu's recorded disk layout with the LUKS disk
+  def self.vt_ubuntu_luks_storage
+    files = vt_ubuntu_luks_guest_files
+    Virt::GuestStorage.parse(File.read('spec/virt/guestinfo_vt-ubuntu-luks.txt')) { files.fetch(_1) }
+  end
 end
 
 # Mounts `component` at `rect` under a {Tuile::Component::Layout::Absolute} holder, the

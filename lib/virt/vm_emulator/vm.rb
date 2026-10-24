@@ -39,6 +39,7 @@ module Virt
         @swap_total = 4.GiB
         @disk_capacity = VMEmulator::DISK_CAPACITY
         @root_size = 100.GiB
+        @discard = 'unmap'
         @guest_os = VMEmulator::LINUX
         @startup_seconds = 10
         @shutdown_seconds = 5
@@ -78,6 +79,10 @@ module Virt
       # @return [Integer] bytes, the guest's root partition, the last on {#disk_capacity};
       #   {VMEmulator#grow_root} grows it
       attr_accessor :root_size
+
+      # @return [String, nil] its disk's `<driver discard=>`: `unmap` by default, `nil` for a
+      #   VM whose health check warns that the host drops its discards
+      attr_accessor :discard
 
       # @return [String] where its disk image would live, in libvirt's `default` pool
       def disk_path = "/var/lib/libvirt/images/#{name}.qcow2"
@@ -242,7 +247,7 @@ module Virt
         os = guest_os
         declared = os.family != :unknown
         <<~XML
-          <domain type='kvm'>
+          <domain type='kvm'#{" id='1'" if running?}>
             <name>#{name.encode(xml: :text)}</name>
             <metadata>
               <libosinfo:libosinfo xmlns:libosinfo='#{Virsh::LIBOSINFO_URI}'>
@@ -259,7 +264,7 @@ module Virt
             <cpu mode='host-passthrough'/>
             <devices>
               <disk type='file' device='disk'>
-                <driver name='qemu' type='qcow2'/>
+                <driver name='qemu' type='qcow2'#{" discard='#{discard}'" if discard}/>
                 <source file=#{disk_path.encode(xml: :attr)}/>
                 <target dev='vda' bus='virtio'/>
               </disk>
