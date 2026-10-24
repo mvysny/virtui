@@ -18,6 +18,48 @@ describe Run do
       assert_equal 'a b  c', Run.sync('echo', 'a b  c').strip
       assert_equal '$HOME `id`', Run.sync('echo', '$HOME `id`').strip
     end
+    # Past the 64 KiB pipe buffer: reading only after the child exits would deadlock here.
+    it 'returns output larger than a pipe buffer' do
+      assert_equal 200_000, Run.sync('head', '-c', '200000', '/dev/zero').bytesize
+      assert_equal 200_000, Run.sync('head', '-c', '200000', '/dev/zero', cancellation: Cancellation.new).bytesize
+    end
+
+    context 'with a cancellation' do
+      it 'runs as without one until canceled' do
+        assert_equal "foo\n", Run.sync('echo', 'foo', cancellation: Cancellation.new)
+        assert_raises(RuntimeError) { Run.sync('cat', 'non-existing-file', cancellation: Cancellation.new) }
+      end
+
+      it 'stops and reaps the command on a cancel, and raises' do
+        Dir.mktmpdir do |dir|
+          pid_file = File.join(dir, 'pid')
+          c = Cancellation.new
+          canceler = Thread.new do
+            Kernel.sleep(0.01) until File.size?(pid_file)
+            c.cancel
+          end
+          start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          assert_raises(Cancellation::CanceledError) do
+            Run.sync('sh', '-c', "echo $$ > #{pid_file}; exec sleep 10", cancellation: c)
+          end
+          took = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+          assert_operator took, :<, 5, 'waited the child out instead of stopping it'
+          canceler.join
+          pid = File.read(pid_file).to_i
+          assert_raises(Errno::ESRCH, 'the child outlived the cancel') { Process.kill(0, pid) }
+        end
+      end
+
+      it 'spawns nothing once canceled' do
+        Dir.mktmpdir do |dir|
+          marker = File.join(dir, 'ran')
+          c = Cancellation.new
+          c.cancel
+          assert_raises(Cancellation::CanceledError) { Run.sync('touch', marker, cancellation: c) }
+          refute File.exist?(marker)
+        end
+      end
+    end
   end
   context 'async' do
     it 'runs command successfully' do

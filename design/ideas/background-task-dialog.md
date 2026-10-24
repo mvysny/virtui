@@ -225,11 +225,11 @@ and a click all dismiss.
   also covers every other worker → `submit` path, virtui's poll thread included, and the class's
   own specs need it once it moves to Tuile (see `Q_tuile_home`). Until a Tuile release has it,
   virtui pins Tuile master, as it has before.
-- `Q_kill_child`: **`Cancellation#join` and `#sleep` are built; a `cancellation:` keyword on
-  `Run.sync` comes with the first long task.** Checking the `Cancellation` only helps between
-  steps, and almost every background block is one blocking `virsh` call. The two waits are built
-  ahead of a caller on purpose: they show that a cancelable wait belongs on `Cancellation`. The
-  `Run.sync` change waits, because `dumpxml` takes about 50 ms.
+- `Q_kill_child`: **built: `Cancellation#join` and `#sleep`, and a `cancellation:` keyword on
+  `Run.sync`.** Checking the `Cancellation` only helps between steps, and almost every background
+  block is one blocking `virsh` call. All three are built ahead of a caller on purpose: they show
+  that a cancelable wait belongs on `Cancellation`. Passing a `Cancellation` from a backend read
+  down to `Run.sync` comes with the first long task, because `dumpxml` takes about 50 ms.
   - `Cancellation#join(thread)` joins `thread` in rounds of `POLL_INTERVAL` and raises
     `CanceledError` between rounds once canceled. About 0.1 s: instant to a human, free to run.
     It returns the thread, as `Thread#join` does. It polls because Ruby cannot report the end of
@@ -285,8 +285,8 @@ and a click all dismiss.
   that the UI block's exceptions are not caught, and that cancel drops the result.
 - `Cancellation` in `lib/`, with its contract in its yardoc. The `CanceledError` yardoc says in
   one line why it inherits from `Exception`; the full argument goes into `D_background_task`.
-- With the first long task: `Run.sync(cancellation:)` as in `Q_kill_child`, and the rejected
-  alternatives into `D_background_task`.
+- With the first long task: a `cancellation:` keyword on the backend read it uses, down to
+  `Run.sync`, and `Q_kill_child`'s rejected alternatives into `D_background_task`.
 - Once stable: a PR moving `BackgroundTask`, `ProgressWindow` and `Cancellation` into Tuile,
   then a virtui commit that bumps Tuile and deletes the local copies.
 - AGENTS.md's first invariant, architecture.md's *Threads* and a `D_background_task` entry, as
