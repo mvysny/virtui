@@ -3,8 +3,8 @@
 **Status:** proposal, nothing built (2026-10-24). Not checked against a real host: this machine
 has no `virsh`, so every claim below about what `virsh dumpxml` prints is from libvirt's
 domain-XML format docs and wants recording into `spec/virt/` before it is relied on (see *To check
-on a real host*, and `nested-vm-dev-env.md` for getting a real host onto this box). It depends on
-`background-task-dialog.md` for the read.
+on a real host*, and `nested-vm-dev-env.md` for getting a real host onto this box). The read runs
+in a `UI::BackgroundTask` (`D_background_task`).
 
 ## The ask
 
@@ -125,7 +125,7 @@ attribute. Once this ships, that rule belongs in the doc comment of the method t
 
 **Decided 2026-10-24: read `dumpxml` fresh on every `i`,** so the window can never show a
 definition older than the keypress. The UI thread cannot run the read itself (the first
-invariant), so `i` hands it to the generic helper proposed in `background-task-dialog.md`:
+invariant), so `i` hands it to `UI::BackgroundTask`:
 
 ```ruby
 BackgroundTask.new("Reading #{vm}'s definition") { @virt_cache.virt.domain_config(vm) }

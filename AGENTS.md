@@ -30,7 +30,7 @@ Every fact lives in exactly one of these; the others link to it.
 
 ## Invariants
 
-- **Backend reads run on the timer thread; components are touched on the UI thread only, through the event queue.** A read from the UI thread blocks behind the `virsh` session's one mutex and one child; the hand-off is in architecture.md.
+- **Backend reads run off the UI thread — on the timer thread, or in a `UI::BackgroundTask` through a spawned process; components are touched on the UI thread only, through the event queue.** A read from the UI thread blocks behind the `virsh` session's one mutex and one child; the hand-off is in architecture.md. See `D_background_task`.
 - **Per-domain memos of backend reads live on `Virt::Cache`, never on `Virt::Virsh`.** The UI thread reaches `Virsh` for the power keys, so state there is state two threads share. See `D_guest_os_from_xml`.
 - **Every subprocess goes through `Run`, one argument per word.** A single string goes through `/bin/sh` and breaks on a VM named `it's`. See `D_argv_not_shell`.
 - **Only reads (`query`) are served by the long-lived `virsh` session; every mutating command spawns its own process** and keeps its own exit status. See `D_virsh_session`.

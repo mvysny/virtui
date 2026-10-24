@@ -13,7 +13,7 @@ doc-comment content has crept in.
 ## Wiring
 
 - Dependencies point down: `lib/ui/` → `lib/virt/` + `lib/system/` → the top-level helpers
-  (`Run`, `Cooldown`, `ResourceUsage`, `Interpolator`). Nothing under `lib/virt/` or
+  (`Run`, `Cooldown`, `Cancellation`, `ResourceUsage`, `Interpolator`). Nothing under `lib/virt/` or
   `lib/system/` references `UI::`; a presentation choice (a glyph, a colour) is a table in
   `lib/ui/` keyed by the data `Virt::` exposes.
 - `bin/virtui` constructs everything once and hands objects in as constructor arguments; the
@@ -38,7 +38,7 @@ doc-comment content has crept in.
 
 ## Threads
 
-Two threads, one hand-off. The **timer thread** (`Concurrent::TimerTask`, 2 s fixed rate, in
+Two long-lived threads and one hand-off, plus short-lived workers. The **timer thread** (`Concurrent::TimerTask`, 2 s fixed rate, in
 `bin/virtui`) owns every backend and host read: `Virt::Cache#update` runs the fleet `domstats`,
 the guest-OS lookup for a domain not seen before, one swap-level read per running Linux guest
 (three `qemu-agent-command` RPCs into a guest that may be sick), then the host's `/proc` and
@@ -49,9 +49,14 @@ transition. When the cache is rebuilt it submits one block to tuile's `screen.ev
 and memory commands, but only through `sync` / `async`, which spawn their own process; nothing
 on the UI thread calls `query`. That is the reason for the split: `Virt::VirshSession`
 serialises reads behind one mutex and one child, so a read from the UI thread would block the
-screen on a slow guest. The two objects both threads touch are `Virt::Cache` (readers get
-immutable snapshots) and `Cooldown` values (the session's read deadline; all others are
-UI-thread-confined).
+screen on a slow guest. A key that needs a *read* hands it to a **background task**
+(`UI::BackgroundTask`): a worker thread behind a modal progress popup, reading through a
+spawned process — never the session, whose mutex would queue it behind the tick's guest-agent
+RPCs — and submitting its result to the UI thread the same way. ESC cancels the task's
+`Cancellation`, which the worker checks between steps and `Run.sync` honours by stopping its
+child (`D_background_task`). The objects several threads touch are `Virt::Cache` (readers get
+immutable snapshots), a task's `Cancellation`, and `Cooldown` values (the session's read
+deadline; all others are UI-thread-confined).
 
 ## Flows
 

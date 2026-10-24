@@ -572,3 +572,36 @@ background, and the spec table owns the assurance. Still open: the exact Δ and 
 terminals; HSL ΔL is not perceptually uniform, and OKLab is the upgrade if the dark step ever
 reads weaker than the light one. Symbolic ANSI tokens can never be guarded — only the terminal
 knows their RGB.
+
+## D_background_task — Why does a key that needs a fresh read run it in a worker thread behind a modal popup rather than on the UI thread or the next tick?
+
+Some keys need a backend read nobody polls — the `i` info window wants `virsh dumpxml` as of
+the keypress. On the UI thread the read freezes the screen, and through the session it can wait
+behind a sick guest's agent RPCs for the whole read timeout; a "wanted" flag picked up by the
+next tick costs up to 2 s and a path from `AppLayout#update_data` into whatever waits. So
+`UI::BackgroundTask` runs the read on a thread of its own behind a `UI::ProgressWindow` that is
+modal from the first frame, so a second keypress cannot start a second read, and submits the
+result to the UI thread as the timer thread does; a failure becomes an alert. The read spawns
+its own process — through the session the user would watch a spinner because *another* guest is
+sick. A plain thread per task, no pool: ~90 µs to create, against a spawn of 1 ms and more.
+
+Cancel is cooperative. ESC closes the popup, whose `on_close` cancels the task's `Cancellation`;
+the work checks it between steps, waits on it (`#sleep`, `#join`), or hands it to `Run.sync`,
+which then stops and reaps its child. Why not `Thread#kill` or `Thread#raise`: either lands
+mid-`Open3` — the child is orphaned, or `popen_run`'s `ensure` waits for it anyway. Why not a
+`canceled` block for `Run.sync`: `Run` would have to choose the error and name its class; given
+the object, `check_canceled` raises, and backend code never names `Cancellation`. Why not an
+`on_cancel` listener that kills the child at once: a listener API, and a listener to remove
+before the child is reaped, to save a 0.1 s poll nobody can see. Why not a thread-local
+`Cancellation` making every subprocess on the worker cancelable for free: nothing in
+`Run.sync`'s signature would say it can be canceled. `CanceledError` is an `Exception`, as
+`Timeout::ExitException` is, so a bare `rescue` in the work cannot swallow the cancel — Kotlin's
+`CancellationException` is a `RuntimeException`, and `runCatching` eating it is a known trap.
+The flag is a `Concurrent::Event` rather than an atomic boolean because a wait can block on it.
+
+Specs join the worker, then play the loop turn with Tuile's `Testing.loop`. Why not an injected
+executor, inline in specs: a knob only tests use, and the hand-off between threads — the point
+of the class — would go untested. What we carry: on a 50 ms read the popup shows for a frame
+before the result replaces it, accepted until it bites; the task has no timeout, since the work
+owns its own; and it reaches nothing of virtui but `$log`, because once a caller has shaped it,
+`BackgroundTask` moves to Tuile with `Cancellation`.
