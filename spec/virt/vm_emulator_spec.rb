@@ -68,7 +68,7 @@ describe Virt::VMEmulator do
     e.add(Virt::VMEmulator::VM.simple('vm0')).start
     disk = e.domain_data['vm0'].disk_stat.first
     assert_equal 'vda', disk.name
-    assert_equal 64.GiB, disk.allocation
+    assert_equal 64.GiB, disk.allocated
     assert_equal 128.GiB, disk.capacity
   end
 

@@ -156,6 +156,14 @@ later one trims to its length.
 - A shut-off domain still gets `block.N.name`, `path`, `allocation`, `capacity` and `physical`,
   but none of the `rd`/`wr`/`fl` counters; `physical` (196616) can be below `allocation`
   (200704). **[verified 2026-10-24, on `vt-bios`]**
+- `allocation` and `physical` change meaning with the state. Shut off: `allocation` is the
+  image's allocated blocks (`du`, `st_blocks × 512`), `physical` its length (`ls`,
+  `st_size`). Running: `allocation` is QEMU's highest written offset in the image — 0 on
+  every disk right after `start`, near the file's end once the guest boots — and `physical`
+  is the allocated blocks. Measured against `stat` on `vt-ubuntu`'s images in both states;
+  on a trimmed 128 GiB qcow2 the user saw 111G / 127G shut off and 126G / 111G running.
+  **[verified 2026-10-24, libvirt 12.0]** Running, both come from QEMU's
+  `wr_highest_offset` and `actual-size`; shut off, from libvirt's own `stat`. **[docs]**
 
 ## R_domain_xml — what `virsh dumpxml` prints
 
@@ -393,7 +401,14 @@ Source: [Hyper-V Dynamic Memory](https://learn.microsoft.com/en-us/windows-serve
 - A GPT disk whose last partition fills it keeps 33 sectors (~17 KiB) after it, the backup
   table. **[verified 2026-10-24]**
 - Without an agent channel: `error: argument unsupported: QEMU guest agent is not configured`,
-  exit 1. **[verified 2026-10-24]** An LVM or LUKS root is reported through a `dm-*` device,
+  exit 1. **[verified 2026-10-24]**
+- `--filesystem` alone prints the same `fs.N.*` keys, `disk.M.alias` included, and no
+  `disk.*` section; ~50 ms as a spawned process. **[verified 2026-10-24]**
+- It takes no `--timeout`, and against a `SIGSTOP`ped `qemu-ga` it waits as long as the
+  agent hangs: 2 min 18 s, until the agent was resumed. `qemu-agent-command
+  '{"execute":"guest-ping"}' --timeout 2` against the same agent fails in 2.0 s with `error:
+  guest agent command timed out: guest agent didn't respond to command within '2' seconds`.
+  **[verified 2026-10-24]** An LVM or LUKS root is reported through a `dm-*` device,
   and a Windows guest's devices are not `/dev/…` names. **[unverified]**
 
 ## R_volume_resize — `vol-resize`, `blockresize` and the image lock

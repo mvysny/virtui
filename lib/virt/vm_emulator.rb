@@ -14,6 +14,11 @@ module Virt
     # A simulated VM's one disk, `vda`, until {#resize_volume} grows it.
     DISK_CAPACITY = 128.GiB
 
+    # Where a simulated Linux guest's EFI partition starts on `vda`, and its size.
+    EFI_START = 1.MiB
+    # @see EFI_START
+    EFI_SIZE = 106.MiB
+
     # The simulated `default` pool's free space.
     POOL_AVAILABLE = 400.GiB
 
@@ -59,7 +64,7 @@ module Virt
     def domain_data
       @vms.to_h do |name, vm|
         state = vm.running? ? :running : :shut_off
-        disk = DiskStat.new('vda', 64.GiB, vm.disk_capacity, 64.GiB, vm.disk_path)
+        disk = DiskStat.new('vda', vm.disk_capacity, 64.GiB, vm.disk_path)
         data = DomainData.new(vm.info, state, DomainData.millis_now, 0, vm.to_mem_stat, [disk])
         [name, data]
       end
@@ -111,69 +116,33 @@ module Virt
       vm = @vms[name]
       raise GuestAgent::Unavailable, "domain '#{name}' is not running" unless vm&.running?
       raise GuestAgent::Unavailable, 'QEMU guest agent is not configured' if vm.guest_os.family == :unknown
+      return GuestStorage.parse(guestinfo(vm)) if vm.guest_os.windows?
 
-      return GuestStorage.parse(<<~WINDOWS) if vm.guest_os.windows?
-        fs.count : 1
-        fs.0.name : \\\\?\\Volume{0f2c}\\
-        fs.0.mountpoint : C:\\
-        fs.0.fstype : NTFS
-        fs.0.total-bytes : #{vm.disk_capacity - 1.GiB}
-        fs.0.used-bytes : #{31.GiB}
-        fs.0.disk.count : 1
-        fs.0.disk.0.alias : vda
-        disk.count : 1
-        disk.0.name : \\\\.\\PhysicalDrive0
-        disk.0.partition : no
-        disk.0.alias : vda
-      WINDOWS
-
-      efi_start = 1.MiB
-      efi = 106.MiB
-      root_start = efi_start + efi
-      root = vm.root_size
-      guestinfo = <<~LINUX
-        fs.count : 2
-        fs.0.name : vda1
-        fs.0.mountpoint : /
-        fs.0.fstype : ext4
-        fs.0.total-bytes : #{root - 5.GiB}
-        fs.0.used-bytes : #{9.4.GiB.to_i}
-        fs.0.disk.count : 1
-        fs.0.disk.0.alias : vda
-        fs.0.disk.0.device : /dev/vda1
-        fs.1.name : vda15
-        fs.1.mountpoint : /boot/efi
-        fs.1.fstype : vfat
-        fs.1.total-bytes : #{efi}
-        fs.1.used-bytes : #{6.MiB}
-        fs.1.disk.count : 1
-        fs.1.disk.0.alias : vda
-        fs.1.disk.0.device : /dev/vda15
-        disk.count : 3
-        disk.0.name : /dev/vda1
-        disk.0.partition : yes
-        disk.0.dependency.count : 1
-        disk.0.dependency.0.name : /dev/vda
-        disk.1.name : /dev/vda15
-        disk.1.partition : yes
-        disk.1.dependency.count : 1
-        disk.1.dependency.0.name : /dev/vda
-        disk.2.name : /dev/vda
-        disk.2.partition : no
-        disk.2.alias : vda
-      LINUX
+      root_start = EFI_START + EFI_SIZE
       files = {
         '/proc/partitions' => <<~PARTITIONS,
           major minor  #blocks  name
 
            253        0 #{vm.disk_capacity / 1024} vda
-           253        1 #{root / 1024} vda1
-           253       15 #{efi / 1024} vda15
+           253        1 #{vm.root_size / 1024} vda1
+           253       15 #{EFI_SIZE / 1024} vda15
         PARTITIONS
         '/sys/class/block/vda1/start' => "#{root_start / GuestStorage::SECTOR}\n",
-        '/sys/class/block/vda15/start' => "#{efi_start / GuestStorage::SECTOR}\n"
+        '/sys/class/block/vda15/start' => "#{EFI_START / GuestStorage::SECTOR}\n"
       }
-      GuestStorage.parse(guestinfo) { files.fetch(_1) }
+      GuestStorage.parse(guestinfo(vm)) { files.fetch(_1) }
+    end
+
+    # Mirrors {Virsh#guest_fs_usage}, through the same {GuestStorage.fs_usage}.
+    #
+    # @param name [String] VM name
+    # @return [Hash{String => ResourceUsage}, nil] `nil` for an unknown, stopped, or
+    #   agent-less VM (see {#guest_storage})
+    def guest_fs_usage(name)
+      vm = @vms[name]
+      return nil unless vm&.running? && vm.guest_os.family != :unknown
+
+      GuestStorage.fs_usage(guestinfo(vm))
     end
 
     # Mirrors {Virsh#volume}: every simulated VM's image is in the `default` pool.
@@ -302,6 +271,57 @@ module Virt
     # @param domain_name [String] VM name
     def force_off(domain_name)
       @vms[domain_name].force_off
+    end
+
+    # @param vm [VMEmulator::VM] a running VM that declares an OS
+    # @return [String] what `virsh -q guestinfo --filesystem --disk` would print for it
+    private def guestinfo(vm)
+      return <<~WINDOWS if vm.guest_os.windows?
+        fs.count : 1
+        fs.0.name : \\\\?\\Volume{0f2c}\\
+        fs.0.mountpoint : C:\\
+        fs.0.fstype : NTFS
+        fs.0.total-bytes : #{vm.disk_capacity - 1.GiB}
+        fs.0.used-bytes : #{31.GiB}
+        fs.0.disk.count : 1
+        fs.0.disk.0.alias : vda
+        disk.count : 1
+        disk.0.name : \\\\.\\PhysicalDrive0
+        disk.0.partition : no
+        disk.0.alias : vda
+      WINDOWS
+
+      <<~LINUX
+        fs.count : 2
+        fs.0.name : vda1
+        fs.0.mountpoint : /
+        fs.0.fstype : ext4
+        fs.0.total-bytes : #{vm.root_size - 5.GiB}
+        fs.0.used-bytes : #{9.4.GiB.to_i}
+        fs.0.disk.count : 1
+        fs.0.disk.0.alias : vda
+        fs.0.disk.0.device : /dev/vda1
+        fs.1.name : vda15
+        fs.1.mountpoint : /boot/efi
+        fs.1.fstype : vfat
+        fs.1.total-bytes : #{EFI_SIZE}
+        fs.1.used-bytes : #{6.MiB}
+        fs.1.disk.count : 1
+        fs.1.disk.0.alias : vda
+        fs.1.disk.0.device : /dev/vda15
+        disk.count : 3
+        disk.0.name : /dev/vda1
+        disk.0.partition : yes
+        disk.0.dependency.count : 1
+        disk.0.dependency.0.name : /dev/vda
+        disk.1.name : /dev/vda15
+        disk.1.partition : yes
+        disk.1.dependency.count : 1
+        disk.1.dependency.0.name : /dev/vda
+        disk.2.name : /dev/vda
+        disk.2.partition : no
+        disk.2.alias : vda
+      LINUX
     end
   end
 end

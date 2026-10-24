@@ -92,7 +92,7 @@ module Virt
 
       # @return [Integer, nil] size of the simulated guest's swap device (4 GiB by default);
       #   `nil` simulates a guest whose level cannot be read at all — no guest agent, or no
-      #   swap configured — which is the other half {Virt::GuestSwapSampler#swap} can return
+      #   swap configured — which is the other half {Virt::GuestSampler#swap} can return
       attr_accessor :swap_total
 
       # Sets how fast the simulated guest writes to swap, from now on.
@@ -120,7 +120,7 @@ module Virt
         @swap_out_base + (@swap_out_rate * (Time.now - @swap_out_since)).to_i
       end
 
-      # The simulated guest's swap occupancy, as {Virt::GuestSwapSampler#swap} would report it.
+      # The simulated guest's swap occupancy, as {Virt::GuestSampler#swap} would report it.
       #
       #   vm.swap.to_s   # => "1.2G/4G (30%)"
       #

@@ -65,4 +65,33 @@ describe Virt::GuestStorage do
     end
     assert_includes error.message, '/dev/vda1'
   end
+
+  describe '.fs_usage' do
+    it "sums every filesystem mounted from a disk's partitions" do
+      usage = described_class.fs_usage(File.read('spec/virt/guestinfo_vt-ubuntu.txt'))
+      assert_equal ['vda'], usage.keys
+      assert_equal ResourceUsage.of(13_329_502_208 + 966_021_120 + 109_395_456, 3_466_166_272 + 113_242_112 + 6_567_424),
+                   usage['vda']
+    end
+
+    it 'counts a filesystem on two partitions of one disk once, and leaves out one the agent could not stat' do
+      guestinfo = <<~TEXT
+        fs.count            : 2
+        fs.0.name           : dm-0
+        fs.0.mountpoint     : /
+        fs.0.fstype         : ext4
+        fs.0.total-bytes    : 1000
+        fs.0.used-bytes     : 400
+        fs.0.disk.count     : 2
+        fs.0.disk.0.alias   : vda
+        fs.0.disk.1.alias   : vda
+        fs.1.name           : vdb
+        fs.1.mountpoint     : /data
+        fs.1.fstype         : xfs
+        fs.1.disk.count     : 1
+        fs.1.disk.0.alias   : vdb
+      TEXT
+      assert_equal({ 'vda' => ResourceUsage.of(1000, 400) }, described_class.fs_usage(guestinfo))
+    end
+  end
 end

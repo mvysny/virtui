@@ -39,6 +39,18 @@ class DeclaringEmulator < Virt::VMEmulator
   end
 end
 
+# An emulator whose guests answer the filesystem read only when not `mute`, counting the asks.
+class FsCountingEmulator < Virt::VMEmulator
+  attr_accessor :mute
+
+  def fs_asked = @fs_asked ||= []
+
+  def guest_fs_usage(name)
+    fs_asked << name
+    mute ? nil : super
+  end
+end
+
 describe Virt::Cache do
   it 'smokes' do
     Virt::Cache.new(Virt::VMEmulator.new, System::Emulator.new)
@@ -211,6 +223,54 @@ describe Virt::Cache do
       assert_equal %w[ubuntu win11], c.domains
       levels = c.domains.map { |it| c.cache(it).guest_swap }
       assert_equal [nil, nil], levels
+    end
+  end
+
+  context 'guest filesystem usage' do
+    # @return [Array(FsCountingEmulator, Time)] one running Linux guest, and the instant to tick from
+    def one_guest
+      e = FsCountingEmulator.new
+      e.add(Virt::VMEmulator::VM.simple('Ubuntu', actual: 8.GiB, max_actual: 16.GiB)).start
+      [e, Time.now]
+    end
+
+    it 'is asked once per GUEST_FS_SECONDS, and carried in between' do
+      e, start = one_guest
+      c = Timecop.freeze(start) { Virt::Cache.new(e, System::Emulator.new) }
+      vda = c.cache('Ubuntu').guest_fs_usage['vda']
+      assert_equal 9.4.GiB.to_i + 6.MiB, vda.used
+
+      Uptime.travel(Virt::Cache::GUEST_FS_SECONDS - 1) { Timecop.freeze(start + 2) { c.update } }
+      assert_equal 1, e.fs_asked.size
+      assert_equal vda, c.cache('Ubuntu').guest_fs_usage['vda'], 'carried, not dropped, while fresh'
+
+      Uptime.travel(Virt::Cache::GUEST_FS_SECONDS) { Timecop.freeze(start + 4) { c.update } }
+      assert_equal 2, e.fs_asked.size
+    end
+
+    it 'asks again on the next tick after a guest could not answer' do
+      e, start = one_guest
+      e.mute = true
+      c = Timecop.freeze(start) { Virt::Cache.new(e, System::Emulator.new) }
+      assert_nil c.cache('Ubuntu').guest_fs_usage
+
+      e.mute = false
+      Timecop.freeze(start + 2) { c.update }
+      assert_equal 2, e.fs_asked.size, "a booting guest's disks appear as soon as its agent does"
+      refute_nil c.cache('Ubuntu').guest_fs_usage
+    end
+
+    it 'is nil for a stopped VM, and asked afresh once it runs again' do
+      e, start = one_guest
+      c = Timecop.freeze(start) { Virt::Cache.new(e, System::Emulator.new) }
+      e.vm('Ubuntu').force_off
+      Timecop.freeze(start + 2) { c.update }
+      assert_nil c.cache('Ubuntu').guest_fs_usage
+
+      e.vm('Ubuntu').start
+      Timecop.freeze(start + 4) { c.update }
+      assert_equal 2, e.fs_asked.size, 'the last run\'s fresh read must not stand in for this one'
+      refute_nil c.cache('Ubuntu').guest_fs_usage
     end
   end
 

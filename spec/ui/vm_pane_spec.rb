@@ -88,21 +88,23 @@ module Tuile
       content = list_rows(window.list)
       # BASE declares no OS, so it gets the dim '?' where Fedora gets a penguin
       assert_equal '⏹ ?  BASE─────────', content[0]
-      assert_equal '    vda: 50%   64G   128G │ ', content[1]
+      # a stopped guest has no filesystems to report, and the emulated host tracks no disks
+      assert_equal '    vda:    │    ', content[1]
       assert_equal '⏹ 🐧 Fedora───────', content[2]
-      assert_equal '    vda: 50%   64G   128G │ ', content[3]
+      assert_equal '    vda:    │    ', content[3]
       assert_equal '▶ 🐧 Ubuntu 🎈────', content[4]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[5]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[6]
       # Ubuntu swaps: 15M written in the 5s since boot, so a level to show and a live rate
       assert_equal '   SWAP:  0%   15M     4G │       3M/s  ↕  15M', content[7]
-      assert_equal '    vda: 50%   64G   128G │ ', content[8]
+      # the guest's own filesystems: / and /boot/efi
+      assert_equal '    vda:  9%  9.4G    95G │    ', content[8]
       assert_equal '▶ 🪟 win11 🎈─────', content[9]
       assert_equal '    CPU:  0%          1 t │   0%          8 t', content[10]
       assert_equal '    RAM: 25%    2G   7.9G │   9%  3.1G    32G', content[11]
       # win11 is at rest and reports no level at all, so its guest cell is the '-' placeholder
       assert_equal '   SWAP:  -               │        0/s  ↕    0', content[12]
-      assert_equal '    vda: 50%   64G   128G │ ', content[13]
+      assert_equal '    vda: 24%   31G   127G │    ', content[13]
     end
 
     it 're-lays its rows out to a new width without an update' do

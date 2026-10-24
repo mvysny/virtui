@@ -19,10 +19,10 @@ doc-comment content has crept in.
 - `bin/virtui` constructs everything once and hands objects in as constructor arguments; the
   only global is `$log`. The graph, top down: `UI::AppLayout(cache, ballooning)` →
   `Virt::Ballooning(cache)` → `Virt::Cache(virt, System::Info)` → `Virt::Virsh(runner,
-  swap_sampler)` → `Virt::GuestSwapSampler(Virt::GuestAgent(runner))` and
+  guest_sampler)` → `Virt::GuestSampler(Virt::GuestAgent(runner))` and
   `Virt::VirshSession`.
 - The backend is a role, not a class: `Virt::Virsh` and `Virt::VMEmulator` answer the same calls
-  (`domain_data`, `guest_os`, `guest_swap`, `ip_address`, `domain_config`, `set_actual`, the
+  (`domain_data`, `guest_os`, `guest_swap`, `guest_fs_usage`, `ip_address`, `domain_config`, `set_actual`, the
   power commands), so
   demo mode and most specs run the whole stack over the emulator with nothing faked apart.
 - Under `Virt::Virsh` sits the *runner* seam — `query` / `sync` / `async`, a subcommand without
@@ -32,7 +32,7 @@ doc-comment content has crept in.
   fixture parameter, so parser specs bypass the runner entirely.
 - `Virt::Cache` is the one thing the UI reads: thread-safe, an immutable `VMCache` per domain
   plus the host figures from `System::Info`. Every per-domain memo of a backend read (the
-  guest-OS lookup) lives here, on the timer thread's side of the seam, never on `Virsh`.
+  guest-OS lookup, the 30 s guest filesystem usage) lives here, on the timer thread's side of the seam, never on `Virsh`.
 - Every subprocess goes through `Run` as argv. `Virt::Ballooning` acts on a VM only through
   `Virt::Cache#set_actual`, which validates against the VM's limits before delegating to
   `Virsh#set_actual`; the UI's memory keys take the same path.
@@ -42,7 +42,8 @@ doc-comment content has crept in.
 Two long-lived threads and one hand-off, plus short-lived workers. The **timer thread** (`Concurrent::TimerTask`, 2 s fixed rate, in
 `bin/virtui`) owns every backend and host read: `Virt::Cache#update` runs the fleet `domstats`,
 the guest-OS lookup for a domain not seen before, one swap-level read per running Linux guest
-(three `qemu-agent-command` RPCs into a guest that may be sick), then the host's `/proc` and
+(three `qemu-agent-command` RPCs into a guest that may be sick), a filesystem read per running
+guest every 30 s, then the host's `/proc` and
 `df`; it arms guest mem-stat collection through `Run.async` on every not-running → running
 transition. When the cache is rebuilt it submits one block to tuile's `screen.event_queue`. The
 **UI thread** (tuile's event loop) runs that block — `Virt::Ballooning#update`, then
@@ -66,8 +67,11 @@ deadline; all others are UI-thread-confined).
 1. The `TimerTask` fires on the timer thread → `Virt::Cache#update`.
 2. `Virsh#domain_data` → one `virsh domstats` through the session → a `DomainData` per domain.
 3. Per domain: `guest_os` from the memo or one `virsh metadata` read; if running and declared
-   Linux, `Virsh#guest_swap` → `GuestSwapSampler#swap` → `GuestAgent#swap` (open / read / close
+   Linux, `Virsh#guest_swap` → `GuestSampler#swap` → `GuestAgent#swap` (open / read / close
    of the guest's `/proc/meminfo`), or `nil` when the guest is written off or the read fails.
+   If running and its last good filesystem read is over 30 s old, `Virsh#guest_fs_usage` →
+   `GuestSampler#fs_usage` → `GuestAgent#fs_usage` (`guest-ping`, then `virsh guestinfo
+   --filesystem`); otherwise the last read is carried over.
    If running, `Virsh#ip_address` → `virsh domifaddr --source lease`, then `--source arp` if
    the lease table is empty.
    `VMCache.diff` derives CPU usage, swap-out rate and balloon-data age from the previous entry.
@@ -98,9 +102,10 @@ deadline; all others are UI-thread-confined).
 
 1. `GuestAgent#swap` raises `GuestAgent::Unavailable` for a phrasing in `EXPECTED_FAILURES`,
    anything else for a reply it does not understand.
-2. `GuestSwapSampler` counts a strike and answers `nil`; on the third it arms a 60 s `Cooldown`
+2. `GuestSampler` counts a strike for that read and answers `nil`; on the third it arms a 60 s `Cooldown`
    write-off, logging `debug` for an expected failure and `warn` once otherwise.
-3. The `VMCache` carries `guest_swap: nil`; the SWAP row draws a dashed level with a `-`.
+3. The `VMCache` carries `guest_swap: nil` or `guest_fs_usage: nil`; the SWAP or disk row
+   draws a dashed guest cell with a `-`.
 4. `Cache#update` calls `forget_guest` for a domain it sees not running, so shutdown strikes
    do not greet the next boot.
 
@@ -113,7 +118,7 @@ both threads — then `Virt::Cache` for the data model everything else reads, th
 ## What is deliberately absent
 
 - **No ruby-libvirt binding** — every backend call is a `virsh` process or REPL (`D_virsh_cli`).
-- **No agent shipped into the guest, and no `guest-exec`** — the guest channel reads files only
+- **No agent shipped into the guest, and no `guest-exec`** — the polled guest channel only reads
   (`D_guest_swap_level`, `D_no_force_drain`).
 - **No per-VM `virsh` sessions or circuit breakers** — one child serves the fleet
   (`D_virsh_session`).

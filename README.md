@@ -166,6 +166,26 @@ OS libosinfo ships.
 Guests that cannot answer — no agent, not declared Linux, or a distro that blocks the
 agent's file-read commands — show `-` and are asked again a minute later.
 
+Each disk gets a row too, for a running VM (`d` adds the stopped ones):
+
+```
+    vda: 45%   55G #########-----------  122G │   3%  111G #----------------  3.6T
+```
+
+- **left — how full the guest has filled the disk:** the filesystems it has mounted from it,
+  added up, as the guest's own `df` would say. Asked every 30 seconds; needs
+  `qemu-guest-agent`, any OS. `-` means the guest could not be asked (or mounts nothing from
+  that disk). A stopped VM leaves it blank: there is no guest to ask.
+- **right — what the disk image costs the host:** the space its blocks take on the host disk,
+  as `du` counts it, out of that host disk's size. For an overlay on a base image (a VM
+  cloned from a shared cloud image), only the overlay's own file: the base is shared and not
+  counted here.
+
+The right side well above the left means the image holds blocks the guest no longer uses:
+time to `fstrim` in the guest (with `discard='unmap'` on the disk), or compact the image.
+The other way round is normal for an overlay, which holds only what the guest has changed
+since it was cloned, or for a compressed image.
+
 More info at [VirtIO Memory Ballooning](https://pmhahn.github.io/virtio-balloon/).
 
 ## Automatic Balloon inflate/deflate

@@ -22,6 +22,10 @@ class ScriptedGuestAgent
 
     @reply
   end
+
+  # @param domain [String] VM name
+  # @return [Hash{String => ResourceUsage}] the scripted level, as `vda`'s
+  def fs_usage(domain) = { 'vda' => swap(domain) }
 end
 
 # A healthy sample: 3 GiB of the guest's 4 GiB swap device occupied.
@@ -31,15 +35,15 @@ MUTE = Virt::GuestAgent::Unavailable.new('error: QEMU guest agent is not connect
 # One nobody foresaw — an agent replying with something it does not document.
 BROKEN = RuntimeError.new('win11: guest-file-read gave no buf-b64: {"count" => 0}')
 
-describe Virt::GuestSwapSampler do
+describe Virt::GuestSampler do
   before { @log = Helpers.setup_dummy_logger }
 
   # @param reply [ResourceUsage, StandardError] what the agent under the sampler answers
   # @param backoff_seconds [Integer] how long a write-off lasts
-  # @return [Array(Virt::GuestSwapSampler, ScriptedGuestAgent)] the sampler and its agent
-  def sampler_over(reply, backoff_seconds: Virt::GuestSwapSampler::BACKOFF_SECONDS)
+  # @return [Array(Virt::GuestSampler, ScriptedGuestAgent)] the sampler and its agent
+  def sampler_over(reply, backoff_seconds: Virt::GuestSampler::BACKOFF_SECONDS)
     agent = ScriptedGuestAgent.new(reply)
-    [Virt::GuestSwapSampler.new(agent: agent, backoff_seconds: backoff_seconds), agent]
+    [Virt::GuestSampler.new(agent: agent, backoff_seconds: backoff_seconds), agent]
   end
 
   it 'passes a good sample straight through' do
@@ -52,7 +56,7 @@ describe Virt::GuestSwapSampler do
     sampler, agent = sampler_over(MUTE)
     5.times { assert_nil sampler.swap('win11') }
 
-    assert_equal Virt::GuestSwapSampler::FAILURES_BEFORE_BACKOFF, agent.domains.size
+    assert_equal Virt::GuestSampler::FAILURES_BEFORE_BACKOFF, agent.domains.size
     assert_equal 1, @log.string.scan('not asking again').size
   end
 
@@ -67,13 +71,13 @@ describe Virt::GuestSwapSampler do
 
   it 'waits out the shipped BACKOFF_SECONDS, not merely some write-off' do
     sampler, agent = sampler_over(MUTE) # the real 60s, not a spec's 0
-    Virt::GuestSwapSampler::FAILURES_BEFORE_BACKOFF.times { sampler.swap('win11') }
+    Virt::GuestSampler::FAILURES_BEFORE_BACKOFF.times { sampler.swap('win11') }
     written_off_at = agent.domains.size
 
-    Uptime.travel(Virt::GuestSwapSampler::BACKOFF_SECONDS - 1) { assert_nil sampler.swap('win11') }
+    Uptime.travel(Virt::GuestSampler::BACKOFF_SECONDS - 1) { assert_nil sampler.swap('win11') }
     assert_equal written_off_at, agent.domains.size, 'a second before the write-off lapses, still not asked'
 
-    Uptime.travel(Virt::GuestSwapSampler::BACKOFF_SECONDS) { assert_nil sampler.swap('win11') }
+    Uptime.travel(Virt::GuestSampler::BACKOFF_SECONDS) { assert_nil sampler.swap('win11') }
     assert_equal written_off_at + 1, agent.domains.size, 'asked once more the moment it lapses'
   end
 
@@ -81,7 +85,7 @@ describe Virt::GuestSwapSampler do
     sampler, agent = sampler_over(MUTE, backoff_seconds: 0)
     10.times { assert_nil sampler.swap('win11') }
 
-    assert_equal Virt::GuestSwapSampler::FAILURES_BEFORE_BACKOFF + 7, agent.domains.size,
+    assert_equal Virt::GuestSampler::FAILURES_BEFORE_BACKOFF + 7, agent.domains.size,
                  'a still-mute guest must re-arm on its single probe, not spend three'
   end
 
@@ -100,12 +104,32 @@ describe Virt::GuestSwapSampler do
   it 'forgets a written-off guest' do
     sampler, agent = sampler_over(MUTE)
     5.times { sampler.swap('win11') }
-    assert_equal Virt::GuestSwapSampler::FAILURES_BEFORE_BACKOFF, agent.domains.size
+    assert_equal Virt::GuestSampler::FAILURES_BEFORE_BACKOFF, agent.domains.size
 
     sampler.forget('win11')
     assert_nil sampler.swap('win11'), 'the guest still cannot answer'
-    assert_equal Virt::GuestSwapSampler::FAILURES_BEFORE_BACKOFF + 1, agent.domains.size,
+    assert_equal Virt::GuestSampler::FAILURES_BEFORE_BACKOFF + 1, agent.domains.size,
                  'a forgotten guest must be asked again at once'
+  end
+
+  # The RHEL agent blocks the swap level's guest-file-* yet answers guest-get-fsinfo.
+  it 'writes off each read on its own strikes' do
+    sampler, agent = sampler_over(MUTE)
+    5.times { sampler.swap('fedora') }
+    agent.reply = LEVEL
+    assert_equal({ 'vda' => LEVEL }, sampler.fs_usage('fedora'), 'a written-off swap level must not blank the disks')
+    assert_nil sampler.swap('fedora'), 'and the swap level stays written off'
+  end
+
+  it 'forgets both reads of a guest' do
+    sampler, agent = sampler_over(MUTE)
+    3.times { sampler.swap('win11') }
+    3.times { sampler.fs_usage('win11') }
+    sampler.forget('win11')
+
+    agent.reply = LEVEL
+    assert_equal LEVEL, sampler.swap('win11')
+    assert_equal({ 'vda' => LEVEL }, sampler.fs_usage('win11'))
   end
 
   # `TTY::Logger` renders the level as a word, so 'warning' is what a warn line is spotted by.

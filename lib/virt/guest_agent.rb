@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
 module Virt
-  # Reads what only a guest itself knows — today its swap *level* — by calling the QEMU
-  # guest agent (`qemu-guest-agent`) inside the VM via `virsh qemu-agent-command`:
+  # Reads what only a guest itself knows — its swap *level* and how full its disks are — by
+  # calling the QEMU guest agent (`qemu-guest-agent`) inside the VM via `virsh`:
   #
   #   agent = GuestAgent.new(runner: VirshSession.new)
-  #   agent.swap('Ubuntu')   # => #<ResourceUsage total=4GiB available=2.8GiB>
+  #   agent.swap('Ubuntu')       # => #<ResourceUsage total=4GiB available=2.8GiB>
+  #   agent.fs_usage('Ubuntu')   # => {"vda" => #<ResourceUsage 3.4G/15G (23%)>}
   #   agent.read_file('Ubuntu', '/proc/pressure/memory')   # the raw channel
   #
   # `domstats` cannot answer this. Its `pswpin`/`pswpout` are counters that only ever climb,
@@ -21,7 +22,7 @@ module Virt
   # Stateless, and loud: every failure raises, sorted into {Unavailable} (a guest that was
   # never going to answer — the normal state of a host with agent-less guests) and everything
   # else (an agent that replied with something it does not document). Polling a fleet through
-  # this wants {GuestSwapSampler}, which turns the first kind into a blank gauge and stops
+  # this wants {GuestSampler}, which turns the first kind into a blank gauge and stops
   # asking a guest that keeps failing.
   #
   # Never on the UI thread: three RPCs against a sick guest is exactly the stall that must
@@ -45,7 +46,8 @@ module Virt
 
     # The failures a healthy host produces on its own, matched against the error message to
     # raise {Unavailable} rather than a bare error. In order: the agent is not up (a guest
-    # mid-boot or mid-shutdown, or one that never had `qemu-guest-agent`), it went away
+    # mid-boot or mid-shutdown, or one that never had `qemu-guest-agent`), the domain has no
+    # agent channel at all, it went away
     # mid-command, the RPC is blocked or absent (`guest-file-*` is in `BLOCK_RPCS` as
     # RHEL/Fedora ship the agent), the VM stopped between the `domstats` snapshot and this
     # read, and the guest simply has no `/proc/meminfo` — a non-Linux guest whose definition
@@ -55,7 +57,7 @@ module Virt
     # error *class* only, never the write-off, so a miss costs one `warn` line from whoever
     # is polling and a new libvirt phrasing cannot change what virtui does. See design/decisions.md
     # D_guest_agent_backoff.
-    EXPECTED_FAILURES = ['guest agent is not responding', 'guest agent disappeared',
+    EXPECTED_FAILURES = ['guest agent is not responding', 'guest agent is not configured', 'guest agent disappeared',
                          'has not been found', 'domain is not running',
                          'no such file or directory'].freeze
 
@@ -87,6 +89,31 @@ module Virt
     # @raise [Unavailable] if the guest was never going to answer
     # @raise [RuntimeError] if the agent, or the file it returned, is not what it documents
     def swap(domain) = System::MemoryStat.parse(read_file(domain, MEMINFO_PATH)).swap
+
+    # How full the guest has filled each of its disks, from its mounted filesystems.
+    #
+    #   agent.fs_usage('vt-ubuntu')   # => {"vda" => #<ResourceUsage 3.4G/15G (23%)>}
+    #
+    # `virsh guestinfo --filesystem`, libvirt's wrapper over `guest-get-fsinfo`, rather than
+    # the raw agent command: only libvirt can say which host target (`vda`) a guest disk is.
+    # It takes no `--timeout` and waits on a hung agent for as long as it hangs, so a
+    # `guest-ping` that does goes first (design/research.md R_guestinfo).
+    #
+    # @param domain [String] VM name; must be running, or the call fails
+    # @return [Hash{String => ResourceUsage}] see {GuestStorage.fs_usage}
+    # @raise [Unavailable] if the guest was never going to answer
+    # @raise [RuntimeError] if `virsh` fails otherwise, or prints what it does not document
+    def fs_usage(domain)
+      agent_command(domain, 'guest-ping')
+      guestinfo = begin
+        @runner.query('guestinfo', domain, '--filesystem')
+      rescue StandardError => e
+        raise Unavailable, e.message if self.class.expected_failure?(e)
+
+        raise
+      end
+      GuestStorage.fs_usage(guestinfo)
+    end
 
     # Reads one file from inside the guest, in three agent calls: open, read, close.
     #

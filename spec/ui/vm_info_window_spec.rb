@@ -13,7 +13,7 @@ module Tuile
     def text_of(window) = window.instance_variable_get(:@view).text.to_s.lines.map(&:rstrip)
 
     it 'shows a fully featured guest' do
-      disks = [Virt::DiskStat.new('vda', 3.GiB, 40.GiB, 3.GiB, nil), Virt::DiskStat.new('vdb', 0, 1.GiB, 0, nil)]
+      disks = [Virt::DiskStat.new('vda', 40.GiB, 3.GiB, nil), Virt::DiskStat.new('vdb', 1.GiB, 0, nil)]
       assert_equal <<~TEXT.lines.map(&:rstrip), text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), disks))
         OS        linux — http://ubuntu.com/ubuntu/24.04
         Machine   x86_64, pc-q35-10.2, KVM
@@ -71,7 +71,7 @@ module Tuile
     end
 
     it "shows the guest's partitions in disk order under their disk, with what is mounted from each" do
-      disks = [Virt::DiskStat.new('vda', 0, 14.GiB, 0, nil)]
+      disks = [Virt::DiskStat.new('vda', 14.GiB, 0, nil)]
       text = text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), disks, Helpers.vt_ubuntu_storage))
       at = text.index('       /var/lib/libvirt/images/vt-ubuntu.qcow2')
       assert_equal <<~TEXT.lines.map { "       #{_1.rstrip}" }, text[at, 5]

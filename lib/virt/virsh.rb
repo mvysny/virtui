@@ -11,7 +11,7 @@ module Virt
   # but parsing:
   #
   #   # what the app builds:
-  #   Virsh.new(runner: session, swap_sampler: GuestSwapSampler.new(agent: GuestAgent.new(runner: session)))
+  #   Virsh.new(runner: session, guest_sampler: GuestSampler.new(agent: GuestAgent.new(runner: session)))
   #   Virsh.new(runner: VirshSpawn.new)           # a process per command
   #   Virsh.new                                   # ditto, and the parser-spec default
   #
@@ -36,11 +36,11 @@ module Virt
     OSINFO_ID = /<os\s+id="([^"]*)"/
 
     # @param runner [VirshSpawn, VirshSession] transport for every `virsh` invocation
-    # @param swap_sampler [GuestSwapSampler, nil] the channel {#guest_swap} reads through, or
-    #   `nil` for a backend that reports no swap levels at all
-    def initialize(runner: VirshSpawn.new, swap_sampler: nil)
+    # @param guest_sampler [GuestSampler, nil] the channel {#guest_swap} and {#guest_fs_usage}
+    #   read through, or `nil` for a backend that reports neither
+    def initialize(runner: VirshSpawn.new, guest_sampler: nil)
       @runner = runner
-      @swap_sampler = swap_sampler
+      @guest_sampler = guest_sampler
       # Spawned, for the reason {#domain_config} is: {#guest_storage} runs behind a progress popup.
       @spawned_agent = GuestAgent.new(runner: VirshSpawn.new)
       @root_grow = GuestRootGrow.new(runner: VirshSpawn.new, agent: @spawned_agent)
@@ -57,8 +57,21 @@ module Virt
     #
     # @param domain_name [String] VM name; must be running
     # @return [ResourceUsage, nil] swap used out of the guest's swap total, or `nil` if there
-    #   is no sampler to ask (see {GuestSwapSampler#swap} for the other reasons)
-    def guest_swap(domain_name) = @swap_sampler&.swap(domain_name)
+    #   is no sampler to ask (see {GuestSampler#swap} for the other reasons)
+    def guest_swap(domain_name) = @guest_sampler&.swap(domain_name)
+
+    # The guest's own view of how full each of its disks is, from its mounted filesystems.
+    #
+    #   virsh.guest_fs_usage('vt-ubuntu')   # => {"vda" => #<ResourceUsage 3.4G/15G (23%)>}
+    #
+    # Out of {#domain_data} for the reason {#guest_swap} is, and cheaper than it: one
+    # `guest-ping` and one `guestinfo`, which {Cache} asks only every
+    # {Cache::GUEST_FS_SECONDS}.
+    #
+    # @param domain_name [String] VM name; must be running
+    # @return [Hash{String => ResourceUsage}, nil] keyed by host target, or `nil` if there is
+    #   no sampler to ask (see {GuestSampler#fs_usage} for the other reasons)
+    def guest_fs_usage(domain_name) = @guest_sampler&.fs_usage(domain_name)
 
     # The OS family the VM's definition declares, from its libosinfo metadata.
     #
@@ -223,12 +236,12 @@ module Virt
     # @raise [RuntimeError] if a command in the guest fails
     def grow_root(domain_name, plan) = @root_grow.grow(domain_name, plan)
 
-    # Drops what the swap sampler remembers about a VM's failed samples.
+    # Drops what the guest sampler remembers about a VM's failed samples.
     #
     # @param domain_name [String] VM name, typically one that has just stopped running (see
-    #   {GuestSwapSampler#forget})
+    #   {GuestSampler#forget})
     # @return [void]
-    def forget_guest(domain_name) = @swap_sampler&.forget(domain_name)
+    def forget_guest(domain_name) = @guest_sampler&.forget(domain_name)
 
     # Reads runtime stats for every VM via `virsh domstats`.
     #
@@ -281,7 +294,7 @@ module Virt
                                     values['balloon.rss'].to_i.KiB, last_updated)
         end
 
-        disk_stat = parse_disk_data(values)
+        disk_stat = parse_disk_data(values, state)
         ddata = DomainData.new(domain_info, state, sampled_at, cpu_time, mem_stat, disk_stat)
         result[domain] = ddata
       end
@@ -291,9 +304,15 @@ module Virt
     # Extracts per-disk stats from the flattened `block.N.*` keys of one VM's domstats.
     # Disks missing any of name/allocation/capacity/physical are skipped.
     #
+    # The image's `du` is `allocation` on a shut-off domain but `physical` on a running one:
+    # libvirt fills both fields from a different source per state, and a running domain's
+    # `allocation` is QEMU's highest written offset — 0 right after a start
+    # (design/research.md R_virsh_domstats_block).
+    #
     # @param data [Hash{String => String}] one VM's domstats, e.g. `block.0.capacity=1231`
+    # @param state [Symbol] the domain's state, as {#domain_data} maps it
     # @return [Array<DiskStat>] parsed stats, one per fully-described disk
-    private def parse_disk_data(data)
+    private def parse_disk_data(data, state)
       count = data['block.count'].to_i
       result = []
       (0...count).each do |block_index|
@@ -302,10 +321,9 @@ module Virt
         capacity = data["block.#{block_index}.capacity"]&.to_i
         physical = data["block.#{block_index}.physical"]&.to_i
         path = data["block.#{block_index}.path"]
-        unless allocation.nil? || capacity.nil? || physical.nil? || name.nil?
-          result << DiskStat.new(name, allocation, capacity,
-                                 physical, path)
-        end
+        next if allocation.nil? || capacity.nil? || physical.nil? || name.nil?
+
+        result << DiskStat.new(name, capacity, state == :shut_off ? allocation : physical, path)
       end
       result
     end

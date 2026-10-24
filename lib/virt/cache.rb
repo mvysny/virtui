@@ -15,6 +15,12 @@ module Virt
     # refreshes only every ~5s regardless (see {VMCache#stale?}).
     STATS_PERIOD_SECONDS = 2
 
+    # How long a guest's filesystem usage is kept before it is asked again. A disk fills over
+    # minutes, not ticks, so a read every 2s would be fifteen agent round-trips for one
+    # figure; a read that failed is retried the next tick, so a booting guest's disks appear
+    # as soon as its agent does.
+    GUEST_FS_SECONDS = 30
+
     # @return [System::MemoryStat] host memory statistics, refreshed by {#update}
     attr_reader :host_mem_stat
     # @return [CpuInfo] static host CPU topology
@@ -44,6 +50,9 @@ module Virt
       # a restart to notice. Lives here rather than on {Virsh} because {#update} owns the
       # only thread allowed to make that read.
       @guest_os = {}
+      # Hash{String => Cooldown}: until when each running guest's last good
+      # {VMCache#guest_fs_usage} stands; see {GUEST_FS_SECONDS}.
+      @guest_fs_fresh = {}
       # So that {#update} won't be run concurrently.
       @write_lock = Thread::Mutex.new
       update
@@ -139,8 +148,8 @@ module Virt
     # @!attribute [r] guest_swap
     #   @return [ResourceUsage, nil] how full the guest's swap device is, read from the guest
     #     itself; `nil` for a VM that was not asked (its {#guest_os} does not declare Linux)
-    #     or could not answer (see {GuestSwapSampler#swap}) — which is all of them unless the
-    #     backend was given a {GuestSwapSampler}
+    #     or could not answer (see {GuestSampler#swap}) — which is all of them unless the
+    #     backend was given a {GuestSampler}
     #
     #     The companion to {#swap_out_rate}, and the other half of the story: the rate says
     #     whether reclaim is hitting the device *now*, this says how much the guest is still
@@ -154,8 +163,12 @@ module Virt
     #   @return [String, nil] the VM's address as the host knows it, re-read every tick (see
     #     {Virsh#ip_address}); `nil` for a stopped VM, or one neither the DHCP leases nor the
     #     host's neighbour table has seen
+    # @!attribute [r] guest_fs_usage
+    #   @return [Hash{String => ResourceUsage}, nil] how full the guest has filled each disk,
+    #     keyed by host target (see {Virsh#guest_fs_usage}), at most {GUEST_FS_SECONDS} old;
+    #     `nil` for a stopped VM, or one that could not answer
     class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds, :swap_out_rate, :guest_swap,
-                                :guest_os, :ip_address)
+                                :guest_os, :ip_address, :guest_fs_usage)
       # Builds a cache entry by diffing the previous entry against the current snapshot
       # (for CPU usage, memory-data age and swap-out rate).
       #
@@ -164,14 +177,16 @@ module Virt
       # @param guest_swap [ResourceUsage, nil] this tick's guest-agent swap level, if any
       # @param guest_os [GuestOS] what this domain's definition declares
       # @param ip_address [String, nil] this tick's address, if any
+      # @param guest_fs_usage [Hash{String => ResourceUsage}, nil] the guest's filesystem usage, if any
       # @return [VMCache] the derived cache entry
-      def self.diff(prev_cache, next_data, guest_swap = nil, guest_os = GuestOS::UNKNOWN, ip_address = nil)
+      def self.diff(prev_cache, next_data, guest_swap = nil, guest_os = GuestOS::UNKNOWN, ip_address = nil,
+                    guest_fs_usage = nil)
         prev_data = prev_cache&.data
         # Age is wall-clock (sampled_at minus last_updated), never the delta between two
         # polls' last_updated — see design/decisions.md D_wall_clock_mem_age.
         age = next_data.mem_stat.nil? ? nil : ((next_data.sampled_at / 1000) - next_data.mem_stat.last_updated)
         VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age,
-                    swap_out_rate(prev_cache, next_data), guest_swap, guest_os, ip_address)
+                    swap_out_rate(prev_cache, next_data), guest_swap, guest_os, ip_address, guest_fs_usage)
       end
 
       # Bytes-per-second at which the guest wrote to swap between the previous sample and
@@ -248,13 +263,16 @@ module Virt
           if data.running?
             guest_swap = guest_os.no_proc_meminfo? ? nil : @virt.guest_swap(did)
             ip_address = @virt.ip_address(did)
+            guest_fs_usage = guest_fs_usage(did, old_cache[did]&.guest_fs_usage)
           else
             # Strikes burned during the shutdown must not greet the next boot.
             guest_swap = nil
             ip_address = nil
+            guest_fs_usage = nil
+            @guest_fs_fresh.delete(did)
             @virt.forget_guest(did)
           end
-          cache[did] = VMCache.diff(old_cache[did], data, guest_swap, guest_os, ip_address)
+          cache[did] = VMCache.diff(old_cache[did], data, guest_swap, guest_os, ip_address, guest_fs_usage)
           # A VM just (re)started: arm its guest mem-stat collection, or the balloon stats
           # stay frozen (see {Virsh#set_mem_stats_period}).
           @virt.set_mem_stats_period(did, STATS_PERIOD_SECONDS) if data.running? && !prev_data&.running?
@@ -264,21 +282,34 @@ module Virt
         @host_mem_stat = @sysinfo.memory_stats
         @host_cpu_usage = @sysinfo.cpu_usage(@host_cpu_usage)
 
-        qcow2_files = domain_data.values.flat_map(&:disk_stat).filter { |it| !it.path.nil? }.map { |it| [it.path, it.physical] }
+        qcow2_files = domain_data.values.flat_map(&:disk_stat).filter { |it| !it.path.nil? }.map { |it| [it.path, it.allocated] }
         @disks = @sysinfo.disk_usage(qcow2_files)
       end
     end
 
-    # How much host disk space a VM disk's qcow2 file occupies, against that disk's total.
+    # How much host disk space a VM disk's image occupies, against that host disk's total.
     #
-    # @param disk_stat [DiskStat] the VM disk whose backing file to locate
-    # @return [ResourceUsage, nil] `physical` size out of the disk's total, or `nil` if the
-    #   file isn't found on any tracked disk
+    # @param disk_stat [DiskStat] the VM disk whose image to locate
+    # @return [ResourceUsage, nil] {DiskStat#allocated} out of the host disk's total, or `nil`
+    #   if the image isn't found on any tracked disk
     def host_disk_usage(disk_stat)
       du = @disks.values.find { |it| it.qcow2_files.include?(disk_stat.path) }
       return nil if du.nil?
 
-      ResourceUsage.of(du.usage.total, disk_stat.physical)
+      ResourceUsage.of(du.usage.total, disk_stat.allocated)
+    end
+
+    # A running guest's filesystem usage: the last good read while it is fresh, else a new one.
+    #
+    # @param domain [String] VM name; must be running
+    # @param previous [Hash{String => ResourceUsage}, nil] what the last tick carried
+    # @return [Hash{String => ResourceUsage}, nil] see {VMCache#guest_fs_usage}
+    private def guest_fs_usage(domain, previous)
+      return previous if @guest_fs_fresh[domain]&.active?
+
+      @virt.guest_fs_usage(domain).tap do |usage|
+        @guest_fs_fresh[domain] = Cooldown.of(GUEST_FS_SECONDS) unless usage.nil?
+      end
     end
 
     # @return [Integer] sum of the RSS (host memory) of all VMs, in bytes

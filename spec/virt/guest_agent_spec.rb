@@ -36,6 +36,21 @@ HEALTHY_AGENT = {
   'guest-file-close' => '{"return":{}}'
 }.freeze
 
+# A {ScriptedAgentRunner} that also answers `guestinfo`, with the recorded vt-ubuntu fixture.
+class FsAgentRunner < ScriptedAgentRunner
+  # @param ping [String, StandardError] the `guest-ping` reply, or an error to raise instead
+  def initialize(ping)
+    super('guest-ping' => ping)
+  end
+
+  def query(*args)
+    return super unless args.first == 'guestinfo'
+
+    @calls << args
+    File.read('spec/virt/guestinfo_vt-ubuntu.txt')
+  end
+end
+
 describe Virt::GuestAgent do
   before { @log = Helpers.setup_dummy_logger }
 
@@ -114,6 +129,29 @@ describe Virt::GuestAgent do
       error = error_of_read(HEALTHY_AGENT.merge('guest-file-read' => '{"return":{"count":0}}'))
       refute_kind_of Virt::GuestAgent::Unavailable, error
       assert_includes error.message, 'gave no buf-b64'
+    end
+  end
+
+  context 'fs_usage' do
+    it 'pings the agent, then reads the filesystems through guestinfo' do
+      runner = FsAgentRunner.new('{"return":{}}')
+      usage = Virt::GuestAgent.new(runner: runner).fs_usage('vt-ubuntu')
+      assert_equal 3_585_975_808, usage['vda'].used
+      assert_equal [['qemu-agent-command', 'vt-ubuntu', '{"execute":"guest-ping"}', '--timeout', '2'],
+                    %w[guestinfo vt-ubuntu --filesystem]], runner.calls
+    end
+
+    # guestinfo has no --timeout and waits out a hung agent; the ping is what bounds that.
+    it 'never reaches guestinfo when the ping times out' do
+      runner = FsAgentRunner.new(RuntimeError.new("error: guest agent command timed out: guest agent didn't " \
+                                                  "respond to command within '2' seconds"))
+      assert_raises(RuntimeError) { Virt::GuestAgent.new(runner: runner).fs_usage('vt-ubuntu') }
+      assert_equal ['qemu-agent-command'], runner.calls.map(&:first)
+    end
+
+    it 'classifies a domain with no agent channel as unavailable' do
+      runner = FsAgentRunner.new(RuntimeError.new('error: argument unsupported: QEMU guest agent is not configured'))
+      assert_raises(Virt::GuestAgent::Unavailable) { Virt::GuestAgent.new(runner: runner).fs_usage('vt-bios') }
     end
   end
 
