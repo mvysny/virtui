@@ -59,11 +59,6 @@ chain or internal snapshots rather than handle them.
 
 ## Open questions
 
-- `Q_negative_overhead`: after the live trim, the VM pane's host column for vt-ubuntu's vda read
-  `-79%  525M`. `DiskStat#overhead_percent` is `physical / allocation − 1`, and a trim drops
-  `physical` while `allocation` stays (`R_virsh_domstats_block`). A trim feature has to decide
-  what that column means once trims happen: show host bytes only, or measure against
-  something that shrinks.
 - `Q_what_shrank`: when convert "shrank the image considerably", was that `ls -l` or `du` /
   `qemu-img info`'s "disk size"? If it was the length only, the live trim already gave back the
   space and the convert was cosmetic. If `du` dropped a lot, discard was broken *and* the

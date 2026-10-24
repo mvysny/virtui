@@ -183,7 +183,7 @@ module UI
         data.disk_stat.each do |ds| # {Virt::DiskStat}
           host_du = @virt_cache.host_disk_usage(ds)
           rows << split_row(domain_name, "   #{theme.disk_label(ds.name[0..3].rjust(4))}") do |width|
-            [usage_bar(width, ds.guest_usage, theme[:disk_vm]), progress_bar_qcow2(width, ds, host_du)]
+            [guest_disk_bar(width, cache, ds.name), usage_bar(width, host_du, theme[:disk])]
           end
         end
       end
@@ -384,13 +384,16 @@ module UI
     end
 
     # Opens the maintenance menu for the selected VM. Resizing a disk image needs the VM shut
-    # off, growing its root filesystem needs it running; the wrong state gets an alert saying so.
-    # The health check runs in any state, judging a stopped VM by its definition alone.
+    # off, growing its root filesystem needs it running; the item the state rules out is
+    # disabled. The menu is a snapshot, so a VM that changed state since gets an alert instead.
+    # The health check is never disabled: a stopped VM is judged by its definition alone.
     # @return [void]
     def show_maintenance_popup
       vm = current_vm || return
-      options = [['r', 'Resize disk image… (VM stopped)'], ['g', 'Grow root filesystem… (VM running)'],
-                 ['h', 'Health check… (full scan: VM running)']]
+      state = @virt_cache.state(vm)
+      options = [['r', 'Resize disk image…', state == :shut_off ? {} : { disabled: 'shut the VM down first' }],
+                 ['g', 'Grow root filesystem…', state == :running ? {} : { disabled: 'start the VM first' }],
+                 ['h', 'Health check… (full scan: VM running)', {}]]
       Component::PickerWindow.open('Maintenance', options) do |key|
         state = @virt_cache.state(vm)
         if key == 'h'
@@ -488,14 +491,18 @@ module UI
     end
 
     # Opens the power menu for the selected VM: start, graceful shutdown, force off, soft
-    # reboot or hard reset. Each action logs an error if the VM is in the wrong state.
+    # reboot or hard reset, the ones the VM's state rules out disabled. The menu is a snapshot,
+    # so each action still logs an error if the VM changed state since.
     # @return [void]
     def show_power_popup
       current_vm = self.current_vm || return
       state = @virt_cache.state(current_vm)
-      opts = [['s', 'Start'], ['o', 'shut dOwn gracefully'], ['O', 'force Off'], ['r', 'reboot (soft)'],
-              ['R', 'Reset (hard)']]
+      stopped = state == :shut_off ? {} : { disabled: 'VM not stopped' }
+      running = state == :running ? {} : { disabled: 'VM not running' }
+      opts = [['s', 'Start', stopped], ['o', 'shut dOwn gracefully', running], ['O', 'force Off', running],
+              ['r', 'reboot (soft)', running], ['R', 'Reset (hard)', running]]
       Component::PickerWindow.open('Power', opts) do |key|
+        state = @virt_cache.state(current_vm)
         if key == 's' # start
           if state == :shut_off
             $log.info "Starting '#{current_vm}'"
@@ -767,30 +774,28 @@ module UI
       end
     end
 
-    # Renders the host-side disk bar for a VM disk: the qcow2 file's usage of its host
-    # disk, prefixed by a color-coded storage-overhead percentage.
+    # How full the guest has filled one disk — the guest half of a disk row; the host half is
+    # what the disk's image costs the host.
     #
-    # @param width [Integer] the width of the bar, in characters
-    # @param ds [Virt::DiskStat] the VM disk to render
-    # @param host_du [ResourceUsage, nil] the host disk the qcow2 file lives on, as
-    #   {Virt::Cache#host_disk_usage} reports it
-    # @return [String, nil] the rendered bar, or `nil` if the disk isn't tracked by the cache
-    def progress_bar_qcow2(width, ds, host_du)
-      return nil if host_du.nil?
+    #    23%  3.4G #####--------------------    15G   <- the guest's filesystems on vda
+    #      -        -------------------------         <- running, but the guest cannot say
+    #                                                  <- stopped: nobody to ask
+    #
+    # The filesystems' total, not the disk's capacity: what the guest can still write.
+    # Dashes for the reason {#swap_level_bar} draws them.
+    #
+    # @param width [Integer] width of one usage-bar column
+    # @param cache [Virt::Cache::VMCache] the VM
+    # @param target [String] the disk's host target, e.g. `vda`
+    # @return [String] the rendered segment
+    def guest_disk_bar(width, cache, target)
+      return ' ' * width unless cache.data.running?
 
       theme = screen.theme
-      overhead_percent = ds.overhead_percent
-      overhead_token = case overhead_percent
-                       when ..10
-                         :ok
-                       when 10..20
-                         :warn
-                       else
-                         :error
-                       end
-      op = theme.fg(overhead_token, overhead_percent.to_s.rjust(3))
-      prefix = "#{op}% #{format_byte_size(host_du.used).rjust(5)} "
-      prefix + progress_bar('', format_byte_size(host_du.total), width - 11, host_du.used, host_du.total, theme[:disk])
+      usage = cache.guest_fs_usage&.[](target)
+      return usage_bar(width, usage, theme[:disk_vm]) unless usage.nil?
+
+      progress_bar('  -', '', width, 0, 1, theme[:disk_vm])
     end
   end
 end

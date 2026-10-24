@@ -62,18 +62,18 @@ describe Virt::Virsh do
   context 'guest_swap' do
     before { Helpers.setup_dummy_logger }
 
-    it 'is nil without a swap sampler, and never touches the transport' do
+    it 'is nil without a guest sampler, and never touches the transport' do
       runner = RecordingRunner.new
       assert_nil Virt::Virsh.new(runner: runner).guest_swap('ubuntu')
       assert_empty runner.calls
     end
 
-    it 'delegates to the swap sampler it was given' do
+    it 'delegates to the guest sampler it was given' do
       # The sampler's own failure path (no agent in the guest) is what a RecordingRunner's
       # empty reply produces, so this asserts the wiring, not the parse.
       runner = RecordingRunner.new
-      sampler = Virt::GuestSwapSampler.new(agent: Virt::GuestAgent.new(runner: runner))
-      assert_nil Virt::Virsh.new(runner: runner, swap_sampler: sampler).guest_swap('ubuntu')
+      sampler = Virt::GuestSampler.new(agent: Virt::GuestAgent.new(runner: runner))
+      assert_nil Virt::Virsh.new(runner: runner, guest_sampler: sampler).guest_swap('ubuntu')
       assert_equal 'qemu-agent-command', runner.calls.first[1]
     end
   end
@@ -252,8 +252,9 @@ describe Virt::Virsh do
     assert_equal 'ubuntu: CPUs: 8, RAM: 12G; running; actual 12G(rss=3.4G); guest: 241M/11G (2%) (unused=11G, disk_caches=37M)',
                  result['ubuntu'].to_s
     assert_equal 'win11: CPUs: 4, RAM: 8G; shut_off', result['win11'].to_s
-    assert_equal 'sda: 18G/128G (13%); physical 18G (2% overhead)', result['win11'].disk_stat.join(',')
-    assert_equal 'vda: 23G/64G (36%); physical 25G (9% overhead)', result['ubuntu'].disk_stat.join(',')
+    # Shut off, the image's du is `allocation`; running, it is `physical` (R_virsh_domstats_block).
+    assert_equal 'sda: 18G on host, of 128G', result['win11'].disk_stat.join(',')
+    assert_equal 'vda: 25G on host, of 64G', result['ubuntu'].disk_stat.join(',')
   end
 
   it 'parses the guest swap counters, converting KiB to bytes' do

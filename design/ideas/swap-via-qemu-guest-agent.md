@@ -2,7 +2,7 @@
 
 **Status:** both questions this note was opened for are decided and graduated.
 The swap-level **read is BUILT** (2026-08-21) — {Virt::GuestAgent},
-{Virt::GuestSwapSampler}, the `SWAP` row; the choice and roads not taken are
+{Virt::GuestSampler}, the `SWAP` row; the choice and roads not taken are
 design/decisions.md D_guest_swap_level, the contract is the yardocs, the user-facing
 half is README. The **force-drain is REJECTED** (2026-08-31) — parked swap is
 left to drain by demand paging; the analysis, the `swapoff`/`process_madvise`

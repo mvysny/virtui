@@ -111,11 +111,8 @@ module Virt
     # @raise [RuntimeError] on a line that is not `key : value`, or a geometry file that does
     #   not say what it should
     def self.parse(guestinfo, &read_file)
-      values = guestinfo.lines.map(&:chomp).reject(&:empty?).to_h do |line|
-        match = line.match(/\A([\w.-]+)\s*: ?(.*)\z/) or raise "unparseable guestinfo line: #{line.inspect}"
-        match.captures
-      end
-      devices = (0...values['disk.count'].to_i).map { |i| device(values, "disk.#{i}") }
+      values = values(guestinfo)
+      devices = devices(values)
       filesystems = filesystems(values, devices)
       wholes = devices.reject { _1[:partition] }.select { _1[:alias] }
       parts = devices.select { _1[:partition] }
@@ -134,6 +131,45 @@ module Virt
                  filesystems: loose.map(&:last).uniq)
       end
       new(disks: disks)
+    end
+
+    # How full the guest has filled each host disk: its mounted filesystems summed per target.
+    #
+    #   GuestStorage.fs_usage(`virsh -q guestinfo vt-ubuntu --filesystem`)
+    #   # => {"vda" => #<ResourceUsage 3.4G/15G (23%)>}   /, /boot and /boot/efi together
+    #
+    # A target with nothing mounted (swap, a seed ISO, an unformatted disk) is absent, and so
+    # is a filesystem the agent could not stat. One spanning two disks (LVM, btrfs) counts
+    # whole on each.
+    #
+    # @param guestinfo [String] `virsh -q guestinfo <vm> --filesystem` output; `--disk` may
+    #   be there too
+    # @return [Hash{String => ResourceUsage}] keyed by host target, e.g. `vda`
+    # @raise [RuntimeError] on a line that is not `key : value`
+    def self.fs_usage(guestinfo)
+      values = values(guestinfo)
+      pairs = filesystems(values, devices(values)).filter_map do |_device, target, fs|
+        [target, fs] unless fs.total.nil? || fs.used.nil?
+      end
+      pairs.uniq.group_by(&:first).transform_values do |on_target|
+        on_target.sum(ResourceUsage::ZERO) { |_, fs| ResourceUsage.of(fs.total, fs.used) }
+      end
+    end
+
+    # @param guestinfo [String] `virsh guestinfo` output
+    # @return [Hash{String => String}] its `key : value` lines
+    # @raise [RuntimeError] on a line that is neither
+    private_class_method def self.values(guestinfo)
+      guestinfo.lines.map(&:chomp).reject(&:empty?).to_h do |line|
+        match = line.match(/\A([\w.-]+)\s*: ?(.*)\z/) or raise "unparseable guestinfo line: #{line.inspect}"
+        match.captures
+      end
+    end
+
+    # @param values [Hash{String => String}] from {.values}
+    # @return [Array<Hash{Symbol => Object}>] every `disk.N`, see {.device}
+    private_class_method def self.devices(values)
+      (0...values['disk.count'].to_i).map { |i| device(values, "disk.#{i}") }
     end
 
     # @param values [Hash{String => String}]

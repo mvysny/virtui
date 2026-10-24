@@ -53,7 +53,7 @@ load, on a box whose job is running VMs. Why not a peer class implementing the w
 *below* the parser leaves the parser specs and fixtures untouched. Why not one session per VM
 with per-VM circuit breakers: that machinery is justified only by an O(running VMs) workload,
 and the guest-agent reads that exist (`D_guest_swap_level`) are served fine by the one child —
-serialised behind its mutex, bounded by a per-call `--timeout`, with `Virt::GuestSwapSampler`'s
+serialised behind its mutex, bounded by a per-call `--timeout`, with `Virt::GuestSampler`'s
 write-off as the breaker. Revisit only if a wedged guest is measured delaying the fleet poll;
 the price is ~2.8 MB PSS per extra child (quote PSS, not the ~6.5× larger summed RSS, which is
 mostly shared pages). Why not frame replies on the `virsh # ` prompt: readline echoes the
@@ -174,7 +174,7 @@ virt-manager default, already in the managed VMs — is a channel to it that nee
 installed. So `Virt::GuestAgent` reads the guest's `/proc/meminfo` with the
 `guest-file-open`/`read`/`close` trio (`R_qemu_guest_agent`) and parses it through
 `System::MemoryStat.parse`, the same parser the host's copy goes through; every failure raises,
-and `Virt::GuestSwapSampler` above it answers `nil` and writes off a guest that keeps failing
+and `Virt::GuestSampler` above it answers `nil` and writes off a guest that keeps failing
 (`D_guest_agent_backoff`, `D_swap_sampler_split`), because no agent, or an agent with the RPC
 blocked, is a normal state that must never break the poll. The read is paired with
 `Virt::VirshSession` and not offered on `Virt::VirshSpawn`: three agent calls per VM per tick is
@@ -264,7 +264,7 @@ picked against the guest that will *never* answer, and both wrong for the guest 
 answer *yet*: at a 2 s poll three strikes are spent 6 s after libvirt calls a domain running,
 and no guest has `qemu-ga` connected 6 s after `virsh start`, so every VM start wrote its own
 healthy guest off for five minutes and said so; shutdown produced the same line from the other
-side. So `Virt::GuestSwapSampler` writes off for a flat 60 s (`BACKOFF_SECONDS`) — a booting
+side. So `Virt::GuestSampler` writes off for a flat 60 s (`BACKOFF_SECONDS`) — a booting
 guest is retried a minute later, by which point its agent is up, and the guest that never
 answers costs a probe a minute, accepted rather than optimized because a well-maintained fleet
 has the agent installed. The failures a healthy host produces on its own —
@@ -306,7 +306,7 @@ makes the short backoff load-bearing and `forget` mere hygiene.
 `/proc/meminfo` read, holds no state, and *raises* — `GuestAgent::Unavailable` for the failures
 a healthy host produces (`EXPECTED_FAILURES`), anything else for a reply the agent does not
 document — so `#swap` always returns a `ResourceUsage`, and a guest with no swap device reports
-a `total` of 0 because that is what its meminfo says. `Virt::GuestSwapSampler` holds the strike
+a `total` of 0 because that is what its meminfo says. `Virt::GuestSampler` holds the strike
 counts and the write-off, swallows every failure into `nil`, and picks the log level off the
 *class* of the error, never re-matching libvirt's phrasings. The seam is deliberately not a
 decorator: the sampler does not preserve the agent's interface and does not re-expose
@@ -328,10 +328,11 @@ project, the one swallow in the tree landing in the class that is otherwise stri
 tight write-off specs moving behind a fake backend, and `Virsh#guest_swap` re-acquiring the
 two-meanings-for-`nil` problem one level up. Why not a generic per-key circuit breaker beside
 `Cooldown`: one client today, and to be generic it needs a logging callback and an
-is-this-expected predicate injected — knobs ahead of the second concrete step; revisit if a
-second polled guest read appears, until then duplicating ~40 lines is the cheaper mistake. What
-it costs: `GuestSwapSampler` names one read and needs renaming or a sibling if a second arrives;
-`#read_file` is now explicitly unpoliced — fine for a one-shot read, wrong for a polled one,
+is-this-expected predicate injected — knobs ahead of the next concrete step. When the second
+polled read arrived (filesystem usage, `D_disk_row`), the sampler was renamed and its strikes
+were keyed by (domain, read), not by domain. The RHEL agent blocks the swap level's
+`guest-file-*` but answers `guest-get-fsinfo`, so one shared write-off would blank the disks
+too. What it costs: `#read_file` is explicitly unpoliced — fine for a one-shot read, wrong for a polled one,
 which belongs behind a sampler.
 
 ## D_no_force_drain — Why does virtui never drain a guest's swap?
@@ -484,7 +485,7 @@ VM, plus a check that the raise helped.
 ## D_cooldown_monotonic — Why does `Cooldown` count uptime, with a writable clock, rather than `Time.now` under Timecop?
 
 `Cooldown` holds the controller's suppression deadlines — `BallooningVM`'s back-off,
-`SwapOutShrinkVetoer`'s 60 s veto, `GuestSwapSampler`'s write-off, `VirshSession`'s read
+`SwapOutShrinkVetoer`'s 60 s veto, `GuestSampler`'s write-off, `VirshSession`'s read
 deadline — and what those mean is a *duration*: ten seconds is ten elapsed seconds, nothing
 about a calendar. On `Time.now` they would not deliver that: NTP correcting an offset or a
 manual `date` moves every live deadline. So `Cooldown` measures on `CLOCK_MONOTONIC`, read
@@ -661,12 +662,38 @@ separate GPT relocation: its write moves the backup table to the new end itself,
 `sfdisk --verify` found the result clean (`R_guest_root_grow`). Why not cancelable: the agent
 runs each command to its end whatever virtui does.
 
+## D_disk_row — Why does a disk row show the guest's filesystems on the left and the image's `du` on the right?
+
+The row answers two questions, like the RAM row: how full is the guest, and what does this disk
+cost the host. libvirt answers neither directly. Its `allocation` and `physical` swap meanings
+when a domain starts (`R_virsh_domstats_block`), so a 128 GiB qcow2 read 111G / 127G shut off
+and 126G / 111G running. Neither one is the guest's usage. `Virt::Virsh` now reads the image's
+`du` from whichever field holds it, and the guest's half comes from the guest:
+`guestinfo --filesystem`, summed per host target. The gap between the two halves is what tells
+you an image needs trimming or compacting.
+
+Why not add an overlay's base image to the right side: the base is shared, so adding it to
+every overlay counts it once per VM, and it would need a row of its own. The base is left out
+and the README says so. `vt-ubuntu` shows 3.3G in the guest against a 513M overlay on an
+819M base. Why not stat the image ourselves: libvirt's field is already `du` once the state picks it, and
+a stat needs search permission on a pool directory that may be root's. Why ask only every 30 s
+(`Cache::GUEST_FS_SECONDS`): a disk fills over minutes, and a failed read is retried the next
+tick, so a booting guest's disks appear as soon as its agent does. Why a `guest-ping` first:
+`guestinfo` takes no `--timeout` and blocks on a hung agent for as long as it hangs
+(`R_guestinfo`). On the shared session that would stall the whole tick until the session's own
+10 s timeout killed the child. A filesystem that hangs inside the guest (a dead NFS mount) can
+still get past the ping. The write-off bounds that case (`D_guest_agent_backoff`). Why blank on
+a stopped VM: reading the qcow2's partitions offline means opening the image, which virtui
+never does, and the last figure seen may be out of date (`M` resizes a stopped disk). Why the
+filesystems' total rather than the disk's capacity: the row says what the guest can still
+write, and unpartitioned space is something the `i` window shows.
+
 ## D_health_check — Why is the health check an `M` item that judges a stopped VM by its definition, and names its fixes rather than applying them?
 
 Its main check needs no guest: the host's `<driver discard=>` alone decides whether freed space
 leaves the image, and the guest cannot see it (`R_discard_reclaim`). So a stopped VM gets the
-definition's checks and one skipped line for the guest's, where the other `M` items refuse the
-wrong state. Why `M` and not a section of `i`: `i` shows facts, health is a judgement, and its
+definition's checks and one skipped line for the guest's, where the other `M` items are
+disabled in the wrong state. Why `M` and not a section of `i`: `i` shows facts, health is a judgement, and its
 fixes are often other `M` items. Why no marker on the VM's row: a VM's health is checked while
 it is set up, and a configured VM rarely drifts — not worth a guest read per tick. Why a
 mapper's 0 is blamed on the lowest layer: an LVM volume inherits it from the LUKS mapping.
