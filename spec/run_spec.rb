@@ -67,14 +67,16 @@ describe Run do
       Run.async('echo foo').join
       assert_equal "• debug   'echo foo': OK", out.string.strip
     end
-    it 'raises when command doesnt exist' do
-      Helpers.setup_dummy_logger
-      assert_raises(StandardError) { Run.async('echjasd foo') }
+    # Logged, not raised: the caller is often the UI thread, where a raise is a crash.
+    it 'logs error when command doesnt exist' do
+      out = Helpers.setup_dummy_logger
+      Run.async('echjasd', 'foo').join
+      assert out.string.include?('⨯ error   No such file or directory'), out.string
     end
     it 'logs error when command fails' do
       out = Helpers.setup_dummy_logger
       Run.async('cat non-existing-file').join
-      expected = "⨯ error   'cat non-existing-file' failed with 1: cat: non-existing-file: No such file or directory"
+      expected = "⨯ error   Command 'cat non-existing-file' failed with 1: cat: non-existing-file: No such file or directory"
       assert out.string.strip.include?(expected), out.string.strip
     end
   end

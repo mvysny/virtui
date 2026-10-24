@@ -2,7 +2,8 @@
 
 # Subprocess helpers that fail eagerly and loudly — the project's replacement for
 # `system`/backticks/`exec`. Wraps Open3 so a missing or failing command never passes
-# silently: {.sync} raises with stderr, {.async} logs the failure via `$log`.
+# silently: {.sync} raises with stderr, {.async} runs it on a thread and logs the failure
+# via `$log`.
 #
 # **Pass one argument per word.** Both methods take a splat, and that is the whole
 # defence against quoting bugs:
@@ -15,31 +16,18 @@
 # one means hand-escaping it correctly forever — see design/decisions.md D_argv_not_shell. The
 # single-string form is kept only for literal commands with no interpolation.
 module Run
-  # Runs `command` in the background, logging its combined output only if it fails.
-  #
-  # Returns immediately; the command keeps running on the returned thread. Success is
-  # logged at debug level, failure at error level, and an unexpected exception at fatal —
-  # all via `$log`. Output is read on the thread, so this never blocks the caller.
+  # {.sync} on a thread of its own: returns at once, and logs the outcome via `$log`
+  # instead of returning or raising it. Success is logged at debug level; a failure —
+  # a non-zero exit with its stderr, or a command that cannot even start — at error.
   #
   # @param command [Array<String>] the command and its arguments, one per element
   # @return [Thread] the thread executing the command; call {Thread#join} to await it
   def self.async(*command)
-    printable = command.join(' ')
-    _stdin, combined_output, wait_thr = Open3.popen2e(*command)
-
     Thread.new do
-      status = wait_thr.value
-      output = combined_output.read
-
-      if status.success?
-        $log.debug("'#{printable}': OK")
-      else
-        $log.error("'#{printable}' failed with #{status.exitstatus}: #{output}")
-      end
+      sync(*command)
+      $log.debug("'#{command.join(' ')}': OK")
     rescue StandardError => e
-      $log.fatal("Fatal error running '#{printable}'", e)
-    ensure
-      combined_output.close
+      $log.error(e.message)
     end
   end
 
