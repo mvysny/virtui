@@ -9,4 +9,10 @@ describe Virt::DiskStat do
     ds = Virt::DiskStat.new('sda', 18_022_993_920, 137_438_953_472, 23_508_287_488, '/var/lib/libvirt/images/win11.qcow2')
     assert_equal 'sda: 17G/128G (13%); physical 22G (30% overhead)', ds.to_s
   end
+
+  it 'reports no overhead for a disk nothing has written to' do
+    # A running, never-written raw disk, as `vt-shared.raw` reported it.
+    ds = Virt::DiskStat.new('vdb', 0, 1_073_741_824, 1_073_745_920, '/var/lib/libvirt/images/vt-shared.raw')
+    assert_equal 0, ds.overhead_percent
+  end
 end

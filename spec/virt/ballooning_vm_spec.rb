@@ -182,11 +182,11 @@ describe Virt::BallooningVM do
       assert_equal [], cache.set_actuals
     end
 
-    it 'does nothing when min_actual exceeds the VM maximum' do
+    it 'still raises a VM configured with less than min_actual' do
       cache, b = ballooner(mem_at(70), info: Virt::DomainInfo.new('vm0', 1, 4.GiB), min_actual: 8.GiB)
       b.update
-      assert_equal 'VM max memory 4294967296 is below min_actual 8589934592, doing nothing; d=0', b.status.to_s
-      assert_equal [], cache.set_actuals
+      assert_equal 'VM reports 1.3G (70%), raising memory by 30% to 2.6G: usage is at or over the 65% trigger; d=30', b.status.to_s
+      assert_equal [2_791_728_742], cache.set_actuals
     end
   end
 
@@ -230,6 +230,19 @@ describe Virt::BallooningVM do
       b.update
       assert_equal(-10, b.status.memory_delta)
       assert_equal 1, cache.set_actuals.size
+    end
+
+    it 'floors a VM configured with less than twice min_actual at half its maximum' do
+      cache, b = ballooner(mem_at(40, actual: 2200.MiB), info: Virt::DomainInfo.new('vm0', 1, 4.GiB), min_actual: 8.GiB)
+      Uptime.travel(21) { b.update }
+      assert_equal [2.GiB], cache.set_actuals # 10% off 2200M is 1980M, under the 2G floor
+    end
+
+    it 'does not raise a VM booted below its floor when it votes to lower' do
+      cache, b = ballooner(mem_at(40, actual: 1.GiB), info: Virt::DomainInfo.new('vm0', 1, 4.GiB), min_actual: 8.GiB)
+      Uptime.travel(21) { b.update }
+      assert_equal 'New actual 1G is the same as current one 1G, doing nothing; d=0', b.status.to_s
+      assert_equal [], cache.set_actuals
     end
 
     it 'does nothing when the decrease would clamp back to the current size' do

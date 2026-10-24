@@ -2,8 +2,8 @@
 
 **Status:** the environment is built and understood (2026-10-24). `bin/test-vms.sh` builds both
 VMs, virtui has been run against them, and the full balloon cycle and the two-level chain have
-been watched. Two virtui problems turned up (*What virtui did*). One of them, `Q_min_actual`,
-decides whether stock virtui balloons `vt-ubuntu` at all. Two items of `vm-ip-address.md`
+been watched. The two virtui problems that turned up (*What virtui did*) are fixed:
+`Q_min_actual` and `Q_disk_overhead`. Two items of `vm-ip-address.md`
 and `vm-info-window.md` were checked off here; the rest of those lists stays with them.
 
 #### The environment, as built and checked 2026-10-24
@@ -233,27 +233,25 @@ memfd with virtiofs. `--remove-all-storage` deletes every volume the domain refe
 including the shared raw disk and the seed. The base image is kept on `down`; deleting it is a
 manual `virsh vol-delete`.
 
-## Open questions: yours to decide
+## Still open
 
-- `Q_min_actual`: the 8 GiB floor (`BallooningVM#min_actual`, "a healthy minimum for a desktop
-  guest") silently disables ballooning for every VM whose `<memory>` is under 8 GiB, so for
-  `vt-ubuntu` too. There are two ways to fix it. **(a) Product:** make the floor relative, for
-  example `[8 GiB, max/2].min`. A small server guest is a legitimate thing to balloon, and a
-  status nobody sees is the worst failure mode. **(b) Dev env only:** give `vt-ubuntu` a
-  `<memory>` of 12 GiB. The floor then makes the guest jump 1 → 8 GiB on the first raise, so
-  only 8–12 GiB is ever exercised, and this box needs ~10 GiB of its 16 GiB ceiling for it. I
-  lean towards (a), plus showing a VM's "doing nothing because …" in the UI somewhere.
-- `Q_disk_overhead`: what should the host-usage column show when `allocation` is 0 (raw disk
-  nothing wrote to, ISO, blank qcow2)? Blank, or `0%`? Today it shows a red `999%`. A small fix
-  in `DiskStat#overhead_percent`, once you pick.
-- `Q_default_uri`: should virtui pass `-c qemu:///system` itself, as the `v` key's `virt-manager`
-  call already does, rather than rely on the default? Measured here: libvirt 12.0's client, as
-  a non-root user with no `~/.config/libvirt/libvirt.conf` and no `LIBVIRT_DEFAULT_URI`,
-  probes straight for the system sockets (`virtqemud-sock`, then `libvirt-sock`) and connects to
-  `qemu:///system`. `strace` shows no session socket tried. Whether stock upstream or only Ubuntu
-  does this is not known. Passing `-c` would make it a non-question everywhere.
+- Showing *why* the controller is doing nothing ("ballooning unsupported", "stale data", …)
+  somewhere in the UI. Today that status only reaches `$log.debug`. Suggested while
+  `Q_min_actual` was being settled, but not decided.
 
 ## Answered
+
+- `Q_min_actual`: decided 2026-10-24. The floor is the smaller of 8 GiB and half the VM's
+  maximum (`BallooningVM#floor`). A shrink never raises a VM that booted below its floor. Checked
+  with stock virtui on `vt-ubuntu` (floor 2 GiB): idle at 1 GiB it is left alone, and
+  `memramp 3000` raises it 1 → 2 → 2.6 → 3.4 → 4 GiB, and as it idles it steps back down
+  and stops at exactly 2 GiB.
+- `Q_disk_overhead`: decided 2026-10-24. `0%` for a disk with `allocation` 0, for consistency.
+- `Q_default_uri`: decided 2026-10-24. virtui passes no `-c`; README *Setup* says how to check
+  with `virsh uri`. A remote host runs its own virtui over ssh, so there is no list of URIs.
+  Measured here: libvirt 12.0's client, as a non-root user with no config and no
+  `LIBVIRT_DEFAULT_URI`, probes the system sockets (`virtqemud-sock`, then `libvirt-sock`) and
+  connects to `qemu:///system`. Whether only Ubuntu does this is not known.
 
 - `Q_outer_ceiling`: 16 GiB is enough. The chain test grew this box to 11.3 GiB with one 4 GiB
   guest. 32 only matters for several stressed guests at once.
@@ -268,8 +266,7 @@ manual `virsh vol-delete`.
 - Landed already: `bin/test-vms.sh`, and the `vt-*` rule in AGENTS.md *Commands*.
 - Landed already: the `domifaddr` facts in `R_virsh_domifaddr`, the dumpxml and offline-domstats
   facts in `vm-info-window.md`.
-- README install section: the `uri_default` line, if `Q_default_uri` keeps it the user's job.
 - `design/research.md`: the boot-time balloon inflation, the shim fallback reset, and
-  `stress-ng`'s self-sizing, each **[verified 2026-10-24]**. Whatever `Q_min_actual` and
-  `Q_disk_overhead` decide goes to `design/decisions.md` or a doc comment.
+  `stress-ng`'s self-sizing, each **[verified 2026-10-24]**. `Q_min_actual`, `Q_disk_overhead`
+  and `Q_default_uri` have landed already, in doc comments and the README.
 - AGENTS.md *Commands*: how to drive virtui from tmux, if that keeps being useful.

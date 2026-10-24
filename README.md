@@ -21,6 +21,10 @@ the decision of how much memory to move. Requires Ruby 3.3+; tested on Linux onl
 - Install the `virsh` binary via `sudo apt install libvirt-clients` — virtui shells out to `virsh` to talk to the libvirt daemon.
 - To give your user control over virtual machines, add your user to `libvirt` group:
   `sudo usermod -aG libvirt $USER` and log out/log in.
+- virtui manages the VMs plain `virsh` sees: it passes no `-c`. Check with `virsh uri`, which
+  should print `qemu:///system`. If it prints `qemu:///session` instead, your system VMs are
+  invisible. Put `uri_default = "qemu:///system"` into `~/.config/libvirt/libvirt.conf`.
+  To manage another host, run virtui there, over ssh.
 - Virt-Manager provides a nice UI which sets up VMs and provides a local fast VM viewer: install `sudo apt install virt-manager`
 
 ## Running

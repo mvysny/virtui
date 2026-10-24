@@ -26,7 +26,11 @@ module Virt
 
     # @return [Integer] how much bigger `physical` (host storage size) is, compared to `allocation` (guest-stored data).
     # 0 if `physical` == `allocation`; may be less than zero if `physical` is smaller (e.g. due compression).
+    # Also 0 for a disk with nothing written to it (`allocation` 0: a fresh raw disk, an ISO), whose
+    # ratio would be infinite.
     def overhead_percent
+      return 0 if allocation.zero?
+
       (((physical.to_f / allocation) - 1) * 100).clamp(-100, 999).to_i
     end
 

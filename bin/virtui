@@ -32,6 +32,9 @@ print "\e]0;VirTUI\a"
 # Virt::VirshSpawn.new here and drop the swap sampler with it — the guest swap level is
 # three qemu-agent-command calls per running VM per tick, and it is the process spawn, not
 # the libvirt round-trip, that makes those unaffordable (design/decisions.md D_guest_swap_level).
+#
+# No `-c URI`: virsh's own default picks the libvirt (README, Setup). Another host runs its own
+# virtui, reached over ssh, rather than this one connecting to it.
 runner = Virt::VirshSession.new if Virt::Virsh.available?
 virt = if runner
          sampler = Virt::GuestSwapSampler.new(agent: Virt::GuestAgent.new(runner: runner))

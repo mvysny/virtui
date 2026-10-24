@@ -31,7 +31,7 @@ module Virt
   # unopposed, lowering is voted, vetoable and rate-limited.
   #
   # Does nothing at all if the VM lacks ballooning support, is shut off, reports stale data,
-  # or the user has disabled it. Memory never drops below {#min_actual} nor rises above the
+  # or the user has disabled it. Memory never drops below {#floor} nor rises above the
   # VM's configured maximum. `README.md` states the resulting behaviour for users.
   #
   # UI-thread-confined.
@@ -41,7 +41,7 @@ module Virt
     def initialize(virt_cache, vmid)
       @virt_cache = virt_cache
       @vmid = vmid
-      # 8 GiB: a healthy minimum for a desktop guest. See {#min_actual}.
+      # 8 GiB: a healthy minimum for a desktop guest. A smaller VM floors lower; see {#floor}.
       @min_actual = 8.GiB
 
       # How much to raise by, as a percentage: 30 means the actual goes to 130%. No
@@ -87,9 +87,17 @@ module Virt
       @status = Status.new('', 0)
     end
 
-    # @return [Integer] floor for the VM's `actual` memory, in bytes; QEMU's own overhead
-    #   means the guest OS sees somewhat less
+    # @return [Integer] floor for the `actual` memory of a VM configured with at least twice
+    #   this, in bytes; a smaller VM floors at half its maximum instead ({#floor})
     attr_accessor :min_actual
+
+    # The lowest `actual` this VM is ever shrunk to: {#min_actual}, or half the VM's configured
+    # maximum if that is less. Not {#min_actual} alone: a VM configured with less than it would
+    # never be ballooned at all. QEMU's own overhead means the guest OS sees somewhat less.
+    #
+    # @param max_memory [Integer] the VM's configured maximum, in bytes
+    # @return [Integer] the floor, in bytes
+    def floor(max_memory) = [@min_actual, max_memory / 2].min
 
     # The outcome of one ballooning {#update} for a VM: a human-readable explanation and
     # the percentage change applied.
@@ -213,12 +221,9 @@ module Virt
       raise 'unexpected: info is nil' if info.nil?
 
       max_memory = info.max_memory
-      if @min_actual > max_memory
-        @status = Status.new("VM max memory #{max_memory} is below min_actual #{@min_actual}, doing nothing", 0)
-        return
-      end
-
-      new_actual = (mem_stat.actual * (memory_delta + 100) / 100).clamp(@min_actual.clamp(nil, max_memory)..max_memory)
+      new_actual = (mem_stat.actual * (memory_delta + 100) / 100).clamp(floor(max_memory)..max_memory)
+      # A VM booted below its floor stays there: the floor stops a lower, never turns it into a raise.
+      new_actual = mem_stat.actual if memory_delta.negative? && new_actual > mem_stat.actual
       if new_actual == mem_stat.actual
         @status = if memory_delta.positive?
                     Status.new("#{report}, want to raise memory (#{because.join(', ')}) but can't go over " \
