@@ -24,6 +24,19 @@ module UI
   class DiskResizeWindow < Tuile::Component::Window
     include Tuile
 
+    # What {#on_submit} fires.
+    #
+    # @!attribute [r] source
+    #   @return [DiskResizeWindow] the dialog submitted.
+    SubmitEvent = Data.define(:source) { include Tuile::Event }
+
+    # @!method on_submit
+    #   Fired with a {SubmitEvent} on Enter with a valid size, before the block runs. The
+    #   {Tuile::Component::Popup} returned by {.open} registers its own `close`; the dialog
+    #   never closes what it is mounted in (tuile#68).
+    #   @return [Tuile::Listeners]
+    listener :on_submit
+
     # The caption column, `New size` plus two spaces.
     CAPTION_WIDTH = 10
 
@@ -43,7 +56,7 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
     # @param vm [String] the VM's name
     # @param target [String] the disk's target, e.g. `vda`
     # @param volume [Virt::Volume] the disk's image
-    # @yield [capacity] on Enter with a valid size; the popup has closed by then
+    # @yield [capacity] on Enter with a valid size, after {#on_submit}
     # @yieldparam capacity [Integer] the new size, in bytes
     # @raise [ArgumentError] without a block
     def initialize(vm, target, volume, &on_resize)
@@ -84,13 +97,15 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
     # @param vm [String] see {#initialize}
     # @param target [String] see {#initialize}
     # @param volume [Virt::Volume] see {#initialize}
-    # @yield [capacity] see {#initialize}
+    # @yield [capacity] see {#initialize}; the popup has closed by then
     # @return [Tuile::Component::Popup] the opened popup
     def self.open(vm, target, volume, &)
       window = new(vm, target, volume, &)
       # The border, plus a spare column so the path does not touch it.
       width = (window.volume.path.length + CAPTION_WIDTH + 3).clamp(MIN_WIDTH..)
-      popup = Component::Popup.new(content: window, declared_size: Size.new(width, HEIGHT)).open
+      popup = Component::Popup.new(content: window, declared_size: Size.new(width, HEIGHT))
+      window.on_submit { popup.close }
+      popup.open
       window.field.focus
       popup
     end
@@ -220,7 +235,7 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
       end
       return if capacity.nil?
 
-      parent.close if parent.is_a?(Component::Popup)
+      on_submit.fire(SubmitEvent.new(source: self))
       @on_resize.call(capacity)
     end
 
