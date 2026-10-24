@@ -9,9 +9,10 @@ gem 'rexml', '~> 3.4'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
 # Unreleased tuile: FakeEventQueue's queued submit and Testing.loop (tuile#65), which the
-# BackgroundTask specs need, and PickerWindow's disabled options (tuile#71), which the power and
-# maintenance menus use, land after 0.17.0 and have no gem yet, so this rides master until
-# they do — a git source rather than `path: '../tuile'` so CI can resolve it too. To work against
+# BackgroundTask specs need, PickerWindow's disabled options (tuile#71), which the power and
+# maintenance menus use, and the `@_`-prefixed framework ivars (tuile#69), which let
+# DiskResizeWindow keep its own `@caption`, land after 0.17.0 and have no gem yet, so this rides
+# master until they do — a git source rather than `path: '../tuile'` so CI can resolve it too. To work against
 # the sibling checkout: `bundle config set --local local.tuile ../tuile`.
 gem 'tuile', git: 'https://github.com/mvysny/tuile.git', branch: 'master'
 gem 'zeitwerk', '~> 2.7'

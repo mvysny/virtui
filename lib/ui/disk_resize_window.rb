@@ -59,10 +59,10 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
       @field.on_value_change { show_outcome }
       @field.on_enter { resize }
       @info = Component::Label.new
-      @size_caption = Component::Label.new
+      @caption = Component::Label.new
       @outcome = Component::Label.new
       row = Component::Layout::Horizontal.new
-      row.add(@size_caption, Component::Layout::Fixed[CAPTION_WIDTH])
+      row.add(@caption, Component::Layout::Fixed[CAPTION_WIDTH])
       row.add(@field, Component::Layout::Expand[1])
       box = Component::Layout::Vertical.new
       box.add(@info, Component::Layout::Fixed[4])
@@ -196,7 +196,7 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
       @info.text = [line('Image', v.path),
                     line('Size', "#{format_byte_size(v.capacity)}, #{format_byte_size(v.allocation)} of it on the host"),
                     line('Pool', "#{v.pool}, #{format_byte_size(v.pool_available)} free")].join("\n")
-      @size_caption.text = @theme.hint('New size'.ljust(CAPTION_WIDTH))
+      @caption.text = @theme.hint('New size'.ljust(CAPTION_WIDTH))
       show_outcome
     end
 
