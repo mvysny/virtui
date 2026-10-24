@@ -121,10 +121,12 @@ itself, so the worker thread cannot reach `run` or the popup. The error is neste
 `Cancellation::CanceledError`: the two always travel together, and the move to Tuile along with
 the task (see `Q_tuile_home`) is then one constant.
 
-**The flag sits behind a `Mutex`.** The UI thread writes it and the worker thread reads it. Under
-MRI's GVL a plain instance variable would work in practice, but Ruby has no memory model that
-promises it, and the lock costs nothing here. `finish` and `fail` read the same `Cancellation`, so
-there is one flag, not two.
+**The flag is a `Concurrent::Event`.** The UI thread sets it and the worker thread reads it.
+Under MRI's GVL a plain instance variable would work in practice, but Ruby has no memory model
+that promises it. An `Event` rather than an `AtomicBoolean`, because a cancelable wait can block on
+an `Event` and wake the moment it is set (see `Q_kill_child`). concurrent-ruby is already a
+dependency of virtui and of Tuile. `finish` and `fail` read the same `Cancellation`, so there is
+one flag, not two.
 
 ### Mock-up
 
@@ -255,9 +257,9 @@ and a click all dismiss.
   - The `Cancellation` reaches `Run` as an explicit keyword through each backend read that
     needs it (`Virsh#ip_address(vm, cancellation:)` → `VirshSpawn` → `Run.sync`), and only on
     the reads a long task uses.
-  - `Cancellation#sleep(seconds)` needs no polling. `cancel` broadcasts a `ConditionVariable` on
-    the existing `Mutex`, and `sleep` waits on it until a `Cooldown` deadline, looping over
-    spurious wakeups, then calls `check_canceled`.
+  - `Cancellation#sleep(seconds)` needs no polling: `@event.wait(seconds)`, then
+    `check_canceled`. `Event#wait` loops over spurious wakeups itself, and measures its timeout on
+    `Concurrent.monotonic_time`, the clock `Cooldown` uses too.
   - No other waits (`Queue#pop`, `IO#wait_readable`) until something needs one.
 
   Rejected:

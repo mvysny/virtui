@@ -22,16 +22,17 @@ class Cancellation
   end
 
   def initialize
-    @lock = Mutex.new
-    @canceled = false
+    # An Event, not an AtomicBoolean: a cancelable wait can block on it and wake the moment
+    # it is set, where a boolean would have to be polled.
+    @event = Concurrent::Event.new
   end
 
   # Marks the work canceled, for good. Idempotent.
   # @return [void]
-  def cancel = @lock.synchronize { @canceled = true }
+  def cancel = @event.set
 
   # @return [Boolean] whether {#cancel} has been called
-  def canceled? = @lock.synchronize { @canceled }
+  def canceled? = @event.set?
 
   # Raises once the work has been canceled; a no-op until then.
   # @raise [CanceledError] after {#cancel}
