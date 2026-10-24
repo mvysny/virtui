@@ -116,6 +116,23 @@ describe Virt::VMEmulator do
     assert_equal [[], ['C:\\']], [vda.partitions, vda.filesystems.map(&:mountpoint)]
   end
 
+  it "resize_volume grows a stopped VM's image, and the guest sees the room after its root" do
+    e = Virt::VMEmulator.demo
+    path = e.vm('Fedora').disk_path
+    assert_equal(['default', 128.GiB], e.volume(path).then { [_1.pool, _1.capacity] })
+    e.resize_volume(path, 138.GiB)
+    assert_equal 138.GiB, e.volume(path).capacity
+    e.vm('Fedora').start
+    assert_equal 138.GiB - 107.MiB - 100.GiB, e.guest_storage('Fedora').disk('vda').free_tail
+  end
+
+  it 'resize_volume refuses what libvirt refuses: a running VM, a shrink' do
+    e = Virt::VMEmulator.demo
+    assert_raises(RuntimeError) { e.resize_volume(e.vm('Ubuntu').disk_path, 200.GiB) }
+    assert_raises(RuntimeError) { e.resize_volume(e.vm('Fedora').disk_path, 100.GiB) }
+    assert_nil e.volume('/nowhere.qcow2')
+  end
+
   it 'guest_storage calls a stopped or agent-less guest Unavailable' do
     e = Virt::VMEmulator.demo
     assert_raises(Virt::GuestAgent::Unavailable) { e.guest_storage('Fedora') }

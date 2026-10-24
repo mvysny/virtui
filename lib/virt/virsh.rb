@@ -162,6 +162,44 @@ module Virt
       end
     end
 
+    # The storage-pool volume behind a disk image, found by its path.
+    #
+    #   virsh.volume('/var/lib/libvirt/images/vt-ubuntu.qcow2').pool   # => "default"
+    #
+    # Three spawned reads, like {#domain_config}. Works though the user cannot read the pool's
+    # directory: libvirtd looks the path up.
+    #
+    # @param path [String] the image, as `<disk><source file=>` names it
+    # @param vol_pool [String, nil] canned `vol-pool` output for testing; runs the real
+    #   command when `nil`
+    # @param vol_info [String, nil] canned `vol-info --bytes` output, likewise
+    # @param pool_info [String, nil] canned `pool-info --bytes` output, likewise
+    # @return [Volume, nil] `nil` if the image is in no storage pool
+    # @raise [RuntimeError] if `virsh` fails otherwise, or prints a field it does not document
+    def volume(path, vol_pool = nil, vol_info = nil, pool_info = nil)
+      pool = (vol_pool || pool_of(path) || return).strip
+      vol = fields(vol_info || @runner.sync('vol-info', '--bytes', path))
+      pool_fields = fields(pool_info || @runner.sync('pool-info', '--bytes', pool))
+      Volume.new(path: path, pool: pool, capacity: bytes(vol, 'Capacity'), allocation: bytes(vol, 'Allocation'),
+                 pool_available: bytes(pool_fields, 'Available'))
+    end
+
+    # Grows a stopped VM's disk image to a new capacity, via `virsh vol-resize`.
+    #
+    # Grows only: libvirt refuses a capacity below the current one unless given `--shrink`,
+    # which this never passes. A running VM's image is refused too — QEMU holds its write
+    # lock, so `qemu-img` cannot open it — and that covers a VM started after the caller
+    # checked its state.
+    #
+    # @param path [String] the image (see {#volume})
+    # @param capacity [Integer] the new size the guest will see, in bytes
+    # @return [void]
+    # @raise [RuntimeError] if `virsh vol-resize` fails
+    def resize_volume(path, capacity)
+      @runner.sync('vol-resize', path, capacity.to_s)
+      $log.info "#{path}: resized to #{format_byte_size(capacity)}"
+    end
+
     # Drops what the swap sampler remembers about a VM's failed samples.
     #
     # @param domain_name [String] VM name, typically one that has just stopped running (see
@@ -247,6 +285,32 @@ module Virt
         end
       end
       result
+    end
+
+    # @param path [String] a disk image
+    # @return [String, nil] `virsh vol-pool`'s answer, or `nil` if the image is in no pool
+    # @raise [RuntimeError] if `virsh vol-pool` fails otherwise
+    private def pool_of(path)
+      @runner.sync('vol-pool', path)
+    rescue RuntimeError => e
+      raise unless e.message.include?('Storage volume not found')
+    end
+
+    # @param text [String] `Key: value` lines, as `vol-info` and `pool-info` print them
+    # @return [Hash{String => String}]
+    private def fields(text)
+      text.lines.filter_map { |line| line.split(':', 2).map(&:strip) if line.include?(':') }.to_h
+    end
+
+    # @param fields [Hash{String => String}] from {#fields}
+    # @param key [String] e.g. `Capacity`
+    # @return [Integer] the field's bytes, from `--bytes` output (`15032385536 bytes`, or bare)
+    # @raise [RuntimeError] if the field is missing or not a byte count
+    private def bytes(fields, key)
+      value = fields[key]
+      raise "virsh printed no byte count for #{key}: #{fields.inspect}" unless value&.match?(/\A\d+( bytes)?\z/)
+
+      value.to_i
     end
 
     # The Address column of a `virsh -q domifaddr` table's first row, without its `/prefix`.

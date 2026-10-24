@@ -17,6 +17,12 @@ module UI
   #
   #   BackgroundTask.new('Reading the VMs') { |cancel| vms.map { cancel.check_canceled; virt.guest_os(_1) } }
   #
+  # Work that must not be abandoned halfway — what the user would read as "canceled" while it
+  # runs on — opts out; the popup then ignores ESC and `q`, and the work's {Cancellation} is
+  # never canceled:
+  #
+  #   BackgroundTask.new('Resizing vda', cancelable: false) { virt.resize_volume(path, size) }
+  #
   # The work owns its own timeouts. Nothing here kills the thread: `Thread#kill` mid-`Open3`
   # orphans the child process.
   #
@@ -28,14 +34,16 @@ module UI
   class BackgroundTask
     # @param caption [String] what the work does, e.g. "Reading web01's definition"; shown
     #   in the progress popup and in the failure alert's title
+    # @param cancelable [Boolean] whether ESC and `q` cancel the work
     # @yield [cancel] the work, run on a fresh thread
     # @yieldparam cancel [Cancellation] canceled once the user dismisses the popup
     # @yieldreturn [Object] the result handed to {#run}'s block
     # @raise [ArgumentError] without a block
-    def initialize(caption, &work)
+    def initialize(caption, cancelable: true, &work)
       raise ArgumentError, 'block required' unless work
 
       @caption = caption
+      @cancelable = cancelable
       @work = work
       @cancellation = Cancellation.new
       @popup = nil
@@ -56,7 +64,7 @@ module UI
       screen.check_locked
       raise "#{@caption}: a BackgroundTask runs once" unless @popup.nil?
 
-      @popup = ProgressWindow.open(@caption)
+      @popup = ProgressWindow.open(@caption, cancelable: @cancelable)
       # Fires on every close, finish's and report_failure's own included, so both read
       # canceled? before closing.
       @popup.on_close { @cancellation.cancel }

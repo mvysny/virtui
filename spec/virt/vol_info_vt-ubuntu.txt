@@ -1,0 +1,4 @@
+Name:           vt-ubuntu.qcow2
+Type:           file
+Capacity:       15032385536 bytes
+Allocation:     607207424 bytes

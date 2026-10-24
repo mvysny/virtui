@@ -195,8 +195,8 @@ module UI
                      end
     end
 
-    # Handles a key press: `/` opens search; `p`/`v`/`m`/`d`/`i` act on the VM under the cursor
-    # (power menu, launch viewer, memory menu, toggle disk stats, info).
+    # Handles a key press: `/` opens search; `p`/`v`/`m`/`d`/`i`/`M` act on the VM under the
+    # cursor (power menu, launch viewer, memory menu, toggle disk stats, info, maintenance).
     #
     # @param key [String] the pressed key
     # @return [Boolean] true if the key was handled
@@ -228,6 +228,9 @@ module UI
       elsif key == 'i'
         show_info_popup
         true
+      elsif key == 'M'
+        show_maintenance_popup
+        true
       else
         false
       end
@@ -247,7 +250,7 @@ module UI
 
       "#{t.key('p')} #{t.hint('Power')}  #{t.key('v')} #{t.hint('run Viewer')}  " \
         "#{t.key('m')} #{t.hint('Memory')}  #{t.key('d')} #{t.hint('toggle Disk stat')}  " \
-        "#{t.key('i')} #{t.hint('Info')}  #{t.key('/')} #{t.hint('Search')}"
+        "#{t.key('i')} #{t.hint('Info')}  #{t.key('M')} #{t.hint('Maintenance')}  #{t.key('/')} #{t.hint('Search')}"
     end
 
     # Rebuilds the header when the pane enters or leaves the focus chain — the chip's
@@ -378,6 +381,23 @@ module UI
         [config, guest]
       end
       task.run { |config, guest| VMInfoWindow.open(config, @virt_cache.data(vm)&.disk_stat || [], guest) }
+    end
+
+    # Opens the maintenance menu for the selected VM. Resizing a disk image needs the VM shut
+    # off; a running one gets an alert saying so.
+    # @return [void]
+    def show_maintenance_popup
+      vm = current_vm || return
+      Component::PickerWindow.open('Maintenance', [['r', 'Resize disk image… (VM stopped)']]) do |key|
+        next unless key == 'r'
+
+        if @virt_cache.state(vm) == :shut_off
+          DiskResizeWindow.start(@virt_cache.virt, vm)
+        else
+          Component::ConfirmWindow.alert('Resize disk image', "Shut #{vm} down first: a running VM's disk image " \
+                                                              'cannot be resized.')
+        end
+      end
     end
 
     # Opens the memory menu for the selected VM: toggle auto-ballooning, or give it max

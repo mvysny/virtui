@@ -55,6 +55,11 @@ Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
   level, if it can't. For a running VM with `qemu-guest-agent`, each disk also lists the
   guest's partitions, how full each mounted filesystem is, and the space left after the last
   partition.
+- `Mr` - grows a shut-off VM's disk image: type `+10G` to add 10 GiB, or `20G` for the new size.
+  Grow only, and it cannot be canceled once it starts. The image must be in a libvirt storage
+  pool (`/var/lib/libvirt/images` is the `default` one), so libvirt does the resize and no sudo
+  is needed. The partitions and filesystems inside stay as they were: a cloud image grows its
+  root at the next boot, otherwise grow it from inside the guest.
 
 ### Integrating Into Your Linux Desktop
 

@@ -8,7 +8,11 @@ module UI
   #   popup.close
   #
   # ESC and `q` close the popup, as on any {Tuile::Component::Popup}; an outside click does
-  # not, so a stray click cannot cancel a read the user asked for.
+  # not, so a stray click cannot cancel a read the user asked for. Opened `cancelable: false`,
+  # it swallows ESC and `q` instead — the popup is modal, so nothing else gets them either,
+  # not even virtui's own quit key — and its footer stops offering a cancel:
+  #
+  #   ProgressWindow.open('Resizing vda', cancelable: false)
   #
   # UI-thread-confined.
   class ProgressWindow < Tuile::Component::Window
@@ -25,15 +29,20 @@ module UI
     HEIGHT = 4
 
     # @param caption [String] what is being done, e.g. "Reading web01's definition"
-    def initialize(caption)
+    # @param cancelable [Boolean] whether ESC and `q` close the popup
+    def initialize(caption, cancelable: true)
       super('Please wait')
+      @cancelable = cancelable
       @label = Component::Label.new("#{caption}…")
       box = Component::Layout::Vertical.new(padding: Component::Layout::Insets[left: 1, right: 1])
       box.add(@label)
       box.add(Component::ProgressBar.new(indeterminate: true))
       self.content = box
-      self.footer_text = 'ESC to cancel'
+      self.footer_text = cancelable ? 'ESC to cancel' : 'cannot be canceled'
     end
+
+    # @return [Boolean] whether ESC and `q` close the popup
+    def cancelable? = @cancelable
 
     # @param screen_size [Size] the screen to fit
     # @return [Size] wide enough for the caption, at least {MIN_WIDTH}, capped at the screen
@@ -45,8 +54,9 @@ module UI
 
     # Opens the window as a modal popup.
     # @param caption [String] what is being done
+    # @param cancelable [Boolean] whether ESC and `q` close it
     # @return [Tuile::Component::Popup] the opened popup
-    def self.open(caption) = MeasuredPopup.new(new(caption)).open
+    def self.open(caption, cancelable: true) = MeasuredPopup.new(new(caption, cancelable:)).open
 
     # The popup {.open} wraps the window in, measured on every layout pass so a SIGWINCH
     # re-fits it.
@@ -60,6 +70,15 @@ module UI
       # @param screen_size [Size]
       # @return [Size] {ProgressWindow#measured_size}
       def declared_size_in(screen_size) = @window.measured_size(screen_size)
+
+      # Swallows the keys {Tuile::Component::Popup} closes on when the window is not cancelable.
+      # @param key [String]
+      # @return [Boolean] true if the key was handled
+      def handle_key?(key)
+        return true if !@window.cancelable? && [Tuile::Keys::ESC, 'q'].include?(key)
+
+        super
+      end
     end
     private_constant :MeasuredPopup
   end

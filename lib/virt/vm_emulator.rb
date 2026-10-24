@@ -11,8 +11,11 @@ module Virt
     # win11 so the UI's guest-OS marker has more than one family to draw.
     WINDOWS = GuestOS.from_osinfo_id('http://microsoft.com/win/11')
 
-    # Every simulated VM's one disk, `vda`.
+    # A simulated VM's one disk, `vda`, until {#resize_volume} grows it.
     DISK_CAPACITY = 128.GiB
+
+    # The simulated `default` pool's free space.
+    POOL_AVAILABLE = 400.GiB
 
     # @param hostinfo [CpuInfo] the host CPU topology to report
     def initialize(hostinfo: CpuInfo.new('emulator', 1, 4, 2))
@@ -56,7 +59,7 @@ module Virt
     def domain_data
       @vms.to_h do |name, vm|
         state = vm.running? ? :running : :shut_off
-        disk = DiskStat.new('vda', 64.GiB, DISK_CAPACITY, 64.GiB, nil)
+        disk = DiskStat.new('vda', 64.GiB, vm.disk_capacity, 64.GiB, vm.disk_path)
         data = DomainData.new(vm.info, state, DomainData.millis_now, 0, vm.to_mem_stat, [disk])
         [name, data]
       end
@@ -96,7 +99,8 @@ module Virt
 
     # The guest's disk layout, run through the same {GuestStorage.parse} as
     # {Virsh#guest_storage}. A Linux guest is the easy case: an EFI partition, then `/` as the
-    # last partition, with 28 GiB of the disk left after it. A Windows guest reports one
+    # last partition, with whatever the disk holds beyond 100 GiB left after it — 28 GiB until
+    # {#resize_volume} grows the disk. A Windows guest reports one
     # `C:\` volume and no partitions, as its agent does.
     #
     # @param name [String] VM name
@@ -113,7 +117,7 @@ module Virt
         fs.0.name : \\\\?\\Volume{0f2c}\\
         fs.0.mountpoint : C:\\
         fs.0.fstype : NTFS
-        fs.0.total-bytes : #{DISK_CAPACITY - 1.GiB}
+        fs.0.total-bytes : #{vm.disk_capacity - 1.GiB}
         fs.0.used-bytes : #{31.GiB}
         fs.0.disk.count : 1
         fs.0.disk.0.alias : vda
@@ -162,7 +166,7 @@ module Virt
         '/proc/partitions' => <<~PARTITIONS,
           major minor  #blocks  name
 
-           253        0 #{DISK_CAPACITY / 1024} vda
+           253        0 #{vm.disk_capacity / 1024} vda
            253        1 #{root / 1024} vda1
            253       15 #{efi / 1024} vda15
         PARTITIONS
@@ -170,6 +174,31 @@ module Virt
         '/sys/class/block/vda15/start' => "#{efi_start / GuestStorage::SECTOR}\n"
       }
       GuestStorage.parse(guestinfo) { files.fetch(_1) }
+    end
+
+    # Mirrors {Virsh#volume}: every simulated VM's image is in the `default` pool.
+    #
+    # @param path [String] the image, as {VMEmulator::VM#disk_path} names it
+    # @return [Volume, nil] `nil` for a path no simulated VM has
+    def volume(path)
+      vm = @vms.values.find { _1.disk_path == path } || return
+      Volume.new(path: path, pool: 'default', capacity: vm.disk_capacity, allocation: 64.GiB,
+                 pool_available: POOL_AVAILABLE)
+    end
+
+    # Mirrors {Virsh#resize_volume}, refusing what libvirt refuses.
+    #
+    # @param path [String] the image (see {#volume})
+    # @param capacity [Integer] the new size, in bytes
+    # @return [void]
+    # @raise [RuntimeError] for an unknown image, a running VM's, or a capacity below the
+    #   current one
+    def resize_volume(path, capacity)
+      vm = @vms.values.find { _1.disk_path == path } || raise("no storage vol with matching path '#{path}'")
+      raise "qemu-img: Could not open '#{path}': Failed to get \"write\" lock" if vm.running?
+      raise "Can't shrink capacity below current capacity" if capacity < vm.disk_capacity
+
+      vm.disk_capacity = capacity
     end
 
     # Sets a VM's current memory, unless {#allow_set_actual} is `false`.

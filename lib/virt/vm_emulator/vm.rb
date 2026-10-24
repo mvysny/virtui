@@ -37,6 +37,7 @@ module Virt
         @swap_out_base = 0
         @swap_out_since = Time.now
         @swap_total = 4.GiB
+        @disk_capacity = VMEmulator::DISK_CAPACITY
         @guest_os = VMEmulator::LINUX
         @startup_seconds = 10
         @shutdown_seconds = 5
@@ -68,6 +69,13 @@ module Virt
       #   default, matching the guest that answers `/proc/meminfo` in {#swap}); set it to
       #   {VMEmulator::WINDOWS} or {GuestOS::UNKNOWN} to simulate a guest {Cache} won't ask
       attr_accessor :guest_os
+
+      # @return [Integer] bytes, the capacity of its one disk `vda`; {VMEmulator#resize_volume}
+      #   grows it
+      attr_accessor :disk_capacity
+
+      # @return [String] where its disk image would live, in libvirt's `default` pool
+      def disk_path = "/var/lib/libvirt/images/#{name}.qcow2"
 
       # @return [String, nil] the address this simulated VM holds while running; `nil` (the
       #   default) simulates a guest the host has no address for
@@ -247,7 +255,7 @@ module Virt
             <devices>
               <disk type='file' device='disk'>
                 <driver name='qemu' type='qcow2'/>
-                <source file='/var/lib/libvirt/images/#{name.encode(xml: :attr)[1..-2]}.qcow2'/>
+                <source file=#{disk_path.encode(xml: :attr)}/>
                 <target dev='vda' bus='virtio'/>
               </disk>
               <interface type='network'>

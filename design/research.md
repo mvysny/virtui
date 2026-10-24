@@ -395,3 +395,20 @@ Source: [Hyper-V Dynamic Memory](https://learn.microsoft.com/en-us/windows-serve
 - Without an agent channel: `error: argument unsupported: QEMU guest agent is not configured`,
   exit 1. **[verified 2026-10-24]** An LVM or LUKS root is reported through a `dm-*` device,
   and a Windows guest's devices are not `/dev/…` names. **[unverified]**
+
+## R_volume_resize — `vol-resize`, `blockresize` and the image lock
+
+- `vol-pool`, `vol-info` and `vol-resize` take a volume's path, and libvirtd looks it up, so
+  they work on a directory the user cannot read. A path in no pool fails `vol-pool` with
+  `error: Storage volume not found: no storage vol with matching path '…'`, exit 1.
+  **[verified 2026-10-24, libvirt 12.0.0]**
+- `vol-info --bytes` prints `Capacity:       15032385536 bytes`; `pool-info --bytes` prints the
+  bare number. **[verified 2026-10-24]**
+- `vol-resize <path> <bytes>` runs `qemu-img resize` as root; a 2 GiB grow of a qcow2 took
+  37 ms, the header being all it rewrites. A smaller capacity is refused: `Can't shrink
+  capacity below current capacity unless shrink flag explicitly specified`.
+  **[verified 2026-10-24, QEMU 10.2.1]**
+- On a running VM's image `vol-resize` fails: `qemu-img: Could not open '…': Failed to get
+  "write" lock`, QEMU holding the image's lock. **[verified 2026-10-24]**
+- `blockresize <vm> <target> <size>` on a running VM grows the disk live, and shrinks it just
+  as readily: exit 0, no warning. **[verified 2026-10-24]**

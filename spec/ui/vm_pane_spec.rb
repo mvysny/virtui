@@ -250,6 +250,23 @@ module Tuile
         assert_includes text, 'NTFS  C:\\', "the guest's own view of its disk"
       end
 
+      it "'M' → resize on a running VM says to shut it down, and reads nothing" do
+        pick(ubuntu, 'M', 'r')
+        Testing.loop # lays the alert out, which the screen's close would otherwise trip over
+        alert = Screen.instance.popups.map(&:content).find { _1.is_a?(Component::ConfirmWindow) }
+        assert_includes alert.message, 'Shut Ubuntu down first'
+      end
+
+      it "'M' → resize on a stopped VM opens the resize dialog once its disks are read" do
+        pick(base, 'M', 'r')
+        deadline = Time.now + 5
+        until Screen.instance.popups.any? { _1.content.is_a?(UI::DiskResizeWindow) }
+          flunk 'the resize dialog never opened' if Time.now > deadline
+          Thread.pass
+          Testing.loop
+        end
+      end
+
       it 'returns false for an unhandled key' do
         refute window.handle_key?('z')
       end

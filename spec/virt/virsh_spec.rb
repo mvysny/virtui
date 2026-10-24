@@ -159,6 +159,51 @@ describe Virt::Virsh do
     end
   end
 
+  context 'volume' do
+    it 'parses the vol-pool, vol-info and pool-info it is handed' do
+      vol = Virt::Virsh.new.volume('/var/lib/libvirt/images/vt-ubuntu.qcow2', "default\n",
+                                   File.read('spec/virt/vol_info_vt-ubuntu.txt'),
+                                   File.read('spec/virt/pool_info_default.txt'))
+      assert_equal Virt::Volume.new(path: '/var/lib/libvirt/images/vt-ubuntu.qcow2', pool: 'default',
+                                    capacity: 15_032_385_536, allocation: 607_207_424,
+                                    pool_available: 95_989_456_896), vol
+    end
+
+    it 'spawns each read, by path, in --bytes' do
+      runner = RecordingRunner.new
+      replies = { 'vol-pool' => "default\n", 'vol-info' => File.read('spec/virt/vol_info_vt-ubuntu.txt'),
+                  'pool-info' => File.read('spec/virt/pool_info_default.txt') }
+      runner.define_singleton_method(:sync) { |*args| record(:sync, args) && replies.fetch(args.first) }
+      Virt::Virsh.new(runner: runner).volume('/img/it.qcow2')
+      assert_equal [[:sync, 'vol-pool', '/img/it.qcow2'], [:sync, 'vol-info', '--bytes', '/img/it.qcow2'],
+                    [:sync, 'pool-info', '--bytes', 'default']], runner.calls
+    end
+
+    it 'answers nil for an image in no pool, and raises on any other failure' do
+      runner = RecordingRunner.new
+      runner.define_singleton_method(:sync) do |*|
+        raise "Command 'virsh -q vol-pool /home/it.qcow2' failed with 1: error: failed to get vol '/home/it.qcow2'\n" \
+              "error: Storage volume not found: no storage vol with matching path '/home/it.qcow2'"
+      end
+      assert_nil Virt::Virsh.new(runner: runner).volume('/home/it.qcow2')
+      runner.define_singleton_method(:sync) { |*| raise 'error: failed to connect to the hypervisor' }
+      assert_raises(RuntimeError) { Virt::Virsh.new(runner: runner).volume('/home/it.qcow2') }
+    end
+
+    it 'raises on a vol-info without the byte count' do
+      assert_raises(RuntimeError) do
+        Virt::Virsh.new.volume('/img/it.qcow2', 'default', "Capacity:       14,00 GiB\n", "Available: 1\n")
+      end
+    end
+
+    it 'resize_volume spawns vol-resize with the bytes, never --shrink' do
+      Helpers.setup_dummy_logger
+      runner = RecordingRunner.new
+      Virt::Virsh.new(runner: runner).resize_volume('/img/it.qcow2', 24.GiB)
+      assert_equal [[:sync, 'vol-resize', '/img/it.qcow2', 24.GiB.to_s]], runner.calls
+    end
+  end
+
   context 'guest_storage' do
     it 'parses the guestinfo and guest files it is handed' do
       storage = Virt::Virsh.new.guest_storage('vt-ubuntu', File.read('spec/virt/guestinfo_vt-ubuntu.txt'),

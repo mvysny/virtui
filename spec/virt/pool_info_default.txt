@@ -1,0 +1,8 @@
+Name:           default
+UUID:           a3af1cb9-8211-43f5-99d5-f256e1128e62
+State:          running
+Persistent:     yes
+Autostart:      yes
+Capacity:       133569777664
+Allocation:     37580320768
+Available:      95989456896

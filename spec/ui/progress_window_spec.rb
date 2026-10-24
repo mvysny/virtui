@@ -49,5 +49,13 @@ module Tuile
       Screen.instance.key(Keys::ESC)
       refute popup.open?
     end
+
+    it 'opened not cancelable, swallows ESC and q and says it cannot be canceled' do
+      popup = UI::ProgressWindow.open('Resizing vda', cancelable: false)
+      Screen.instance.key(Keys::ESC)
+      Screen.instance.key('q')
+      assert popup.open?
+      assert_equal '└cannot be canceled────────────────────┘', painted(popup).last
+    end
   end
 end

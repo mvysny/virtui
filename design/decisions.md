@@ -626,3 +626,17 @@ row shows. Why read only after the live XML says the agent channel is connected,
 (`GuestAgent::EXPECTED_FAILURES`), so a raise would cost those guests the whole definition, not
 just the guest's half of it. Every other failure still fails the read, as `D_background_task`
 has it.
+
+## D_disk_resize — Why does `M` grow a disk image only on a shut-off VM, through `vol-resize`, without a cancel?
+
+The image belongs to root while the VM is off, and the user may not even list its directory;
+`virsh vol-resize` has libvirtd, running as root, run `qemu-img resize` on a volume of a storage
+pool, so virtui needs no sudo and never opens the file (`R_volume_resize`). A disk in no pool
+gets the `qemu-img` command to run by hand: virtui does not escalate. Why not `blockresize`,
+which works on a running VM and needs no pool: it shrinks without a word, where `vol-resize`
+refuses a shrink unless given `--shrink`, which virtui never passes, and one path is half the
+code — a running VM is turned away before anything is read. Why not check the state again
+just before the resize: QEMU's image lock already fails it for a VM started meanwhile. Why no
+cancel: nothing kills libvirtd's `qemu-img` once `virsh` has asked, so ESC would close the popup
+on a resize still running — `UI::BackgroundTask`'s `cancelable: false` makes the popup ignore
+ESC and `q`, and the modal popup keeps virtui's own quit key from reaching the app.

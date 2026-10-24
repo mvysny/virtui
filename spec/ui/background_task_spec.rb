@@ -66,6 +66,17 @@ module Tuile
       release(thread)
     end
 
+    it 'keeps a non-cancelable task running through ESC and q, and delivers its result' do
+      got = nil
+      thread = UI::BackgroundTask.new('Resizing vda', cancelable: false) { |cancel| [gate.pop, cancel.canceled?] }
+                                 .run { got = _1 }
+      Screen.instance.key(Keys::ESC)
+      Screen.instance.key('q')
+      assert progress_popup
+      release(thread)
+      assert_equal [:go, false], got
+    end
+
     it 'hands the work a Cancellation that ESC cancels, and a check then ends it quietly' do
       reached = false
       task = UI::BackgroundTask.new('Reading web01') do |cancel|
