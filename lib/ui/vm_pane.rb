@@ -330,6 +330,9 @@ module UI
       field.escape_clears_focus = false
       field.on_escape << method(:close_search)
       field.on_enter << method(:close_search)
+      # The cursor follows every keystroke, not tuile's default of the commit on leave/ENTER;
+      # matching a handful of VM names is free, so there is nothing for :lazy to debounce.
+      field.value_change_mode = :eager
       field.on_value_change { |e| @list.select_next(e.value, include_current: true) }
       field.on_key_down { @list.select_next(field.text) }
       field.on_key_up { @list.select_prev(field.text) }

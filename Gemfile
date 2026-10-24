@@ -6,7 +6,11 @@ ruby '>= 3.3'
 gem 'concurrent-ruby'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
-gem 'tuile', '~> 0.17'
+# Unreleased tuile: FakeEventQueue's queued submit and Testing.loop (tuile#65), which the
+# BackgroundTask specs need, land after 0.17.0 and have no gem yet, so this rides master until
+# they do — a git source rather than `path: '../tuile'` so CI can resolve it too. To work against
+# the sibling checkout: `bundle config set --local local.tuile ../tuile`.
+gem 'tuile', git: 'https://github.com/mvysny/tuile.git', branch: 'master'
 gem 'zeitwerk', '~> 2.7'
 
 group :development do
