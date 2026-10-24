@@ -4,6 +4,8 @@ source 'https://rubygems.org'
 ruby '>= 3.3'
 
 gem 'concurrent-ruby'
+# Parses `virsh dumpxml` (Virt::DomainConfig). A bundled gem since Ruby 3.0, so it needs this line.
+gem 'rexml', '~> 3.4'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
 # Unreleased tuile: FakeEventQueue's queued submit and Testing.loop (tuile#65), which the

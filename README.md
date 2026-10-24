@@ -50,6 +50,9 @@ Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
 - `mm` - disables automatic ballooning and gives the VM max memory configured for that VM. A quick mechanism
   when VM needs more memory fast.
 - `d` - toggles disk stats for all VMs, not just running ones. Clutters the list a bit.
+- `i` - shows what the VM is defined as: CPU and memory, UEFI or BIOS, where the disk images live,
+  shared folders, network, passthrough. Also says why a VM cannot balloon or report its swap
+  level, if it can't.
 
 ### Integrating Into Your Linux Desktop
 

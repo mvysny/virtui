@@ -168,6 +168,9 @@ module Virt
       "'#{str.gsub("'") { "'\\''" }}'"
     end
 
+    # A process of its own: for a mutating command, and for a read that must not queue
+    # behind the session ({Virsh#domain_config}).
+    #
     # @param args [Array<String>] a `virsh` subcommand and its arguments, one per element
     # @return [String] the command's stdout
     # @raise [RuntimeError] if the command fails (via {Run.sync})

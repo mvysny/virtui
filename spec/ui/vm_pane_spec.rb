@@ -233,6 +233,22 @@ module Tuile
         refute window.show_disk_stat
       end
 
+      it "'i' reads the VM's definition in the background and opens the info window" do
+        window.list.cursor.go(win11)
+        assert window.handle_key?('i')
+        info = nil
+        deadline = Time.now + 5
+        while info.nil?
+          flunk 'the info window never opened' if Time.now > deadline
+          Thread.pass
+          Testing.loop
+          info = Screen.instance.popups.map(&:content).find { _1.is_a?(UI::VMInfoWindow) }
+        end
+        text = info.instance_variable_get(:@view).text.to_s
+        assert_includes text, 'UEFI, Secure Boot'
+        assert_includes text, "vda  virtio  qcow2  128G\n"
+      end
+
       it 'returns false for an unhandled key' do
         refute window.handle_key?('z')
       end

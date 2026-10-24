@@ -153,6 +153,28 @@ later one trims to its length.
 - A qcow2 overlay on a base image reports its own `allocation` and `physical`, about equal.
   **[verified 2026-10-24]**
 
+- A shut-off domain still gets `block.N.name`, `path`, `allocation`, `capacity` and `physical`,
+  but none of the `rd`/`wr`/`fl` counters; `physical` (196616) can be below `allocation`
+  (200704). **[verified 2026-10-24, on `vt-bios`]**
+
+## R_domain_xml — what `virsh dumpxml` prints
+
+- An auto-selected UEFI keeps `<os firmware='efi'>` and gains the expanded
+  `<loader readonly='yes' secure='yes' type='pflash'>…OVMF_CODE_4M.ms.fd</loader>`, `<nvram
+  template=…>` and `<firmware><feature enabled='yes' name='secure-boot'/>`, in both the live and
+  the `--inactive` XML. **[verified 2026-10-24, libvirt 12.0]**
+- The live agent channel reads `<target type='virtio' name='org.qemu.guest_agent.0'
+  state='connected'/>`; `state` is live-only. A domain with no agent has no such channel.
+  **[verified 2026-10-24]** for the live half, **[docs]** for live-only
+- Plain `dumpxml` leaves the VNC/SPICE `passwd=` out; `--security-info` prints it.
+  **[verified 2026-10-24, a VNC domain defined with `passwd=`]**
+- Every size comes out in KiB whatever unit it was defined in, and a shut-off domain's autoport
+  graphics read `port='-1'`. **[verified 2026-10-24]**
+- A live `type='network'` interface's `<source>` also carries the `bridge=` and `portid=` libvirt
+  assigned. An empty CD-ROM drive has no `<source>`. **[verified 2026-10-24]**
+- `virt-install --osinfo detect=off,require=off` writes no libosinfo metadata at all.
+  **[verified 2026-10-24]**
+
 ## R_libvirt_default_uri — which libvirt `virsh` reaches with no `-c`
 
 - As a non-root user with no `~/.config/libvirt/libvirt.conf`, no `LIBVIRT_DEFAULT_URI` and

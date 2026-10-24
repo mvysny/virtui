@@ -111,6 +111,26 @@ module Virt
         first_address(arp || @runner.query('domifaddr', domain_name, '--source', 'arp'))
     end
 
+    # The domain's definition, from `virsh dumpxml`: live for a running domain, persistent
+    # for a shut-off one.
+    #
+    #   virsh.domain_config('vt-ubuntu').firmware   # => :uefi
+    #
+    # A read, yet spawned through {VirshSession#sync}: on the session it would queue behind the
+    # tick's guest-agent calls while the user waits on a progress popup.
+    #
+    # Never pass `--security-info`: without it libvirt leaves the VNC/SPICE `passwd=` out.
+    #
+    # @param domain_name [String] VM name
+    # @param xml [String, nil] canned `dumpxml` output for testing; runs the real command
+    #   when `nil`
+    # @return [DomainConfig]
+    # @raise [RuntimeError] if `virsh dumpxml` fails, e.g. for an unknown domain
+    # @raise [ArgumentError] if what it printed is not a domain definition
+    def domain_config(domain_name, xml = nil)
+      DomainConfig.from_xml(xml || @runner.sync('dumpxml', domain_name))
+    end
+
     # Drops what the swap sampler remembers about a VM's failed samples.
     #
     # @param domain_name [String] VM name, typically one that has just stopped running (see

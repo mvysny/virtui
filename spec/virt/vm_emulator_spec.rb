@@ -92,4 +92,19 @@ describe Virt::VMEmulator do
   it 'guest_os answers UNKNOWN for a VM it does not know' do
     assert_equal Virt::GuestOS::UNKNOWN, Virt::VMEmulator.new.guest_os('nope')
   end
+
+  it 'domain_config gives each demo VM a definition its declared OS suggests' do
+    e = Virt::VMEmulator.demo
+    win11 = e.domain_config('win11')
+    assert_equal [:uefi, true, :connected], [win11.firmware, win11.secure_boot, win11.agent]
+    assert_equal 16.GiB, win11.max_memory
+    refute_nil win11.tpm
+    base = e.domain_config('BASE')
+    assert_equal [:bios, nil, nil], [base.firmware, base.agent, base.tpm]
+    assert_equal :unknown, e.domain_config('Fedora').agent, 'a shut-off VM has no channel state'
+  end
+
+  it 'domain_config raises for a VM it does not know' do
+    assert_raises(RuntimeError) { Virt::VMEmulator.new.domain_config('nope') }
+  end
 end

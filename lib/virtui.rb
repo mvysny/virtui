@@ -25,6 +25,7 @@ loader.ignore("#{__dir__}/core_ext")  # loaded manually above
 loader.inflector.inflect(
   'ui' => 'UI',
   'vm_pane' => 'VMPane',
+  'vm_info_window' => 'VMInfoWindow',
   'vm_emulator' => 'VMEmulator',
   'vm' => 'VM',
   'ballooning_vm' => 'BallooningVM',

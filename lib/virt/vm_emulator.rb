@@ -77,6 +77,20 @@ module Virt
     # @return [GuestOS] the declaration; {GuestOS::UNKNOWN} for an unknown VM
     def guest_os(name) = @vms[name]&.guest_os || GuestOS::UNKNOWN
 
+    # A small definition built from the simulated VM and run through the same
+    # {DomainConfig.from_xml} as {Virsh#domain_config}, so demo mode exercises the parser.
+    #
+    # Its declared OS chooses the rest: Windows gets UEFI, Secure Boot and a TPM, Linux gets
+    # UEFI, and an undeclared OS gets BIOS and no agent channel.
+    #
+    # @param name [String] VM name
+    # @return [DomainConfig]
+    # @raise [RuntimeError] for an unknown VM, as `virsh dumpxml` does
+    def domain_config(name)
+      vm = @vms[name] || raise("failed to get domain '#{name}'")
+      DomainConfig.from_xml(vm.to_domain_xml)
+    end
+
     # Sets a VM's current memory, unless {#allow_set_actual} is `false`.
     #
     # @param vmid [String] VM name

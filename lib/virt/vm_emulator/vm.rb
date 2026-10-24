@@ -220,6 +220,48 @@ module Virt
                   end
       end
 
+      # The `virsh dumpxml` this VM would print; see {VMEmulator#domain_config} for what it
+      # declares. Read from a {UI::BackgroundTask}'s worker while the tick may be changing
+      # the VM; a torn read costs one stale detail in a snapshot, so nothing locks.
+      #
+      # @return [String] a `<domain>` definition
+      def to_domain_xml
+        os = guest_os
+        declared = os.family != :unknown
+        <<~XML
+          <domain type='kvm'>
+            <name>#{name.encode(xml: :text)}</name>
+            <metadata>
+              <libosinfo:libosinfo xmlns:libosinfo='#{Virsh::LIBOSINFO_URI}'>
+                #{"<libosinfo:os id='#{os.osinfo_id}'/>" unless os.osinfo_id.nil?}
+              </libosinfo:libosinfo>
+            </metadata>
+            <memory unit='KiB'>#{info.max_memory / 1024}</memory>
+            <vcpu>#{info.cpus}</vcpu>
+            <os#{" firmware='efi'" if declared}>
+              <type arch='x86_64' machine='pc-q35-10.2'>hvm</type>
+              #{"<firmware><feature enabled='yes' name='secure-boot'/></firmware>" if os.windows?}
+              <boot dev='hd'/>
+            </os>
+            <cpu mode='host-passthrough'/>
+            <devices>
+              <disk type='file' device='disk'>
+                <driver name='qemu' type='qcow2'/>
+                <source file='/var/lib/libvirt/images/#{name.encode(xml: :attr)[1..-2]}.qcow2'/>
+                <target dev='vda' bus='virtio'/>
+              </disk>
+              <interface type='network'>
+                <source network='default'/>
+                <model type='virtio'/>
+              </interface>
+              #{"<channel type='unix'><target type='virtio' name='#{DomainConfig::AGENT_CHANNEL}'#{" state='connected'" if running?}/></channel>" if declared}
+              #{"<tpm model='tpm-crb'><backend type='emulator' version='2.0'/></tpm>" if os.windows?}
+              <memballoon model='virtio' freePageReporting='on'/>
+            </devices>
+          </domain>
+        XML
+      end
+
       # Computes the VM's current {MemoryStat} from its simulated state.
       #
       # @return [MemoryStat, nil] the current memory stats, or `nil` if the VM is not running

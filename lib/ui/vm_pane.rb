@@ -4,7 +4,7 @@ module UI
   # The VM pane: a scrollable, cursor-selectable list of all VMs, each with guest-vs-host
   # CPU/RAM/disk usage bars and a ballooning-status indicator. Per-VM actions are reachable
   # via key shortcuts: power menu (`p`), launch viewer (`v`), memory menu (`m`), toggle disk
-  # stats (`d`) and search (`/`).
+  # stats (`d`), the VM's definition (`i`) and search (`/`).
   #
   # A borderless `Layout::Vertical`, not a `Window` (see design/decisions.md D_panes_are_layouts):
   # a one-row header — the focus chip plus the Guest/Host column captions — over the
@@ -195,8 +195,8 @@ module UI
                      end
     end
 
-    # Handles a key press: `/` opens search; `p`/`v`/`m`/`d` act on the VM under the cursor
-    # (power menu, launch viewer, memory menu, toggle disk stats).
+    # Handles a key press: `/` opens search; `p`/`v`/`m`/`d`/`i` act on the VM under the cursor
+    # (power menu, launch viewer, memory menu, toggle disk stats, info).
     #
     # @param key [String] the pressed key
     # @return [Boolean] true if the key was handled
@@ -225,6 +225,9 @@ module UI
       elsif key == 'd'
         self.show_disk_stat = !show_disk_stat
         true
+      elsif key == 'i'
+        show_info_popup
+        true
       else
         false
       end
@@ -244,7 +247,7 @@ module UI
 
       "#{t.key('p')} #{t.hint('Power')}  #{t.key('v')} #{t.hint('run Viewer')}  " \
         "#{t.key('m')} #{t.hint('Memory')}  #{t.key('d')} #{t.hint('toggle Disk stat')}  " \
-        "#{t.key('/')} #{t.hint('Search')}"
+        "#{t.key('i')} #{t.hint('Info')}  #{t.key('/')} #{t.hint('Search')}"
     end
 
     # Rebuilds the header when the pane enters or leaves the focus chain — the chip's
@@ -353,6 +356,16 @@ module UI
       @list.show_cursor_when_inactive = false
       @list.focus
       remove(field)
+    end
+
+    # Opens {VMInfoWindow} for the selected VM once its definition is read, fresh on every
+    # press so the window never shows a definition older than the keypress
+    # (design/decisions.md D_background_task).
+    # @return [void]
+    def show_info_popup
+      vm = current_vm || return
+      BackgroundTask.new("Reading #{vm}'s definition") { @virt_cache.virt.domain_config(vm) }
+                    .run { |config| VMInfoWindow.open(config, @virt_cache.data(vm)&.disk_stat || []) }
     end
 
     # Opens the memory menu for the selected VM: toggle auto-ballooning, or give it max

@@ -234,8 +234,9 @@ the very swap level detection exists to protect), and a per-domain observation s
 survive a shutdown and a reinstall. Probing `/proc/meminfo` once and feeding the result to the
 glyph is free of the first bill and pays the other two, for the same cosmetic gain. Why not
 `virsh guestinfo --os`: no `--timeout` flag, which is the one thing keeping a wedged agent from
-becoming a session read timeout that kills the child. Why not `dumpxml` plus a parser:
-`metadata --uri` returns the element alone — one regex over three lines, no XML dependency. Why
+becoming a session read timeout that kills the child. Why not `dumpxml` through the `rexml` the
+info window already parses it with: `metadata --uri` returns the element alone, three lines a
+tick per new domain against a few KB. Why
 not vendor osinfo-db or shell out to `osinfo-query`: virtui needs a family, not a version tree,
 and not a build-time dependency shipped separately from libvirt. Why not hand-write the table
 from the naming scheme: the first cut did, ~15 rows, and three were wrong in ways nothing on
@@ -584,6 +585,12 @@ modal from the first frame, so a second keypress cannot start a second read, and
 result to the UI thread as the timer thread does; a failure becomes an alert. The read spawns
 its own process — through the session the user would watch a spinner because *another* guest is
 sick. A plain thread per task, no pool: ~90 µs to create, against a spawn of 1 ms and more.
+
+The `i` window reads `dumpxml` fresh on every press. Why not a memo on `Virt::Cache`, re-read on
+every power transition, which would open instantly: a definition edited while the domain stays
+in one state (in virt-manager, with the VM shut off) would go unseen until the next start or stop.
+The window's OS line comes from that same fresh XML, so it can disagree with the row's glyph,
+whose memo never expires (`D_guest_os_from_xml`).
 
 Cancel is cooperative. ESC closes the popup, whose `on_close` cancels the task's `Cancellation`;
 the work checks it between steps, waits on it (`#sleep`, `#join`), or hands it to `Run.sync`,

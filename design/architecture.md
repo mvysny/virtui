@@ -22,7 +22,8 @@ doc-comment content has crept in.
   swap_sampler)` → `Virt::GuestSwapSampler(Virt::GuestAgent(runner))` and
   `Virt::VirshSession`.
 - The backend is a role, not a class: `Virt::Virsh` and `Virt::VMEmulator` answer the same calls
-  (`domain_data`, `guest_os`, `guest_swap`, `ip_address`, `set_actual`, the power commands), so
+  (`domain_data`, `guest_os`, `guest_swap`, `ip_address`, `domain_config`, `set_actual`, the
+  power commands), so
   demo mode and most specs run the whole stack over the emulator with nothing faked apart.
 - Under `Virt::Virsh` sits the *runner* seam — `query` / `sync` / `async`, a subcommand without
   the word `virsh`, splatted one argument per word — with two implementations: the long-lived
@@ -83,6 +84,15 @@ deadline; all others are UI-thread-confined).
 2. `@virt_cache.virt.start(name)` → `Virsh#start` → `runner.async('start', name)` →
    `VirshSpawn#async` → `Run.async`: a process of its own, failure logged rather than raised.
 3. Nothing on screen changes until the next tick's `domstats` reports the new state.
+
+**An info key** (UI thread, then a worker):
+
+1. `UI::VMPane#handle_key?` sees `i` and starts a `UI::BackgroundTask`; the progress popup
+   opens.
+2. On the worker, `Virsh#domain_config` → `runner.sync('dumpxml', name)`, a process of its own
+   even though it is a read → `Virt::DomainConfig.from_xml`.
+3. Back on the UI thread, `UI::VMInfoWindow.open(config, disk_stats)` with the disk capacities
+   from `Virt::Cache`; the window is a snapshot and follows no later tick.
 
 **A guest that cannot answer** (timer thread):
 

@@ -144,6 +144,21 @@ describe Virt::Virsh do
     end
   end
 
+  context 'domain_config' do
+    it 'parses the dumpxml it is handed' do
+      xml = File.read('spec/virt/dumpxml_vt-bios.xml')
+      assert_equal :bios, Virt::Virsh.new(runner: RecordingRunner.new).domain_config('vt-bios', xml).firmware
+    end
+
+    # sync, not query: a process of its own, never queued behind the session.
+    it 'spawns a plain dumpxml, never with --security-info' do
+      runner = RecordingRunner.new
+      runner.define_singleton_method(:sync) { |*args| record(:sync, args) && File.read('spec/virt/dumpxml_vt-bios.xml') }
+      Virt::Virsh.new(runner: runner).domain_config('vt-bios')
+      assert_equal [[:sync, 'dumpxml', 'vt-bios']], runner.calls
+    end
+  end
+
   it 'hostinfo' do
     info = Virt::Virsh.new.hostinfo(VIRSH_NODEINFO)
     assert_equal 'x86_64: 1/8/2', info.to_s
