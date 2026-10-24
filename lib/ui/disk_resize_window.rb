@@ -38,7 +38,7 @@ module UI
 
     # What the alert after a resize tells the user: the guest's side is still to do.
     GUEST_HINT = "The partitions and filesystems inside are as they were. A cloud image grows its root \
-filesystem at the next boot; otherwise grow it from inside the guest."
+filesystem at the next boot; otherwise start the VM and grow it with M, Grow root filesystem."
 
     # @param vm [String] the VM's name
     # @param target [String] the disk's target, e.g. `vda`

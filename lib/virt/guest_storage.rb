@@ -27,6 +27,11 @@ module Virt
     # bytes, whatever the disk's own logical sector size.
     SECTOR = 512
 
+    # The smallest {Disk#free_tail} that is room anyone left on purpose: a GPT disk always
+    # keeps ~17 KiB there for its backup table, and partitioners align to 1 MiB.
+    # @return [Integer] bytes
+    MIN_FREE_TAIL = 1.MiB
+
     # One whole disk of the guest.
     # @!attribute [r] target
     #   @return [String] the host's name for it, e.g. `vda`; joins {DomainConfig::Disk#target}

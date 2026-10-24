@@ -81,6 +81,9 @@ write_files:
       time.sleep(hold)
 runcmd:
   - [systemctl, enable, --now, qemu-guest-agent]
+  # The first boot has grown / to the disk already; from the next one on cloud-init leaves it,
+  # so the room a disk image resize adds waits for virtui's M → Grow root filesystem.
+  - [sh, -c, 'printf "growpart: {mode: \"off\"}\nresize_rootfs: false\n" > /etc/cloud/cloud.cfg.d/99-no-growpart.cfg']
 EOF
 }
 

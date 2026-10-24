@@ -38,6 +38,7 @@ module Virt
         @swap_out_since = Time.now
         @swap_total = 4.GiB
         @disk_capacity = VMEmulator::DISK_CAPACITY
+        @root_size = 100.GiB
         @guest_os = VMEmulator::LINUX
         @startup_seconds = 10
         @shutdown_seconds = 5
@@ -73,6 +74,10 @@ module Virt
       # @return [Integer] bytes, the capacity of its one disk `vda`; {VMEmulator#resize_volume}
       #   grows it
       attr_accessor :disk_capacity
+
+      # @return [Integer] bytes, the guest's root partition, the last on {#disk_capacity};
+      #   {VMEmulator#grow_root} grows it
+      attr_accessor :root_size
 
       # @return [String] where its disk image would live, in libvirt's `default` pool
       def disk_path = "/var/lib/libvirt/images/#{name}.qcow2"

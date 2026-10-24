@@ -412,3 +412,19 @@ Source: [Hyper-V Dynamic Memory](https://learn.microsoft.com/en-us/windows-serve
   "write" lock`, QEMU holding the image's lock. **[verified 2026-10-24]**
 - `blockresize <vm> <target> <size>` on a running VM grows the disk live, and shrinks it just
   as readily: exit 0, no warning. **[verified 2026-10-24]**
+
+## R_guest_root_grow — growing a mounted root partition and ext4 through `guest-exec`
+
+- `guest-exec` runs as root with `LANG=C.UTF-8` and a `PATH` holding both `sbin`s, so bare
+  names resolve; its reply is a `pid` only, the exit code and base64 `out-data`/`err-data` come
+  from `guest-exec-status` once `exited`. `input-data` is base64 stdin.
+  **[verified 2026-10-24, qemu-guest-agent 10.2.1, Ubuntu 26.04]**
+- On a mounted GPT disk grown 12 → 14 GiB, `sfdisk -N 1 --no-reread --no-tell-kernel /dev/vda`
+  fed `, +` grew `vda1` to the end; its write fixed the protective MBR and moved the backup GPT
+  itself ("will be corrected by write"), and `sfdisk --verify` then found no errors.
+  `--relocate gpt-bk-std` is refused by util-linux 2.41.3. **[verified 2026-10-24]**
+- `partx -u /dev/vda` then gave the kernel the new size, and `resize2fs /dev/vda1` grew the
+  mounted ext4 online, `/` 11G → 13G. **[verified 2026-10-24, e2fsprogs 1.47.2]**
+- RHEL-family agents ship with `guest-exec` blocked; `guest-info`'s `supported_commands` says
+  per command whether it is `enabled`. **[unverified]** (Ubuntu's has it on.)
+- `btrfs filesystem resize max /` grows a mounted single-device btrfs. **[docs]**

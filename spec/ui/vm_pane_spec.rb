@@ -25,6 +25,20 @@ module Tuile
       w
     end
 
+    # Runs the event loop until the block answers something truthy, and returns that.
+    def wait_for(what)
+      deadline = Time.now + 5
+      until (found = yield)
+        flunk "#{what} never appeared" if Time.now > deadline
+        Thread.pass
+        Testing.loop
+      end
+      found
+    end
+
+    # @return [Array<Tuile::Component>] what the open popups hold
+    def popup_contents = Screen.instance.popups.map(&:content)
+
     # The PickerWindow of whatever popup is currently open, or nil.
     def picker = Screen.instance.popups.map(&:content).find { |c| c.is_a?(Component::PickerWindow) }
 
@@ -259,12 +273,26 @@ module Tuile
 
       it "'M' → resize on a stopped VM opens the resize dialog once its disks are read" do
         pick(base, 'M', 'r')
-        deadline = Time.now + 5
-        until Screen.instance.popups.any? { _1.content.is_a?(UI::DiskResizeWindow) }
-          flunk 'the resize dialog never opened' if Time.now > deadline
-          Thread.pass
-          Testing.loop
-        end
+        wait_for('the resize dialog') { popup_contents.find { _1.is_a?(UI::DiskResizeWindow) } }
+      end
+
+      it "'M' → grow on a stopped VM says to start it" do
+        pick(base, 'M', 'g')
+        Testing.loop
+        alert = Screen.instance.popups.map(&:content).find { _1.is_a?(Component::ConfirmWindow) }
+        assert_includes alert.message, 'Start BASE first'
+      end
+
+      it "'M' → grow on a running VM confirms the commands, grows, and reports the new size" do
+        pick(ubuntu, 'M', 'g')
+        confirm = wait_for('the confirmation') { popup_contents.find { _1.is_a?(Component::ConfirmWindow) } }
+        assert_equal "Grow Ubuntu's root filesystem?", confirm.caption.to_s
+        assert_includes confirm.message, 'grows by 28G, into the free space at the end of vda'
+        assert_includes confirm.message, 'runs sfdisk, partx, resize2fs as root inside the guest'
+        Screen.instance.key(Keys::ENTER) # the focused Grow button
+        done = wait_for('the result') { popup_contents.find { _1.is_a?(Component::ConfirmWindow) && _1 != confirm } }
+        assert_equal "Ubuntu's / is now 128G", done.caption.to_s
+        assert_equal 128.GiB - 107.MiB, cache.virt.vm('Ubuntu').root_size
       end
 
       it 'returns false for an unhandled key' do

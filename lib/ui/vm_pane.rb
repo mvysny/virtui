@@ -384,19 +384,69 @@ module UI
     end
 
     # Opens the maintenance menu for the selected VM. Resizing a disk image needs the VM shut
-    # off; a running one gets an alert saying so.
+    # off, growing its root filesystem needs it running; the wrong state gets an alert saying so.
     # @return [void]
     def show_maintenance_popup
       vm = current_vm || return
-      Component::PickerWindow.open('Maintenance', [['r', 'Resize disk image… (VM stopped)']]) do |key|
-        next unless key == 'r'
-
-        if @virt_cache.state(vm) == :shut_off
+      options = [['r', 'Resize disk image… (VM stopped)'], ['g', 'Grow root filesystem… (VM running)']]
+      Component::PickerWindow.open('Maintenance', options) do |key|
+        state = @virt_cache.state(vm)
+        if key == 'r' && state == :shut_off
           DiskResizeWindow.start(@virt_cache.virt, vm)
-        else
+        elsif key == 'r'
           Component::ConfirmWindow.alert('Resize disk image', "Shut #{vm} down first: a running VM's disk image " \
                                                               'cannot be resized.')
+        elsif key == 'g' && state == :running
+          grow_root_filesystem(vm)
+        elsif key == 'g'
+          Component::ConfirmWindow.alert('Grow root filesystem', "Start #{vm} first: its root filesystem is grown " \
+                                                                 'from inside the running guest.')
         end
+      end
+    end
+
+    # Checks how the VM's root filesystem would grow, asks the user to confirm the commands it
+    # runs in the guest, then runs them behind a popup that cannot be canceled and reports the
+    # new size. A guest whose layout or agent will not do gets the reason instead.
+    # @param vm [String] a running VM
+    # @return [void]
+    def grow_root_filesystem(vm)
+      virt = @virt_cache.virt
+      check = BackgroundTask.new("Checking #{vm}'s root filesystem") do
+        virt.root_grow_plan(vm)
+      rescue Virt::GuestRootGrow::Refused, Virt::GuestAgent::Unavailable => e
+        # virsh's own `error: …` line, not the `Command '…' failed` wrapper around it.
+        e.message[/error: ([^\n]*)/, 1] || e.message
+      end
+      check.run do |plan|
+        next Component::ConfirmWindow.alert("Cannot grow #{vm}'s root filesystem", plan) if plan.is_a?(String)
+
+        fs = plan.filesystem
+        Component::ConfirmWindow.confirm(
+          "Grow #{vm}'s root filesystem?",
+          "/ (#{fs.fstype} on #{plan.partition.name}, #{format_byte_size(plan.partition.size)}) grows by " \
+          "#{format_byte_size(plan.growth)}, into the free space at the end of #{plan.disk.target}. This runs " \
+          "#{plan.commands.map { _1[0][0] }.join(', ')} as root inside the guest, and cannot be canceled once it starts.",
+          confirm: 'Grow'
+        ) { run_root_grow(vm, plan) }
+      end
+    end
+
+    # @param vm [String]
+    # @param plan [Virt::GuestRootGrow::Plan]
+    # @return [void]
+    def run_root_grow(vm, plan)
+      virt = @virt_cache.virt
+      # Not cancelable: the agent runs each command to its end whatever virtui does.
+      task = BackgroundTask.new("Growing #{vm}'s root filesystem", cancelable: false) do
+        virt.grow_root(vm, plan)
+        virt.guest_storage(vm).disk(plan.disk.target).partitions.last
+      end
+      task.run do |partition|
+        # The partition's size, as `df` shows it; the filesystem's own total leaves out ext4's reserve.
+        root = partition.filesystems.first
+        Component::ConfirmWindow.alert("#{vm}'s / is now #{format_byte_size(partition.size)}",
+                                       "#{format_byte_size(root.total - root.used)} of it free.")
       end
     end
 

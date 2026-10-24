@@ -39,11 +39,6 @@ module UI
     # Width of the caption column, `Firmware` plus two spaces.
     CAPTION_WIDTH = 10
 
-    # The smallest space after the last partition worth a `free` row: a GPT disk always
-    # keeps ~17 KiB there for its backup table, and partitioners align to 1 MiB.
-    # @return [Integer] bytes
-    MIN_FREE_TAIL = 1.MiB
-
     # @param config [Virt::DomainConfig] what the VM is defined as
     # @param disk_stats [Array<Virt::DiskStat>] the VM's disks from the last tick, for their
     #   capacities; a disk missing here gets a blank size
@@ -197,7 +192,7 @@ module UI
       end
       cells += disk.filesystems.map { ['', '', *filesystem_cells(_1, nil)] }
       tail = disk.free_tail
-      cells << ['free', format_byte_size(tail)] if tail && tail >= MIN_FREE_TAIL
+      cells << ['free', format_byte_size(tail)] if tail && tail >= Virt::GuestStorage::MIN_FREE_TAIL
       align(cells, right: [1, 5])
     end
 

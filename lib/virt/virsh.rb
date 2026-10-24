@@ -43,6 +43,7 @@ module Virt
       @swap_sampler = swap_sampler
       # Spawned, for the reason {#domain_config} is: {#guest_storage} runs behind a progress popup.
       @spawned_agent = GuestAgent.new(runner: VirshSpawn.new)
+      @root_grow = GuestRootGrow.new(runner: VirshSpawn.new, agent: @spawned_agent)
     end
 
     # @return [VirshSpawn, VirshSession] the transport in use
@@ -199,6 +200,28 @@ module Virt
       @runner.sync('vol-resize', path, capacity.to_s)
       $log.info "#{path}: resized to #{format_byte_size(capacity)}"
     end
+
+    # How a running guest's root filesystem would grow into the free space after it, checked
+    # against the guest's layout and its agent (see {GuestRootGrow}).
+    #
+    #   plan = virsh.root_grow_plan('vt-ubuntu')
+    #   plan.growth   # => 1073741824, after a 1 GiB image resize
+    #
+    # @param domain_name [String] VM name; must be running, with an agent
+    # @return [GuestRootGrow::Plan]
+    # @raise [GuestRootGrow::Refused] if the layout is not the simple one, or there is no room
+    # @raise [GuestAgent::Unavailable] if the guest was never going to answer
+    def root_grow_plan(domain_name)
+      GuestRootGrow.plan(guest_storage(domain_name)).tap { @root_grow.check(domain_name, _1) }
+    end
+
+    # Grows the guest's root partition and filesystem as the plan says, through `guest-exec`.
+    #
+    # @param domain_name [String] VM name
+    # @param plan [GuestRootGrow::Plan] from {#root_grow_plan}
+    # @return [void]
+    # @raise [RuntimeError] if a command in the guest fails
+    def grow_root(domain_name, plan) = @root_grow.grow(domain_name, plan)
 
     # Drops what the swap sampler remembers about a VM's failed samples.
     #

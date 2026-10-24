@@ -640,3 +640,23 @@ just before the resize: QEMU's image lock already fails it for a VM started mean
 cancel: nothing kills libvirtd's `qemu-img` once `virsh` has asked, so ESC would close the popup
 on a resize still running — `UI::BackgroundTask`'s `cancelable: false` makes the popup ignore
 ESC and `q`, and the modal popup keeps virtui's own quit key from reaching the app.
+
+## D_guest_root_grow — Why may virtui run commands in a guest to grow its root filesystem, when the agent is otherwise read-only?
+
+Growing a disk image (`D_disk_resize`) leaves the partition and filesystem as they were, and a
+non-cloud guest — an Ubuntu Desktop install — never grows them on its own. `M` → Grow root
+filesystem runs `sfdisk -N <n>` fed `, +`, `partx -u` and `resize2fs` (or `btrfs filesystem
+resize max /`) as root through `guest-exec`, from `Virt::GuestRootGrow` alone. The read-only rule
+came from `D_no_force_drain`, where `guest-exec` was one clause against a loop behaviour, a
+"remote-root write"; what it protects is that the poll loop can never change a guest, and that
+holds — this runs once, on a keypress, after a confirmation naming the commands, with an argv no
+input reaches. `Virt::GuestAgent`, the class the loop polls through, still cannot call it.
+
+Why only `/` on the physically last partition, ext4 or btrfs, no LVM or encryption: it is the
+layout where growing is one partition-table edit and one online grow, and every check is a read
+(`R_guestinfo`); anything else has a different procedure per layout and gets the reason instead.
+Why not `growpart`: it ships on cloud images only, which grow themselves at boot; util-linux
+and the filesystem's own tools are on every guest with that root. Why `sfdisk` with no
+separate GPT relocation: its write moves the backup table to the new end itself, and
+`sfdisk --verify` found the result clean (`R_guest_root_grow`). Why not cancelable: the agent
+runs each command to its end whatever virtui does.

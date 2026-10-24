@@ -99,8 +99,8 @@ module Virt
 
     # The guest's disk layout, run through the same {GuestStorage.parse} as
     # {Virsh#guest_storage}. A Linux guest is the easy case: an EFI partition, then `/` as the
-    # last partition, with whatever the disk holds beyond 100 GiB left after it — 28 GiB until
-    # {#resize_volume} grows the disk. A Windows guest reports one
+    # last partition, 100 GiB until {#grow_root} grows it, with the rest of the disk after it —
+    # 28 GiB until {#resize_volume} grows the disk. A Windows guest reports one
     # `C:\` volume and no partitions, as its agent does.
     #
     # @param name [String] VM name
@@ -130,7 +130,7 @@ module Virt
       efi_start = 1.MiB
       efi = 106.MiB
       root_start = efi_start + efi
-      root = 100.GiB
+      root = vm.root_size
       guestinfo = <<~LINUX
         fs.count : 2
         fs.0.name : vda1
@@ -199,6 +199,25 @@ module Virt
       raise "Can't shrink capacity below current capacity" if capacity < vm.disk_capacity
 
       vm.disk_capacity = capacity
+    end
+
+    # Mirrors {Virsh#root_grow_plan}, through the same {GuestRootGrow.plan}; a simulated guest's
+    # agent always runs commands, and its disk is GPT.
+    #
+    # @param name [String] VM name
+    # @return [GuestRootGrow::Plan]
+    # @raise [GuestRootGrow::Refused] if there is no room after the root partition
+    # @raise [GuestAgent::Unavailable] for a stopped or agent-less VM
+    def root_grow_plan(name) = GuestRootGrow.plan(guest_storage(name))
+
+    # Mirrors {Virsh#grow_root}: the root partition takes the rest of the disk.
+    #
+    # @param name [String] VM name
+    # @param plan [GuestRootGrow::Plan] from {#root_grow_plan}
+    # @return [void]
+    def grow_root(name, plan)
+      vm = @vms[name]
+      vm.root_size += plan.growth
     end
 
     # Sets a VM's current memory, unless {#allow_set_actual} is `false`.

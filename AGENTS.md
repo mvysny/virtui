@@ -34,7 +34,7 @@ Every fact lives in exactly one of these; the others link to it.
 - **Per-domain memos of backend reads live on `Virt::Cache`, never on `Virt::Virsh`.** The UI thread reaches `Virsh` for the power keys, so state there is state two threads share. See `D_guest_os_from_xml`.
 - **Every subprocess goes through `Run`, one argument per word.** A single string goes through `/bin/sh` and breaks on a VM named `it's`. See `D_argv_not_shell`.
 - **Only reads (`query`) are served by the long-lived `virsh` session; every mutating command spawns its own process** and keeps its own exit status. See `D_virsh_session`.
-- **`Virt::GuestAgent` only reads files; `guest-exec` has no sanctioned use.** See `D_no_force_drain`.
+- **`Virt::GuestAgent` only reads files; `guest-exec` runs only in `Virt::GuestRootGrow`, from the operator-confirmed `M` item, with a fixed argv — never from the loop.** See `D_guest_root_grow`.
 - **Nothing under `lib/virt/` or `lib/system/` references `UI::`.** Data flows up through `Virt::Cache`; glyphs and colors stay in `lib/ui/`.
 - **`MemLevelRaiseVoter`'s trigger stays above `MemLevelShrinkVoter`'s.** Otherwise both vote on one sample and the VM hunts. See `D_ballooning_voters`.
 - **Durations run on the uptime clock (`Cooldown`); specs move them with `Uptime.travel`, never Timecop.** Timecop leaves `CLOCK_MONOTONIC` where it is, so a Timecop'd cooldown test passes vacuously. See `D_cooldown_monotonic`.

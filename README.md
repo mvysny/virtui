@@ -59,7 +59,12 @@ Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
   Grow only, and it cannot be canceled once it starts. The image must be in a libvirt storage
   pool (`/var/lib/libvirt/images` is the `default` one), so libvirt does the resize and no sudo
   is needed. The partitions and filesystems inside stay as they were: a cloud image grows its
-  root at the next boot, otherwise grow it from inside the guest.
+  root at the next boot, otherwise use `Mg`.
+- `Mg` - grows a running VM's root partition and filesystem into the free space at the end of
+  its disk, after you confirm. For the simple layout only: `/` is ext4 or btrfs directly on the
+  last partition (no LVM, no encryption), as an Ubuntu Desktop install has it. It runs `sfdisk`,
+  `partx` and `resize2fs` as root in the guest through `qemu-guest-agent`'s `guest-exec`, which
+  RHEL-family guests disable; anything else is refused with the reason.
 
 ### Integrating Into Your Linux Desktop
 
