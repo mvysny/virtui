@@ -11,6 +11,9 @@ module Virt
     # win11 so the UI's guest-OS marker has more than one family to draw.
     WINDOWS = GuestOS.from_osinfo_id('http://microsoft.com/win/11')
 
+    # Every simulated VM's one disk, `vda`.
+    DISK_CAPACITY = 128.GiB
+
     # @param hostinfo [CpuInfo] the host CPU topology to report
     def initialize(hostinfo: CpuInfo.new('emulator', 1, 4, 2))
       @hostinfo = hostinfo
@@ -53,7 +56,7 @@ module Virt
     def domain_data
       @vms.to_h do |name, vm|
         state = vm.running? ? :running : :shut_off
-        disk = DiskStat.new('vda', 64.GiB, 128.GiB, 64.GiB, nil)
+        disk = DiskStat.new('vda', 64.GiB, DISK_CAPACITY, 64.GiB, nil)
         data = DomainData.new(vm.info, state, DomainData.millis_now, 0, vm.to_mem_stat, [disk])
         [name, data]
       end
@@ -89,6 +92,84 @@ module Virt
     def domain_config(name)
       vm = @vms[name] || raise("failed to get domain '#{name}'")
       DomainConfig.from_xml(vm.to_domain_xml)
+    end
+
+    # The guest's disk layout, run through the same {GuestStorage.parse} as
+    # {Virsh#guest_storage}. A Linux guest is the easy case: an EFI partition, then `/` as the
+    # last partition, with 28 GiB of the disk left after it. A Windows guest reports one
+    # `C:\` volume and no partitions, as its agent does.
+    #
+    # @param name [String] VM name
+    # @return [GuestStorage]
+    # @raise [GuestAgent::Unavailable] for an unknown or stopped VM, or one that declares no OS
+    #   and so has no agent channel (see {#domain_config})
+    def guest_storage(name)
+      vm = @vms[name]
+      raise GuestAgent::Unavailable, "domain '#{name}' is not running" unless vm&.running?
+      raise GuestAgent::Unavailable, 'QEMU guest agent is not configured' if vm.guest_os.family == :unknown
+
+      return GuestStorage.parse(<<~WINDOWS) if vm.guest_os.windows?
+        fs.count : 1
+        fs.0.name : \\\\?\\Volume{0f2c}\\
+        fs.0.mountpoint : C:\\
+        fs.0.fstype : NTFS
+        fs.0.total-bytes : #{DISK_CAPACITY - 1.GiB}
+        fs.0.used-bytes : #{31.GiB}
+        fs.0.disk.count : 1
+        fs.0.disk.0.alias : vda
+        disk.count : 1
+        disk.0.name : \\\\.\\PhysicalDrive0
+        disk.0.partition : no
+        disk.0.alias : vda
+      WINDOWS
+
+      efi_start = 1.MiB
+      efi = 106.MiB
+      root_start = efi_start + efi
+      root = 100.GiB
+      guestinfo = <<~LINUX
+        fs.count : 2
+        fs.0.name : vda1
+        fs.0.mountpoint : /
+        fs.0.fstype : ext4
+        fs.0.total-bytes : #{root - 5.GiB}
+        fs.0.used-bytes : #{9.4.GiB.to_i}
+        fs.0.disk.count : 1
+        fs.0.disk.0.alias : vda
+        fs.0.disk.0.device : /dev/vda1
+        fs.1.name : vda15
+        fs.1.mountpoint : /boot/efi
+        fs.1.fstype : vfat
+        fs.1.total-bytes : #{efi}
+        fs.1.used-bytes : #{6.MiB}
+        fs.1.disk.count : 1
+        fs.1.disk.0.alias : vda
+        fs.1.disk.0.device : /dev/vda15
+        disk.count : 3
+        disk.0.name : /dev/vda1
+        disk.0.partition : yes
+        disk.0.dependency.count : 1
+        disk.0.dependency.0.name : /dev/vda
+        disk.1.name : /dev/vda15
+        disk.1.partition : yes
+        disk.1.dependency.count : 1
+        disk.1.dependency.0.name : /dev/vda
+        disk.2.name : /dev/vda
+        disk.2.partition : no
+        disk.2.alias : vda
+      LINUX
+      files = {
+        '/proc/partitions' => <<~PARTITIONS,
+          major minor  #blocks  name
+
+           253        0 #{DISK_CAPACITY / 1024} vda
+           253        1 #{root / 1024} vda1
+           253       15 #{efi / 1024} vda15
+        PARTITIONS
+        '/sys/class/block/vda1/start' => "#{root_start / GuestStorage::SECTOR}\n",
+        '/sys/class/block/vda15/start' => "#{efi_start / GuestStorage::SECTOR}\n"
+      }
+      GuestStorage.parse(guestinfo) { files.fetch(_1) }
     end
 
     # Sets a VM's current memory, unless {#allow_set_actual} is `false`.

@@ -70,6 +70,32 @@ module Tuile
       assert_includes text, 'Boot      sda, vda'
     end
 
+    it "shows the guest's partitions in disk order under their disk, with what is mounted from each" do
+      disks = [Virt::DiskStat.new('vda', 0, 14.GiB, 0, nil)]
+      text = text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), disks, Helpers.vt_ubuntu_storage))
+      at = text.index('       /var/lib/libvirt/images/vt-ubuntu.qcow2')
+      assert_equal <<~TEXT.lines.map { "       #{_1.rstrip}" }, text[at, 5]
+        /var/lib/libvirt/images/vt-ubuntu.qcow2
+        vda13  1023M  ext4  /boot      108M / 921M  12%
+        vda14     4M
+        vda15   106M  vfat  /boot/efi  6.3M / 104M   7%
+        vda1     13G  ext4  /          3.2G / 12G   27%
+      TEXT
+      # The 17 KiB a full GPT disk keeps at its end is no free space anyone left.
+      refute(text.any? { _1.strip.start_with?('free') }, text.join("\n"))
+    end
+
+    it 'shows the space left after the last partition' do
+      vda = Virt::VMEmulator.demo.guest_storage('Ubuntu')
+      text = text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), [], vda))
+      assert_includes text, '       free    28G'
+    end
+
+    it 'says why the guest could not describe its disks' do
+      text = text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), [], 'Guest agent is not responding'))
+      assert_includes text, '  The guest did not say how its disks are laid out: Guest agent is not responding'
+    end
+
     it 'opens as a popup titled with the VM' do
       Screen.instance.content = Component::Label.new
       popup = UI::VMInfoWindow.open(config('vt-bios'))

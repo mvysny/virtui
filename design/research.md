@@ -372,3 +372,26 @@ Source: [Hyper-V Dynamic Memory](https://learn.microsoft.com/en-us/windows-serve
 - Kubernetes VPA, the same control problem outside virtualization, targets the p95 of observed
   usage history plus a 15 % margin (`--recommendation-margin-fraction`). **[src]** —
   [recommender.go](https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/recommender/logic/recommender.go)
+
+## R_guestinfo — what `virsh guestinfo --filesystem --disk` reports, and what it leaves to guest files
+
+- One `key : value` per line, keys padded to a column, a long key run straight into its `:`
+  (`disk.0.dependency.count: 1`). **[verified 2026-10-24, libvirt 12.0.0, QEMU 10.2.1]**
+- `fs.N.*`: `name` (`vda1`), `mountpoint`, `fstype`, `total-bytes`, `used-bytes`, and per disk
+  under it `alias` — the *host* target, `vda` — and `device`, the guest's `/dev/vda1`. Mounted
+  filesystems only: no swap, no unmounted partition. **[verified 2026-10-24]**
+- `total-bytes` is `used-bytes` plus what an unprivileged user may still write, the base of
+  `df`'s Use%; the agent's own `guest-get-fsinfo` also has `total-bytes-privileged`, which
+  guestinfo does not print. **[verified 2026-10-24]**
+- `disk.N.*`: every guest block device, `partition: yes|no`, its `dependency.M.name`s
+  (`/dev/vda` for `/dev/vda1`), and for a whole disk `alias` and `guest_bus`. No sizes, no
+  partition offsets. **[verified 2026-10-24]**
+- The geometry lives in guest files the agent's `guest-file-read` reaches: `/proc/partitions`
+  (sizes in KiB, whole disks included) and `/sys/class/block/<part>/start` (512-byte sectors,
+  whatever the disk's sector size). On an Ubuntu cloud image `/` is `vda1` but starts after
+  `vda13`–`vda15`. **[verified 2026-10-24, Ubuntu 26.04]**
+- A GPT disk whose last partition fills it keeps 33 sectors (~17 KiB) after it, the backup
+  table. **[verified 2026-10-24]**
+- Without an agent channel: `error: argument unsupported: QEMU guest agent is not configured`,
+  exit 1. **[verified 2026-10-24]** An LVM or LUKS root is reported through a `dm-*` device,
+  and a Windows guest's devices are not `/dev/…` names. **[unverified]**

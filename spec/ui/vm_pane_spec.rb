@@ -247,6 +247,7 @@ module Tuile
         text = info.instance_variable_get(:@view).text.to_s
         assert_includes text, 'UEFI, Secure Boot'
         assert_includes text, "vda  virtio  qcow2  128G\n"
+        assert_includes text, 'NTFS  C:\\', "the guest's own view of its disk"
       end
 
       it 'returns false for an unhandled key' do

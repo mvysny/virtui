@@ -52,7 +52,9 @@ Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
 - `d` - toggles disk stats for all VMs, not just running ones. Clutters the list a bit.
 - `i` - shows what the VM is defined as: CPU and memory, UEFI or BIOS, where the disk images live,
   shared folders, network, passthrough. Also says why a VM cannot balloon or report its swap
-  level, if it can't.
+  level, if it can't. For a running VM with `qemu-guest-agent`, each disk also lists the
+  guest's partitions, how full each mounted filesystem is, and the space left after the last
+  partition.
 
 ### Integrating Into Your Linux Desktop
 

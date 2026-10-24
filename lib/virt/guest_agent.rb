@@ -24,8 +24,9 @@ module Virt
   # this wants {GuestSwapSampler}, which turns the first kind into a blank gauge and stops
   # asking a guest that keeps failing.
   #
-  # Timer-thread-confined: three RPCs against a sick guest is exactly the stall that must
-  # never reach the UI thread.
+  # Never on the UI thread: three RPCs against a sick guest is exactly the stall that must
+  # never reach it. The tick polls through the session; a one-off read behind a progress
+  # popup goes through a {VirshSpawn} of its own ({Virsh#guest_storage}).
   class GuestAgent
     # The guest file the swap level is read from.
     MEMINFO_PATH = '/proc/meminfo'
@@ -166,7 +167,7 @@ module Virt
     rescue StandardError => e
       # Classified here, at the one place that talks to libvirt: the error text is this
       # class's business, and every caller above wants the answer as a type.
-      raise Unavailable, e.message if expected?(e)
+      raise Unavailable, e.message if self.class.expected_failure?(e)
 
       raise
     end
@@ -185,10 +186,11 @@ module Virt
       raise "#{domain}: #{execute} gave an unparseable reply (#{e.message}): #{raw[0, 200].inspect}"
     end
 
+    # Also classifies `virsh guestinfo`, which fails through the same agent ({Virsh#guest_storage}).
     # @param error [StandardError] the failure to classify
     # @return [Boolean] whether this is a failure a healthy host produces on its own (see
     #   {EXPECTED_FAILURES}), and so belongs in an {Unavailable}
-    private def expected?(error)
+    def self.expected_failure?(error)
       message = error.message.downcase
       EXPECTED_FAILURES.any? { |it| message.include?(it) }
     end

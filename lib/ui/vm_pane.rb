@@ -360,12 +360,24 @@ module UI
 
     # Opens {VMInfoWindow} for the selected VM once its definition is read, fresh on every
     # press so the window never shows a definition older than the keypress
-    # (design/decisions.md D_background_task).
+    # (design/decisions.md D_background_task). The guest is asked for its disk layout only
+    # when the live definition says its agent is connected; one that still cannot answer
+    # gets the reason in the window rather than failing the whole read.
     # @return [void]
     def show_info_popup
       vm = current_vm || return
-      BackgroundTask.new("Reading #{vm}'s definition") { @virt_cache.virt.domain_config(vm) }
-                    .run { |config| VMInfoWindow.open(config, @virt_cache.data(vm)&.disk_stat || []) }
+      virt = @virt_cache.virt
+      task = BackgroundTask.new("Reading #{vm}'s definition") do
+        config = virt.domain_config(vm)
+        guest = begin
+          virt.guest_storage(vm) if config.agent == :connected
+        rescue Virt::GuestAgent::Unavailable => e
+          # virsh's own `error: …` line, not the `Command '…' failed` wrapper around it.
+          e.message[/error: ([^\n]*)/, 1] || e.message.lines.first.strip
+        end
+        [config, guest]
+      end
+      task.run { |config, guest| VMInfoWindow.open(config, @virt_cache.data(vm)&.disk_stat || [], guest) }
     end
 
     # Opens the memory menu for the selected VM: toggle auto-ballooning, or give it max

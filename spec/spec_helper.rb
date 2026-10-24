@@ -56,6 +56,23 @@ module Helpers
     $log.add_handler [:console, { output: result, enable_color: false }]
     result
   end
+
+  # vt-ubuntu's guest files as recorded 2026-10-24, right after its image grew 12 → 14 GiB
+  # and `/` was grown into it; pair with `spec/virt/guestinfo_vt-ubuntu.txt`.
+  # @return [Hash{String => String}] guest path to contents
+  def self.vt_ubuntu_guest_files
+    { '/proc/partitions' => File.read('spec/virt/guest_proc_partitions.txt'),
+      '/sys/class/block/vda1/start' => "2324480\n",
+      '/sys/class/block/vda13/start' => "2048\n",
+      '/sys/class/block/vda14/start' => "2099200\n",
+      '/sys/class/block/vda15/start' => "2107392\n" }
+  end
+
+  # @return [Virt::GuestStorage] vt-ubuntu's recorded disk layout
+  def self.vt_ubuntu_storage
+    files = vt_ubuntu_guest_files
+    Virt::GuestStorage.parse(File.read('spec/virt/guestinfo_vt-ubuntu.txt')) { files.fetch(_1) }
+  end
 end
 
 # Mounts `component` at `rect` under a {Tuile::Component::Layout::Absolute} holder, the

@@ -612,3 +612,17 @@ of the class — would go untested. What we carry: on a 50 ms read the popup sho
 before the result replaces it, accepted until it bites; the task has no timeout, since the work
 owns its own; and it reaches nothing of virtui but `$log`, because once a caller has shaped it,
 `BackgroundTask` moves to Tuile with `Cancellation`.
+
+## D_guest_storage — Why does the `i` window read the guest's partitions through guest files, and show a guest that cannot answer as a line rather than a failed read?
+
+`Virt::GuestStorage` takes `virsh guestinfo --filesystem --disk` for what is mounted where and
+which partition belongs to which host disk, and the geometry guestinfo lacks from guest files:
+one `/proc/partitions` for every size, one `/sys/class/block/<part>/start` per partition
+(`R_guestinfo`). Why not `guest-exec lsblk`, one call for everything: `guest-exec` would sit on
+a read path (`D_no_force_drain`). Why not `/sys/…/size` per partition, exact where
+`/proc/partitions` rounds to a KiB: twice the reads, ~45 ms each when spawned, for precision no
+row shows. Why read only after the live XML says the agent channel is connected, and turn a
+`GuestAgent::Unavailable` into a line in the window: RHEL-family agents block `guest-file-*`
+(`GuestAgent::EXPECTED_FAILURES`), so a raise would cost those guests the whole definition, not
+just the guest's half of it. Every other failure still fails the read, as `D_background_task`
+has it.

@@ -73,7 +73,10 @@ offered; whatever `qemu-img` refuses is shown as it is.
 
 ### The checks — reads only
 
-All through what the agent already allows, so the item can show *why* it is disabled:
+All through what the agent already allows, so the item can show *why* it is disabled.
+Checks 1 and 2 are `Virsh#guest_storage` as the `i` window already uses it: the root
+partition is the last of `GuestStorage::Disk#partitions`, its room is `#free_tail`, and the
+filesystem name tells LVM (`dm-*`) from a plain partition. The details:
 
 1. `virsh guestinfo <vm> --filesystem --disk` (one libvirt call): `/` has fstype `ext4` or
    `btrfs`, sits on exactly one disk, and libvirt names that disk's host side for us —

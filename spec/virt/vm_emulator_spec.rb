@@ -104,6 +104,25 @@ describe Virt::VMEmulator do
     assert_equal :unknown, e.domain_config('Fedora').agent, 'a shut-off VM has no channel state'
   end
 
+  it 'guest_storage gives a Linux guest the easy layout: / last, room after it' do
+    vda = Virt::VMEmulator.demo.guest_storage('Ubuntu').disk('vda')
+    assert_equal Virt::VMEmulator::DISK_CAPACITY, vda.size
+    assert_equal([%w[vda15 /boot/efi], %w[vda1 /]], vda.partitions.map { [_1.name, _1.filesystems.first.mountpoint] })
+    assert_equal 128.GiB - 107.MiB - 100.GiB, vda.free_tail
+  end
+
+  it 'guest_storage gives a Windows guest one volume and no partitions' do
+    vda = Virt::VMEmulator.demo.guest_storage('win11').disk('vda')
+    assert_equal [[], ['C:\\']], [vda.partitions, vda.filesystems.map(&:mountpoint)]
+  end
+
+  it 'guest_storage calls a stopped or agent-less guest Unavailable' do
+    e = Virt::VMEmulator.demo
+    assert_raises(Virt::GuestAgent::Unavailable) { e.guest_storage('Fedora') }
+    e.vm('BASE').start
+    assert_raises(Virt::GuestAgent::Unavailable) { e.guest_storage('BASE') }
+  end
+
   it 'domain_config raises for a VM it does not know' do
     assert_raises(RuntimeError) { Virt::VMEmulator.new.domain_config('nope') }
   end

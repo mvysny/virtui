@@ -10,13 +10,21 @@ module UI
   #   │ Balloon   virtio, free page reporting                │
   #   │ Agent     no channel — no swap level for this VM     │
   #   │ Disks                                                │
-  #   │   vda  virtio  qcow2  40G                            │
+  #   │   vda  virtio  qcow2  14G                            │
   #   │        /var/lib/libvirt/images/vt-ubuntu.qcow2       │
+  #   │        vda13  1023M  ext4  /boot      108M / 921M  12% │
+  #   │        vda14     4M                                  │
+  #   │        vda15   106M  vfat  /boot/efi  6.3M / 104M   6% │
+  #   │        vda1     13G  ext4  /          3.2G / 12G   26% │
+  #   │        free    2.0G                                  │
   #   └───────────────────────────────────── q/ESC to close ─┘
   #
   # A section the VM has nothing for is left out, except `Balloon` and `Agent`: those are
   # virtui's own prerequisites, and when one is missing the line says what that costs. Paths
   # get a line of their own, so a long one wraps without breaking the columns.
+  #
+  # Under each disk, the guest's own view of it ({Virt::GuestStorage}) when there is one: the
+  # partitions in disk order, the mounted filesystems, and the space after the last partition.
   #
   # A snapshot of the moment `i` was pressed: it does not follow later ticks.
   #
@@ -31,13 +39,21 @@ module UI
     # Width of the caption column, `Firmware` plus two spaces.
     CAPTION_WIDTH = 10
 
+    # The smallest space after the last partition worth a `free` row: a GPT disk always
+    # keeps ~17 KiB there for its backup table, and partitioners align to 1 MiB.
+    # @return [Integer] bytes
+    MIN_FREE_TAIL = 1.MiB
+
     # @param config [Virt::DomainConfig] what the VM is defined as
     # @param disk_stats [Array<Virt::DiskStat>] the VM's disks from the last tick, for their
     #   capacities; a disk missing here gets a blank size
-    def initialize(config, disk_stats = [])
+    # @param guest [Virt::GuestStorage, String, nil] the guest's view of its disks; a `String`
+    #   says why the guest could not tell, `nil` means it was not asked
+    def initialize(config, disk_stats = [], guest = nil)
       super(config.name)
       @config = config
       @disk_stats = disk_stats
+      @guest = guest
       @view = Component::TextView.new
       self.content = @view
       self.footer_text = 'q/ESC to close'
@@ -48,9 +64,10 @@ module UI
     #
     # @param config [Virt::DomainConfig] what the VM is defined as
     # @param disk_stats [Array<Virt::DiskStat>] see {#initialize}
+    # @param guest [Virt::GuestStorage, String, nil] see {#initialize}
     # @return [Tuile::Component::Popup] the opened popup
-    def self.open(config, disk_stats = [])
-      Tuile::Component::Popup.new(content: new(config, disk_stats), declared_size: SIZE).open
+    def self.open(config, disk_stats = [], guest = nil)
+      Tuile::Component::Popup.new(content: new(config, disk_stats, guest), declared_size: SIZE).open
     end
 
     protected
@@ -143,7 +160,7 @@ module UI
         section('Other', c.other_devices.empty? ? [] : [other_devices])
     end
 
-    # One aligned row per disk, its source on the line under it.
+    # One aligned row per disk, its source on the line under it, then the guest's view of it.
     # @return [Array<String>]
     def disk_rows
       return [] if @config.disks.empty?
@@ -159,7 +176,64 @@ module UI
       cells.zip(@config.disks).flat_map do |row, disk|
         # Sizes are right-aligned, every other column left-aligned.
         aligned = row.each_with_index.map { |cell, i| i == 3 ? cell.rjust(widths[i]) : cell.ljust(widths[i]) }
-        [aligned.join('  ').rstrip, "#{indent}#{disk_source(disk)}"]
+        [aligned.join('  ').rstrip, "#{indent}#{disk_source(disk)}",
+         *guest_rows(disk.target).map { "#{indent}#{_1}" }]
+      end + guest_failure
+    end
+
+    # @param target [String] a host disk target, e.g. `vda`
+    # @return [Array<String>] aligned rows: each partition with what is mounted from it, the
+    #   filesystems on no partition, the free tail; empty when the guest did not say
+    def guest_rows(target)
+      disk = @guest.disk(target) if @guest.is_a?(Virt::GuestStorage)
+      return [] if disk.nil?
+
+      cells = disk.partitions.flat_map do |part|
+        # One row per filesystem, the partition's own cells on the first.
+        rows = part.filesystems.map { ['', '', *filesystem_cells(_1, part.name)] }
+        rows = [['', '']] if rows.empty?
+        rows.first[0, 2] = [part.name, part.size.nil? ? '' : format_byte_size(part.size)]
+        rows
+      end
+      cells += disk.filesystems.map { ['', '', *filesystem_cells(_1, nil)] }
+      tail = disk.free_tail
+      cells << ['free', format_byte_size(tail)] if tail && tail >= MIN_FREE_TAIL
+      align(cells, right: [1, 5])
+    end
+
+    # @param filesystem [Virt::GuestStorage::Filesystem]
+    # @param partition [String, nil] the partition it is mounted from
+    # @return [Array<String>] type, mountpoint, `used / total`, use %, and the device it is
+    #   mounted from when that is not the partition itself (`dm-0` through LVM)
+    def filesystem_cells(filesystem, partition)
+      total = filesystem.total
+      usage = total.nil? || filesystem.used.nil? ? ['', ''] : usage_cells(filesystem.used, total)
+      [filesystem.fstype, filesystem.mountpoint, *usage, (filesystem.name if partition && filesystem.name != partition).to_s]
+    end
+
+    # @param used [Integer] bytes
+    # @param total [Integer] bytes
+    # @return [Array<String>] `used / total`, and the use % as `df` rounds it
+    def usage_cells(used, total)
+      percent = total.zero? ? 0 : (used * 100.0 / total).ceil
+      ["#{format_byte_size(used)} / #{format_byte_size(total)}", "#{percent}%"]
+    end
+
+    # @return [Array<String>] why the guest could not describe its disks; empty if it did,
+    #   or was not asked
+    def guest_failure
+      @guest.is_a?(String) ? ["The guest did not say how its disks are laid out: #{@guest}"] : []
+    end
+
+    # @param cells [Array<Array<String>>] rows of cells, ragged
+    # @param right [Array<Integer>] the columns to right-align
+    # @return [Array<String>] each row's cells padded to the column widths, two spaces apart
+    def align(cells, right:)
+      columns = cells.map(&:size).max.to_i
+      widths = (0...columns).map { |i| cells.map { _1[i].to_s.length }.max }
+      cells.map do |row|
+        row.each_with_index.map { |cell, i| right.include?(i) ? cell.rjust(widths[i]) : cell.ljust(widths[i]) }
+           .join('  ').rstrip
       end
     end
 

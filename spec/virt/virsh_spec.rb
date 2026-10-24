@@ -159,6 +159,32 @@ describe Virt::Virsh do
     end
   end
 
+  context 'guest_storage' do
+    it 'parses the guestinfo and guest files it is handed' do
+      storage = Virt::Virsh.new.guest_storage('vt-ubuntu', File.read('spec/virt/guestinfo_vt-ubuntu.txt'),
+                                              Helpers.vt_ubuntu_guest_files)
+      assert_equal 'vda1', storage.disk('vda').partitions.last.name
+    end
+
+    it 'spawns guestinfo, and calls a guest that cannot answer Unavailable' do
+      runner = RecordingRunner.new
+      runner.define_singleton_method(:sync) do |*args|
+        record(:sync, args)
+        raise "Command 'virsh -q guestinfo' failed with 1: error: Guest agent is not responding: " \
+              'QEMU guest agent is not connected'
+      end
+      assert_raises(Virt::GuestAgent::Unavailable) { Virt::Virsh.new(runner: runner).guest_storage('vt-ubuntu') }
+      assert_equal [[:sync, 'guestinfo', 'vt-ubuntu', '--filesystem', '--disk']], runner.calls
+    end
+
+    it 'lets any other guestinfo failure through' do
+      runner = RecordingRunner.new
+      runner.define_singleton_method(:sync) { |*| raise 'error: boom' }
+      error = assert_raises(RuntimeError) { Virt::Virsh.new(runner: runner).guest_storage('vt-ubuntu') }
+      refute_kind_of Virt::GuestAgent::Unavailable, error
+    end
+  end
+
   it 'hostinfo' do
     info = Virt::Virsh.new.hostinfo(VIRSH_NODEINFO)
     assert_equal 'x86_64: 1/8/2', info.to_s

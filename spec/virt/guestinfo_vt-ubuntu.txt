@@ -1,0 +1,55 @@
+fs.count            : 3
+fs.0.name           : vda1
+fs.0.mountpoint     : /
+fs.0.fstype         : ext4
+fs.0.total-bytes    : 13329502208
+fs.0.used-bytes     : 3466166272
+fs.0.disk.count     : 1
+fs.0.disk.0.alias   : vda
+fs.0.disk.0.device  : /dev/vda1
+fs.1.name           : vda13
+fs.1.mountpoint     : /boot
+fs.1.fstype         : ext4
+fs.1.total-bytes    : 966021120
+fs.1.used-bytes     : 113242112
+fs.1.disk.count     : 1
+fs.1.disk.0.alias   : vda
+fs.1.disk.0.device  : /dev/vda13
+fs.2.name           : vda15
+fs.2.mountpoint     : /boot/efi
+fs.2.fstype         : vfat
+fs.2.total-bytes    : 109395456
+fs.2.used-bytes     : 6567424
+fs.2.disk.count     : 1
+fs.2.disk.0.alias   : vda
+fs.2.disk.0.device  : /dev/vda15
+disk.count          : 7
+disk.0.name         : /dev/vda14
+disk.0.partition    : yes
+disk.0.dependency.count: 1
+disk.0.dependency.0.name: /dev/vda
+disk.1.name         : /dev/vda1
+disk.1.partition    : yes
+disk.1.dependency.count: 1
+disk.1.dependency.0.name: /dev/vda
+disk.2.name         : /dev/vda13
+disk.2.partition    : yes
+disk.2.dependency.count: 1
+disk.2.dependency.0.name: /dev/vda
+disk.3.name         : /dev/vda15
+disk.3.partition    : yes
+disk.3.dependency.count: 1
+disk.3.dependency.0.name: /dev/vda
+disk.4.name         : /dev/vda
+disk.4.partition    : no
+disk.4.alias        : vda
+disk.4.guest_bus    : virtio
+disk.5.name         : /dev/sr0
+disk.5.partition    : no
+disk.5.serial       : QEMU_DVD-ROM_QM00001
+disk.5.alias        : sda
+disk.5.guest_bus    : sata
+disk.6.name         : /dev/vdb
+disk.6.partition    : no
+disk.6.alias        : vdb
+disk.6.guest_bus    : virtio

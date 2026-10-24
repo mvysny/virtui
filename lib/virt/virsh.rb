@@ -41,6 +41,8 @@ module Virt
     def initialize(runner: VirshSpawn.new, swap_sampler: nil)
       @runner = runner
       @swap_sampler = swap_sampler
+      # Spawned, for the reason {#domain_config} is: {#guest_storage} runs behind a progress popup.
+      @spawned_agent = GuestAgent.new(runner: VirshSpawn.new)
     end
 
     # @return [VirshSpawn, VirshSession] the transport in use
@@ -129,6 +131,35 @@ module Virt
     # @raise [ArgumentError] if what it printed is not a domain definition
     def domain_config(domain_name, xml = nil)
       DomainConfig.from_xml(xml || @runner.sync('dumpxml', domain_name))
+    end
+
+    # The running guest's own view of its disks: partitions, and what is mounted where.
+    #
+    #   virsh.guest_storage('vt-ubuntu').disk('vda').partitions.last.name   # => "vda1"
+    #
+    # `virsh guestinfo` plus a few guest file reads (see {GuestStorage}), all spawned, like
+    # {#domain_config}: ~0.25 s for a disk of four partitions.
+    #
+    # @param domain_name [String] VM name; must be running, with an agent
+    # @param guestinfo [String, nil] canned `guestinfo --filesystem --disk` output for testing;
+    #   runs the real command when `nil`
+    # @param guest_files [Hash{String => String}, nil] canned guest files by path for testing;
+    #   read through the agent when `nil`
+    # @return [GuestStorage]
+    # @raise [GuestAgent::Unavailable] if the guest was never going to answer
+    # @raise [RuntimeError] if `virsh` or the agent fails otherwise, or replies with
+    #   something it does not document
+    def guest_storage(domain_name, guestinfo = nil, guest_files = nil)
+      guestinfo ||= begin
+        @runner.sync('guestinfo', domain_name, '--filesystem', '--disk')
+      rescue RuntimeError => e
+        raise GuestAgent::Unavailable, e.message if GuestAgent.expected_failure?(e)
+
+        raise
+      end
+      GuestStorage.parse(guestinfo) do |path|
+        guest_files ? guest_files.fetch(path) : @spawned_agent.read_file(domain_name, path)
+      end
     end
 
     # Drops what the swap sampler remembers about a VM's failed samples.
