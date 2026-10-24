@@ -1,8 +1,10 @@
 # Background task with a progress dialog
 
-**Status:** proposal, nothing built (2026-10-24). The first user is the `i` info window
+**Status:** built, no caller yet (2026-10-24). `UI::BackgroundTask`, `UI::ProgressWindow`,
+`Cancellation` and `CanceledError` exist, with specs. The first user is the `i` info window
 (`vm-info-window.md`). It needs a fresh `virsh dumpxml` when the key is pressed, and the UI thread
-cannot run that read itself.
+cannot run that read itself. The doc changes under *What it changes in the docs* land with that
+first caller, since until then no backend read runs off the timer thread.
 
 ## The problem
 
@@ -200,21 +202,17 @@ and a click all dismiss.
   task that talks to a guest.
 - `Q_name`: **`BackgroundTask`.** The dialog is not optional, so a `WithDialog` suffix would add
   nothing.
-- `Q_testing`: **join-and-drain, once Tuile supports it** (feature request
-  [tuile#65](https://github.com/mvysny/tuile/issues/65)). Today `FakeEventQueue#submit` runs its
-  block inline on whichever thread calls it. On the worker that means `finish` closes the popup
-  off the UI thread, and `Screen#check_locked` raises "UI lock not held". `Tuile::Error` is a
-  `StandardError`, so the worker's own rescue catches it and submits `fail`, which fails the same
-  way. The spec ends with a dead thread and never reaches its drain.
-
-  The request: `FakeEventQueue` remembers the thread that created it. A `submit` from that thread
-  runs inline as today; one from any other thread is queued, and a new `drain` helper runs the
-  queue on the spec thread. A spec then reads:
+- `Q_testing`: **join the worker, then `Testing.loop`**, which Tuile master added for
+  [tuile#65](https://github.com/mvysny/tuile/issues/65). Tuile 0.17's `FakeEventQueue#submit` ran
+  its block inline on whichever thread called it, so on the worker `finish` closed the popup off
+  the UI thread and `Screen#check_locked` raised. On master, `submit` queues from every thread,
+  the spec's own included, and `Testing.loop` plays the loop turn that runs the queue (every
+  `Testing` call and `FakeScreen` gesture also runs it). A spec reads:
 
   ```ruby
   thread = UI::BackgroundTask.new("Reading web01") { "xml" }.run { |r| got = r }
   thread.join
-  Screen.instance.event_queue.drain
+  Testing.loop
   assert_equal "xml", got
   ```
 
