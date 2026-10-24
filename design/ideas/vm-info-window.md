@@ -207,9 +207,10 @@ read (`Q_spawned_read`).
 - `Q_window_size`: use a fixed `Fraction.new(0.7, 0.7)` like `CpuFlagsWindow`, or fit the height
   to the content (a plain VM is about 15 lines)? Tuile's `Popup` `declared_size` decides; check
   whether it can shrink to fit.
-- `Q_offline_capacity`: does `domstats` report `block.N.capacity` for a shut-off domain? If it
-  does not, either the size column stays blank for stopped VMs, or the window does a
-  `domblkinfo`, which is another read.
+- `Q_offline_capacity`: answered 2026-10-24 on a shut-off `vt-bios`. Yes: `domstats --block`
+  still lists `block.N.name`, `path`, `allocation`, `capacity` and `physical`, but none of the
+  `rd`/`wr`/`fl` counters. `physical` (196616) can be smaller than `allocation` (200704). No
+  `domblkinfo` is needed.
 - `Q_hostdev_names`: show `PCI 0000:01:00.0` as is, or resolve it to "NVIDIA RTX 3060" through
   `/sys/bus/pci/devices/*/` or `lspci`? Resolving is more useful, but it is a host read in
   `lib/system/` and a second source. Raw IDs first.
@@ -218,6 +219,20 @@ read (`Q_spawned_read`).
   terse line, shown only if non-empty.
 
 ## To check on a real host
+
+Partly done 2026-10-24 against the `vt-*` VMs (`bin/test-vms.sh`):
+
+- An auto-selected UEFI keeps `<os firmware='efi'>` **and** gains the expanded explicit
+  `<loader readonly='yes' secure='yes' type='pflash'>…OVMF_CODE_4M.ms.fd</loader>` and
+  `<nvram template=…>`. Both forms are in the live XML and in `--inactive`, with
+  `<firmware><feature enabled='yes' name='secure-boot'/>` (and `enrolled-keys`). Either form is
+  enough to detect Secure Boot.
+- The agent channel's live `<target … name='org.qemu.guest_agent.0' state='connected'/>`.
+  A domain with no agent has no such channel at all (`vt-bios`).
+- `dumpxml --security-info` of a SPICE guest with no password has no `passwd=`.
+- `vt-bios`, created with `--osinfo detect=off,require=off`, has no `<libosinfo:os>` in its
+  `<metadata>`, so it is a real `:unknown` case.
+- Not done: recording the fixtures into `spec/virt/`. That belongs to implementing this idea.
 
 ```fish
 for d in (virsh list --all --name); virsh -q dumpxml $d > spec/virt/dumpxml_$d.xml; end

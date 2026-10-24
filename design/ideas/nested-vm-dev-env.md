@@ -1,26 +1,61 @@
 # A nested VM to develop against
 
-**Status:** both VMs are up (2026-10-24), built by `bin/test-vms.sh`. Every feature in the
-`vt-ubuntu` list below was checked from inside the guest. Not done yet: virtui itself against
-them, and the other ideas' *To check on a real host* lists.
+**Status:** the environment is built and understood (2026-10-24). `bin/test-vms.sh` builds both
+VMs, virtui has been run against them, and the full balloon cycle and the two-level chain have
+been watched. Two virtui problems turned up (*What virtui did*). One of them, `Q_min_actual`,
+decides whether stock virtui balloons `vt-ubuntu` at all. Two items of `vm-ip-address.md`
+and `vm-info-window.md` were checked off here; the rest of those lists stays with them.
 
-#### First run, 2026-10-24
+#### The environment, as built and checked 2026-10-24
 
 - The cloud image is 819 MB, not ~600. `gpgv` and `sha256sum` both passed.
-- virt-install's `--cloud-init` failed. The guest shut down during its first boot (reason
-  `shutdown`), the one-shot seed ISO went with it, and the next boot came up as hostname `ubuntu`
-  with no `dev` user. The cause is not known: after the fix the guest boots only once and nothing
-  resets it. The script now builds its own NoCloud seed (`xorrisofs`, volume `vt-seed.iso`) and
-  leaves it in the CD-ROM, so the info window shows a CD-ROM with media, not an empty one.
 - Checked inside `vt-ubuntu`: `cloud-init status: done`, hostname `vt-ubuntu`, `SecureBoot
-  enabled`, `/dev/tpm0`, the virtiofs tag `share` mounts, 1 GiB `/swapfile`, `stress-ng`, and
+  enabled`, `/dev/tpm0`, the virtiofs tag `share` mounts, a 1 GiB `/swapfile`, `memramp`, and
   `qemu-guest-agent` active (`guest-get-osinfo` answers from the host with `version-id 26.04`).
   SSH with your key works.
-- `down`, then `up`, works. The base volume survives.
-- `domstats --balloon` for `vt-ubuntu` reports `balloon.unused=3790380` KiB with
-  `balloon.current=1048576` KiB. Unused is larger than current. Worth a look before the balloon
-  tests trust `unused`. `vt-bios`, which has no agent, reports only `current`, `maximum`,
-  `last-update=0` and `rss`.
+- `down`, then `up`, works in about two minutes. The base volume survives.
+- **virt-install's own `--cloud-init` cannot work with this image.** On an empty NVRAM, shim's
+  `fallback.efi` writes the boot entry and resets the VM. libvirt emitted a `reboot` event 5.8 s
+  into the first boot, while the screen was still black at 640×480 firmware resolution. During
+  virt-install's install phase `on_reboot` is `destroy`, so that reset ends as `shut off
+  (shutdown)` and the one-shot seed is gone. With `--noautoconsole` and no `--wait`, nobody
+  restarts the VM. Hence the script's own NoCloud seed (`vt-seed.iso`), left in the CD-ROM for good.
+- **The guest boots with all of `<memory>`.** The balloon inflates down to `<currentMemory>` only
+  once the guest's balloon driver loads, about 20 s in. The 1 s `balloon-change` events step
+  4 GiB → 3.6 GiB → … → 1 GiB. Stats collected before then describe a 4 GiB guest, which is the
+  `balloon.unused=3790380` KiB seen against `current=1048576`. That stale snapshot is also what
+  `D_mem_stats_self_armed` is about: with no stats period set, the numbers never move again, and
+  virtui arms the period itself.
+- **`stress-ng --vm` is not a repeatable memory load on a ballooned guest.** It sizes itself to
+  what is free when it starts. Asked for 3.5 GiB at a 0.8 GiB actual, it mapped 2.6 GiB and kept
+  0.9 GiB resident. The guest therefore carries `memramp MIB [MIB/s [hold s]]`, which touches
+  every page of a `bytearray` at a set rate (default 200 MiB/s, hold 60 s).
+
+#### What virtui did, 2026-10-24
+
+Run from tmux (`tmux new -d -s vt -x 170 -y 50 bin/virtui`, read with `tmux capture-pane -p`).
+
+- Both VMs show up correctly. `vt-ubuntu` has 🐧, its IP, the swap row and 🎈. `vt-bios` has
+  `?` (no osinfo) and 🐢: its balloon stats never refresh, because it has no guest balloon driver.
+- **Stock virtui never balloons `vt-ubuntu` (`Q_min_actual`).** `BallooningVM`'s `@min_actual`
+  is 8 GiB. A VM whose `<memory>` is below that gets "VM max memory … is below min_actual,
+  doing nothing" on every tick. That status only reaches `$log.debug`, so nothing on screen says
+  why. In that first run, a guest at 95% RAM with 600 MiB swapped had `stress-ng` OOM-killed
+  while virtui watched.
+- **With the floor at 512 MiB, the controller works as designed.** The floor was lowered by a
+  throwaway `prepend` wrapper, not a code change. Ramping 3.5 GiB: 0.8 → 1.1 → 1.4 → 1.8 →
+  2.3 → 3.0 → 3.9 GiB in 22 s, one +30% step per fresh sample, with no OOM kill. The
+  swap vetoer then held for 60 s ("the guest swapped recently"), and the guest stepped down 10%
+  every ~12 s to 0.82 GiB, where it settled at ~51% used. Load and swap rate were both
+  given as reasons, as `D_swap_raise_vote` predicts.
+- **The two-level chain works.** With `vt-ubuntu` grown to 4 GiB and 3.7 GiB resident, the host's
+  virtui grew this box 7.1 → 9.5 → 11.3 GiB, then shrank it to 10 GiB as it idled.
+  `Q_outer_ceiling` is therefore moot for one guest: 16 GiB has room.
+- **The host-usage disk column shows a red `999%`** for the raw `vt-shared.raw`, the seed ISO
+  and `vt-bios`'s disk. `DiskStat#overhead_percent` divides `physical` by `allocation`.
+  `allocation` is 0 for a disk nothing has written to, raw or not, so the division gives
+  Infinity, clamped to 999. The qcow2 overlay (`vda`) reads a sane `0%`
+  (`Q_backing_chain`'s other half: the overlay is fine).
 
 ## Why
 
@@ -53,7 +88,7 @@ This box is itself a VM, so the guests are **nested VMs**. Checked on 2026-10-24
 pressure, and the host's virtui grows this box in turn. That is two levels of virtui ballooning
 in a chain, which is a test in its own right:
 
-1. `stress-ng` in `vt-ubuntu` creates pressure;
+1. `memramp` in `vt-ubuntu` creates pressure;
 2. this box's virtui grows `vt-ubuntu`;
 3. this box's available memory falls;
 4. the host's virtui grows this box.
@@ -123,7 +158,7 @@ That `uri_default` setting is probably what your real host already has, or an
 
 **Decided 2026-10-24: the server cloud image, and no Ubuntu Desktop guest at all.** A GUI adds
 nothing to balloon tests. Those want a load that gives the same curve every time, and
-`stress-ng --vm 1 --vm-bytes 3G` does exactly that. virt-manager's console (the `v` key) works
+`memramp 3500` does exactly that. virt-manager's console (the `v` key) works
 on a text console just as well. Next to the desktop ISO, the cloud image is also a ~600 MB download
 instead of ~6 GB. It boots in ~30 s, where the desktop needs a 15–30 min nested install. And
 deleting the qcow2 overlay plus one user-data file recreates it in a minute.
@@ -147,7 +182,7 @@ touch nothing else, and so can Claude. Graduating this idea puts that rule in AG
 **`vt-ubuntu`** is the real guest, the one you SSH into:
 
 - memory ceiling 4 GiB (`<memory>`), boot size 1 GiB (`<currentMemory>`). virtui grows it from
-  there. A 3 GiB `stress-ng` run then pushes it most of the way to the ceiling, and pushes this
+  there. A 3.5 GiB `memramp` then pushes it most of the way to the ceiling, and pushes this
   box past its current balloon;
 - 2 vCPUs;
 - UEFI with Secure Boot, and an emulated TPM 2.0 (`ovmf`, `swtpm`). That covers the info
@@ -162,7 +197,8 @@ touch nothing else, and so can Claude. Graduating this idea puts that rule in AG
     box, on libvirt's NAT network), SSH password logins enabled, and your
     `~/.ssh/id_ed25519.pub` authorized, so Claude can SSH in with no password prompt and no
     `sshpass`;
-  - packages `qemu-guest-agent` and `stress-ng`, with the agent enabled;
+  - packages `qemu-guest-agent` and `stress-ng` (CPU load), with the agent enabled, plus
+    `/usr/local/bin/memramp` (memory load);
   - a swap file, because a guest with no swap never exercises the swap voters
     (`SwapOutRaiseVoter`, `SwapOutShrinkVetoer`).
 
@@ -181,7 +217,7 @@ a VM that can be started and stopped freely to test the power keys.
 ```fish
 virsh -q domifaddr vt-ubuntu --source lease       # or read it off virtui's VM header
 ssh dev@192.168.123.x                             # password dev, or the key
-ssh dev@… 'stress-ng --vm 1 --vm-bytes 3G --vm-keep -t 120s'   # push it, watch the RAM row grow
+ssh dev@… 'memramp 3500 200 90'                   # push it, watch the RAM row grow
 ```
 
 An `~/.ssh/config` entry `Host vt-ubuntu` would save looking up the IP, but the lease address can
@@ -192,35 +228,48 @@ change between recreations, so the script prints the address instead (`Q_ssh_ali
 It is `bin/test-vms.sh up|down`, in bash like `design/verify_design_tripwires.sh`. It is
 idempotent, so `up` skips a VM that is already defined. Its header says what it creates.
 
-The flag names are now confirmed (*Step 1 done*). Still unknown until the first run: whether
-the values are accepted together (Secure Boot with the 4M OVMF, memfd with virtiofs), and whether
-`--remove-all-storage` deletes the shared raw volume too. Each one fails loudly. The base image is kept on
-`down`; deleting it is a manual `virsh vol-delete`.
+Every flag was accepted together on the first run, including Secure Boot with the 4M OVMF and
+memfd with virtiofs. `--remove-all-storage` deletes every volume the domain references,
+including the shared raw disk and the seed. The base image is kept on `down`; deleting it is a
+manual `virsh vol-delete`.
 
-## Open questions
+## Open questions: yours to decide
 
-- `Q_outer_ceiling`: is 16 GiB enough for this box, or worth raising to 32 GiB? With
-  `vt-ubuntu` at 4 GiB, `vt-bios` at 256 MiB and the box's own ~1.5 GiB, 16 GiB is plenty. 32
-  only matters if a test wants several stressed guests at once to see the controller under
-  contention.
+- `Q_min_actual`: the 8 GiB floor (`BallooningVM#min_actual`, "a healthy minimum for a desktop
+  guest") silently disables ballooning for every VM whose `<memory>` is under 8 GiB, so for
+  `vt-ubuntu` too. There are two ways to fix it. **(a) Product:** make the floor relative, for
+  example `[8 GiB, max/2].min`. A small server guest is a legitimate thing to balloon, and a
+  status nobody sees is the worst failure mode. **(b) Dev env only:** give `vt-ubuntu` a
+  `<memory>` of 12 GiB. The floor then makes the guest jump 1 → 8 GiB on the first raise, so
+  only 8–12 GiB is ever exercised, and this box needs ~10 GiB of its 16 GiB ceiling for it. I
+  lean towards (a), plus showing a VM's "doing nothing because …" in the UI somewhere.
+- `Q_disk_overhead`: what should the host-usage column show when `allocation` is 0 (raw disk
+  nothing wrote to, ISO, blank qcow2)? Blank, or `0%`? Today it shows a red `999%`. A small fix
+  in `DiskStat#overhead_percent`, once you pick.
 - `Q_default_uri`: should virtui pass `-c qemu:///system` itself, as the `v` key's `virt-manager`
-  call already does, rather than rely on the user's `uri_default`? That is a product question
-  this setup brings up but does not answer. The virt-manager line suggests the system instance is
-  the assumption anyway.
-- `Q_osinfo`: answered 2026-10-24. No, the osinfo-db stops at 25.10, so the script uses
-  `ubuntu24.04`.
-- `Q_backing_chain`: half answered on 2026-10-24. Plain `domstats --block`, which is what
-  virtui runs (no `--backing`), lists only `vda`, `vdb` and `sda`, so `block.count=3` and there
-  is no entry for the backing file. Each entry carries a `block.N.backingIndex` (3, 2, 1). Still
-  open: whether the qcow2 `df` lookup copes with an overlay, which the first virtui tick will show.
-- `Q_ssh_alias`: add an `~/.ssh/config` `Host vt-ubuntu` block that the script keeps updated, or
-  print the address and stop there? I lean towards printing it.
-- `Q_claude_power`: answered 2026-10-24. Yes, the `vt-*` VMs are Claude's to test with as
-  needed. The rule is now in AGENTS.md *Commands*.
+  call already does, rather than rely on the default? Measured here: libvirt 12.0's client, as
+  a non-root user with no `~/.config/libvirt/libvirt.conf` and no `LIBVIRT_DEFAULT_URI`,
+  probes straight for the system sockets (`virtqemud-sock`, then `libvirt-sock`) and connects to
+  `qemu:///system`. `strace` shows no session socket tried. Whether stock upstream or only Ubuntu
+  does this is not known. Passing `-c` would make it a non-question everywhere.
+
+## Answered
+
+- `Q_outer_ceiling`: 16 GiB is enough. The chain test grew this box to 11.3 GiB with one 4 GiB
+  guest. 32 only matters for several stressed guests at once.
+- `Q_osinfo`: no `ubuntu26.04` in the osinfo-db (it stops at 25.10), so the script uses `ubuntu24.04`.
+- `Q_backing_chain`: no double count. Plain `domstats --block` (no `--backing`, as virtui runs it)
+  lists only the attached disks, and the overlay's host column reads a sane 0%.
+- `Q_ssh_alias`: the script prints the address once the lease appears; no `~/.ssh/config`.
+- `Q_claude_power`: the `vt-*` VMs are Claude's to drive. The rule is in AGENTS.md *Commands*.
 
 ## Where the nuggets land when this graduates
 
 - Landed already: `bin/test-vms.sh`, and the `vt-*` rule in AGENTS.md *Commands*.
+- Landed already: the `domifaddr` facts in `R_virsh_domifaddr`, the dumpxml and offline-domstats
+  facts in `vm-info-window.md`.
 - README install section: the `uri_default` line, if `Q_default_uri` keeps it the user's job.
-- Every *To check on a real host* list in the other ideas gets worked off against `vt-*`, and the
-  facts land in `design/research.md` as **[verified]** with the date.
+- `design/research.md`: the boot-time balloon inflation, the shim fallback reset, and
+  `stress-ng`'s self-sizing, each **[verified 2026-10-24]**. Whatever `Q_min_actual` and
+  `Q_disk_overhead` decide goes to `design/decisions.md` or a doc comment.
+- AGENTS.md *Commands*: how to drive virtui from tmux, if that keeps being useful.

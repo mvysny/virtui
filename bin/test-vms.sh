@@ -3,7 +3,8 @@
 #   vt-ubuntu  Ubuntu 26.04 cloud image, UEFI + Secure Boot, TPM 2.0, virtiofs share ~/vt-share,
 #              a shareable raw disk, a CD-ROM holding the cloud-init seed,
 #              a free-page-reporting balloon (1 of 4 GiB),
-#              qemu-guest-agent, stress-ng, a swap file; user dev / password dev plus your key.
+#              qemu-guest-agent, stress-ng, `memramp` (a repeatable memory load), a swap file;
+#              user dev / password dev plus your key.
 #   vt-bios    legacy BIOS, no OS, no agent; sits at "No bootable device".
 # The base image is downloaded once into the default pool and kept on `down`.
 # Touches nothing outside the vt- prefix.
@@ -60,6 +61,24 @@ users:
 ssh_pwauth: true
 packages: [qemu-guest-agent, stress-ng]
 swap: { filename: /swapfile, size: 1G }
+write_files:
+  # A repeatable memory load. stress-ng --vm sizes itself to what is free when it starts, so on a
+  # ballooned guest it never holds what it was asked for.
+  - path: /usr/local/bin/memramp
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env python3
+      """memramp MIB [MIB_PER_S [HOLD_S]]: touch MIB of RAM at MIB_PER_S, hold it, then exit."""
+      import sys, time
+      target = int(sys.argv[1])
+      rate = int(sys.argv[2]) if len(sys.argv) > 2 else 200
+      hold = int(sys.argv[3]) if len(sys.argv) > 3 else 60
+      chunks = []
+      while len(chunks) < target:
+          chunks.append(bytearray(1 << 20))   # zero-filled, so every page is touched
+          if len(chunks) % rate == 0:
+              time.sleep(1)
+      time.sleep(hold)
 runcmd:
   - [systemctl, enable, --now, qemu-guest-agent]
 EOF

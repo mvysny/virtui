@@ -10,13 +10,14 @@ checking the arp path on a real host, and fixing anything that turns up.
 1. **A bridged guest** (not on `default`): `lease` should come back empty and `arp` should find
    it. Also check whether `arp` is still empty right after boot, before the host has exchanged a
    packet with it.
-2. **An empty `lease` table**, e.g. a guest just started or one on a bridge: confirm it prints
-   nothing under `-q`, and no `error:`. `R_virsh_domifaddr` marks this *[unverified]*, and
-   `ip_address`'s fallback depends on it: an `error:` there would raise and take the whole poll
-   down. The spec's "no row" fixture is an assumed empty string; record the real one into
-   `spec/virt/`.
-3. **A shut-off domain**: `virsh -q domifaddr <off-vm> --source lease`. It's probably an error, and
-   virtui won't ask, but record what it says.
+2. ~~An empty `lease` table~~. Done 2026-10-24 on `vt-bios`: it prints nothing and exits 0, so
+   the spec's assumed empty-string fixture is the real output and stays. Recorded in
+   `R_virsh_domifaddr`.
+3. ~~A shut-off domain~~. Done 2026-10-24: it is an `error:` with exit 1. Recorded in
+   `R_virsh_domifaddr`.
+
+Item 1 is still open, because this dev box has no bridge. The `vt-*` VMs sit on libvirt's
+`default` NAT network, where `lease` always answers first.
 
 ```fish
 for d in (virsh list --all --name); echo "== $d"; for s in lease arp; echo "-- $s"; virsh -q domifaddr $d --source $s; end; end

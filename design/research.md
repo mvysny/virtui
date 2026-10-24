@@ -119,7 +119,12 @@ later one trims to its length.
   **[verified 2026-09-21]**
 - `lease` knows only what libvirt's own dnsmasq handed out, so a bridged guest has none; `arp`
   knows only what is in the host's neighbour table. **[docs]**
-- With `-q`, a guest with no lease prints nothing, not an `error:`. **[unverified]**
+- With `-q`, a running guest with no lease or neighbour entry prints nothing at all (not even a
+  newline) and exits 0, not an `error:`; seen on `vt-bios`, which never sends a packet.
+  **[verified 2026-10-24]**
+- A shut-off domain is an error on every source: `error: Requested operation is not valid:
+  domain is not running`, exit 1. `--source agent` on a domain with no agent channel is `error:
+  argument unsupported: QEMU guest agent is not configured`, exit 1. **[verified 2026-10-24]**
 
 ## R_linux_swap — how the Linux guest kernel treats swapped pages
 
