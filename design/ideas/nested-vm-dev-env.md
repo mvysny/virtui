@@ -1,6 +1,26 @@
 # A nested VM to develop against
 
-**Status:** proposal, nothing installed (2026-10-24). The draft script below has never been run.
+**Status:** both VMs are up (2026-10-24), built by `bin/test-vms.sh`. Every feature in the
+`vt-ubuntu` list below was checked from inside the guest. Not done yet: virtui itself against
+them, and the other ideas' *To check on a real host* lists.
+
+#### First run, 2026-10-24
+
+- The cloud image is 819 MB, not ~600. `gpgv` and `sha256sum` both passed.
+- virt-install's `--cloud-init` failed. The guest shut down during its first boot (reason
+  `shutdown`), the one-shot seed ISO went with it, and the next boot came up as hostname `ubuntu`
+  with no `dev` user. The cause is not known: after the fix the guest boots only once and nothing
+  resets it. The script now builds its own NoCloud seed (`xorrisofs`, volume `vt-seed.iso`) and
+  leaves it in the CD-ROM, so the info window shows a CD-ROM with media, not an empty one.
+- Checked inside `vt-ubuntu`: `cloud-init status: done`, hostname `vt-ubuntu`, `SecureBoot
+  enabled`, `/dev/tpm0`, the virtiofs tag `share` mounts, 1 GiB `/swapfile`, `stress-ng`, and
+  `qemu-guest-agent` active (`guest-get-osinfo` answers from the host with `version-id 26.04`).
+  SSH with your key works.
+- `down`, then `up`, works. The base volume survives.
+- `domstats --balloon` for `vt-ubuntu` reports `balloon.unused=3790380` KiB with
+  `balloon.current=1048576` KiB. Unused is larger than current. Worth a look before the balloon
+  tests trust `unused`. `vt-bios`, which has no agent, reports only `current`, `maximum`,
+  `last-update=0` and `rss`.
 
 ## Why
 
@@ -25,10 +45,8 @@ This box is itself a VM, so the guests are **nested VMs**. Checked on 2026-10-24
 - 8 vCPUs, 4 GiB swap, 86 GB free on `/`. RAM read 7.1 GiB at the time, but **that is only
   where the balloon happened to be.** The box is itself ballooned by virtui on the real host, with
   a ceiling of 16 GiB, and the owner can raise it to 32 GiB.
-- `mavi` is not in the `libvirt` or `kvm` groups yet.
-- All of these are in the distro repo, none installed: `qemu-system-x86`,
-  `libvirt-daemon-system`, `libvirt-clients` (12.0.0), `virtinst` (5.1.0), `ovmf`, `swtpm`.
-  `virtiofsd` is already installed. `/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg` is
+- The libvirt stack and the groups are now in place; *Step 1 done* below has the details.
+  `virtiofsd` was installed already. `/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg` is
   present, so a downloaded cloud image can be verified against a key the distro already ships.
 
 **RAM is therefore elastic, not a fixed 7 GiB.** When a nested VM grows, this box comes under
@@ -74,21 +92,41 @@ echo 'uri_default = "qemu:///system"' > ~/.config/libvirt/libvirt.conf
 That `uri_default` setting is probably what your real host already has, or an
 `LIBVIRT_DEFAULT_URI`. It belongs in the README's install section either way (`Q_default_uri`).
 
-### 2. The guest image: an Ubuntu 26.04 cloud image, not the desktop ISO
+#### Step 1 done: what the box looks like now (2026-10-24)
 
-| | Desktop ISO + autoinstall | Server cloud image + cloud-init |
-|---|---|---|
-| Download | ~6 GB | ~600 MB |
-| First boot | 15–30 min unattended install, nested | ~30 s; nothing to install |
-| RAM | 4 GiB+ to install, ~1.5 GiB idle (affordable, since this box is ballooned) | 512 MiB is enough; ~200 MiB idle |
-| Reproducible | the autoinstall YAML plus the installer's mood | one qcow2 overlay plus one user-data file; delete and recreate in a minute |
-| Memory pressure for ballooning | a browser, roughly | `stress-ng --vm 1 --vm-bytes 3G`, exact and scriptable |
+- Installed: `virt-manager` 5.1.0, `qemu-system-x86` 10.2.1, `libvirt-daemon-system` and
+  `libvirt-clients` 12.0.0, `ovmf`, `swtpm`, `swtpm-tools`. On 26.04, `virt-install` is its own
+  package (`virtinst` shows as not installed). `mavi` is in `libvirt` and `kvm`, and Claude's
+  shell already has both groups.
+- `libvirtd` (monolithic, not `virtqemud`) is active. `virt-host-validate qemu` passes: SVM,
+  `/dev/kvm` accessible, vhost-net, cgroups.
+- **`virsh` with no `-c` already reaches `qemu:///system` as `mavi`.** No
+  `~/.config/libvirt/libvirt.conf` exists, no `LIBVIRT_DEFAULT_URI` is set, and the
+  `uri_default` line in `/etc/libvirt/libvirt.conf` is commented out. Even so, `LIBVIRT_DEBUG=1
+  virsh uri` logs `Using config file uri 'qemu:///system'`. The mechanism is unknown (an Ubuntu
+  patch?), but the `mkdir`/`echo` above is not needed on this box. It is still a step for the
+  README, because another distro may behave differently.
+- The `default` network is active and autostarts. **Its subnet is `192.168.123.0/24`, not
+  `.122`.**
+- **A fresh install has no storage pool, not even `default`.** virt-manager's first launch then
+  created `default`, a `dir` pool at `/var/lib/libvirt/images` that is running, autostarts and
+  has 91 GiB free. The script keeps `ensure_pool` for a box where virt-manager has never run,
+  and it makes the same pool.
+- UEFI: `domcapabilities` offers `efi` with `/usr/share/OVMF/OVMF_CODE_4M.fd`.
+- `Q_osinfo` answered: osinfo-db stops at `ubuntu25.10`. Use `ubuntu24.04`.
+- virt-install 5.1.0 knows `--memory currentMemory=`, `--boot uefi,firmware.featureN.name/enabled`,
+  `--memballoon freePageReporting=`, `--memorybacking source.type/access.mode`,
+  `--filesystem driver.type`, and `--disk shareable/cache`. **`--tpm` has `backend.version`, not
+  `version`**, so the script now uses the former.
 
-RAM no longer rules the desktop out, but it still loses on the other rows. A desktop session does
-not help with balloon tests: a controllable `stress-ng` load is better because the same command
-gives the same curve every time. And virt-manager's console (the `v` key) works on a text console
-just as well. So: **the cloud image**, with the desktop as `Q_desktop` if a GUI guest is ever
-really needed.
+### 2. The guest image: an Ubuntu 26.04 cloud image, no desktop
+
+**Decided 2026-10-24: the server cloud image, and no Ubuntu Desktop guest at all.** A GUI adds
+nothing to balloon tests. Those want a load that gives the same curve every time, and
+`stress-ng --vm 1 --vm-bytes 3G` does exactly that. virt-manager's console (the `v` key) works
+on a text console just as well. Next to the desktop ISO, the cloud image is also a ~600 MB download
+instead of ~6 GB. It boots in ~30 s, where the desktop needs a 15–30 min nested install. And
+deleting the qcow2 overlay plus one user-data file recreates it in a minute.
 
 The image comes from `cloud-images.ubuntu.com/resolute/current/`. The script verifies
 `SHA256SUMS.gpg` against the distro's `ubuntu-cloudimage-keyring.gpg` and then the checksum. It
@@ -118,7 +156,7 @@ touch nothing else, and so can Claude. Graduating this idea puts that rule in AG
   backing (`memfd`). That covers the *Shared folders* line;
 - a 1 GiB raw disk marked `shareable` with `cache=none`, plus an empty CD-ROM;
 - a virtio balloon with `freePageReporting`, and the qemu-guest-agent channel;
-- osinfo `ubuntu26.04` if this box's osinfo-db knows it, else `ubuntu24.04` (`Q_osinfo`);
+- osinfo `ubuntu24.04`, because this box's osinfo-db has no `ubuntu26.04` (`Q_osinfo`);
 - cloud-init:
   - a user `dev` with password `dev` (simple on purpose: this guest is reachable only from this
     box, on libvirt's NAT network), SSH password logins enabled, and your
@@ -142,158 +180,47 @@ a VM that can be started and stopped freely to test the power keys.
 
 ```fish
 virsh -q domifaddr vt-ubuntu --source lease       # or read it off virtui's VM header
-ssh dev@192.168.122.x                             # password dev, or the key
+ssh dev@192.168.123.x                             # password dev, or the key
 ssh dev@… 'stress-ng --vm 1 --vm-bytes 3G --vm-keep -t 120s'   # push it, watch the RAM row grow
 ```
 
 An `~/.ssh/config` entry `Host vt-ubuntu` would save looking up the IP, but the lease address can
 change between recreations, so the script prints the address instead (`Q_ssh_alias`).
 
-## The script (draft, never run)
+## The script
 
-It lives in a new `dev/` folder: `dev/test-vms.sh` with `up` and `down` subcommands. It is
-idempotent, so `up` skips a VM that is already defined. It is bash, like
-`design/verify_design_tripwires.sh`.
+It is `bin/test-vms.sh up|down`, in bash like `design/verify_design_tripwires.sh`. It is
+idempotent, so `up` skips a VM that is already defined. Its header says what it creates.
 
-```bash
-#!/usr/bin/env bash
-# Creates / destroys the nested vt-* VMs virtui is developed against.
-# See design/ideas/nested-vm-dev-env.md. Touches nothing outside the vt- prefix.
-set -euo pipefail
-export LIBVIRT_DEFAULT_URI=qemu:///system
-
-POOL=default
-RELEASE=resolute
-BASE=vt-base-${RELEASE}.img
-IMG_URL=https://cloud-images.ubuntu.com/${RELEASE}/current
-IMG_FILE=${RELEASE}-server-cloudimg-amd64.img
-KEYRING=/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
-SHARE=$HOME/vt-share
-
-pool_path() { virsh -q pool-dumpxml "$POOL" | sed -n 's:.*<path>\(.*\)</path>.*:\1:p'; }
-defined()   { virsh -q dominfo "$1" >/dev/null 2>&1; }
-
-fetch_base() {
-  virsh -q vol-info "$BASE" --pool "$POOL" >/dev/null 2>&1 && return
-  read -rp "Download ${IMG_URL}/${IMG_FILE} (~600 MB)? [y/N] " ok
-  [[ $ok == y ]] || exit 1
-  local tmp; tmp=$(mktemp -d)
-  curl -fsSL -o "$tmp/SHA256SUMS"     "$IMG_URL/SHA256SUMS"
-  curl -fsSL -o "$tmp/SHA256SUMS.gpg" "$IMG_URL/SHA256SUMS.gpg"
-  gpgv --keyring "$KEYRING" "$tmp/SHA256SUMS.gpg" "$tmp/SHA256SUMS"
-  curl -fL   -o "$tmp/$IMG_FILE"      "$IMG_URL/$IMG_FILE"
-  (cd "$tmp" && grep " \*\?$IMG_FILE\$" SHA256SUMS | sha256sum -c -)
-  virsh -q vol-create-as "$POOL" "$BASE" 0 --format qcow2
-  virsh -q vol-upload "$BASE" "$tmp/$IMG_FILE" --pool "$POOL"
-  rm -rf "$tmp"
-}
-
-user_data() {
-  cat <<EOF
-#cloud-config
-hostname: vt-ubuntu
-users:
-  - name: dev
-    plain_text_passwd: dev
-    lock_passwd: false
-    shell: /bin/bash
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    ssh_authorized_keys:
-      - $(cat "$HOME/.ssh/id_ed25519.pub")
-ssh_pwauth: true
-packages: [qemu-guest-agent, stress-ng]
-swap: { filename: /swapfile, size: 1G }
-runcmd:
-  - [systemctl, enable, --now, qemu-guest-agent]
-EOF
-}
-
-up_ubuntu() {
-  defined vt-ubuntu && return
-  mkdir -p "$SHARE"
-  virsh -q vol-create-as "$POOL" vt-ubuntu.qcow2 12G --format qcow2 \
-        --backing-vol "$BASE" --backing-vol-format qcow2
-  virsh -q vol-create-as "$POOL" vt-shared.raw 1G --format raw
-  local ud; ud=$(mktemp); user_data > "$ud"
-  virt-install --name vt-ubuntu --osinfo ubuntu24.04 \
-    --memory memory=4096,currentMemory=1024 --vcpus 2 \
-    --boot uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes \
-    --tpm emulator,model=tpm-crb,version=2.0 \
-    --memorybacking source.type=memfd,access.mode=shared \
-    --filesystem "$SHARE",share,driver.type=virtiofs \
-    --disk vol=$POOL/vt-ubuntu.qcow2,bus=virtio \
-    --disk vol=$POOL/vt-shared.raw,bus=virtio,shareable=on,cache=none \
-    --disk device=cdrom,bus=sata \
-    --memballoon virtio,freePageReporting=on \
-    --channel unix,target.type=virtio,target.name=org.qemu.guest_agent.0 \
-    --network network=default,model=virtio \
-    --graphics spice --import --noautoconsole \
-    --cloud-init user-data="$ud"
-  rm -f "$ud"
-}
-
-up_bios() {
-  defined vt-bios && return
-  virsh -q vol-create-as "$POOL" vt-bios.qcow2 64M --format qcow2
-  virt-install --name vt-bios --osinfo detect=off,require=off \
-    --memory 256 --vcpus 1 --boot hd \
-    --disk vol=$POOL/vt-bios.qcow2,bus=sata \
-    --network network=default --graphics vnc --import --noautoconsole
-}
-
-down() {
-  for d in vt-ubuntu vt-bios; do
-    defined "$d" || continue
-    virsh -q destroy "$d" 2>/dev/null || true
-    virsh -q undefine "$d" --nvram --tpm --remove-all-storage
-  done
-  virsh -q vol-delete vt-shared.raw --pool "$POOL" 2>/dev/null || true
-}
-
-case ${1:-} in
-  up)   virsh -q net-start default 2>/dev/null || true; fetch_base; up_ubuntu; up_bios
-        echo "vt-ubuntu: ssh dev@\$(virsh -q domifaddr vt-ubuntu --source lease | awk '{print \$4}' | cut -d/ -f1)" ;;
-  down) down ;;
-  *)    echo "usage: $0 up|down" >&2; exit 2 ;;
-esac
-```
-
-Things in it most likely to be wrong on the first run, all virt-install flag spellings: the
-`--boot uefi,firmware.feature…` syntax, `currentMemory=` as a `--memory` sub-option,
-`--memballoon freePageReporting=`, and whether `--remove-all-storage` deletes the shared raw
-volume too. Each one fails loudly, so the first run is the check. The base image is kept on
+The flag names are now confirmed (*Step 1 done*). Still unknown until the first run: whether
+the values are accepted together (Secure Boot with the 4M OVMF, memfd with virtiofs), and whether
+`--remove-all-storage` deletes the shared raw volume too. Each one fails loudly. The base image is kept on
 `down`; deleting it is a manual `virsh vol-delete`.
 
 ## Open questions
 
-- `Q_desktop`: is a GUI guest ever needed, for example to see the `v` viewer show something
-  graphical? If so, a third VM `vt-desktop` from the desktop ISO's autoinstall, created only on
-  request (`up desktop`). It needs 4 GiB+ for the install, which the outer balloon can now absorb.
-  What remains against it is the 6 GB download and a 15–30 min nested install.
 - `Q_outer_ceiling`: is 16 GiB enough for this box, or worth raising to 32 GiB? With
   `vt-ubuntu` at 4 GiB, `vt-bios` at 256 MiB and the box's own ~1.5 GiB, 16 GiB is plenty. 32
-  only matters if `Q_desktop` happens, or if a test wants several stressed guests at once to see
-  the controller under contention.
+  only matters if a test wants several stressed guests at once to see the controller under
+  contention.
 - `Q_default_uri`: should virtui pass `-c qemu:///system` itself, as the `v` key's `virt-manager`
   call already does, rather than rely on the user's `uri_default`? That is a product question
   this setup brings up but does not answer. The virt-manager line suggests the system instance is
   the assumption anyway.
-- `Q_osinfo`: does this box's osinfo-db know `ubuntu26.04` yet? `virt-install --osinfo list | grep
-  ubuntu26`. Use it if so, because it also gives a real `http://ubuntu.com/ubuntu/26.04` id.
-- `Q_backing_chain`: with an overlay, `domstats` may report the backing file as an extra
-  `block.N` entry. Does `Virsh#parse_disk_data` or the qcow2 `df` lookup double-count it? That is
-  a bug to find with the first real tick, and a reason in favour of the overlay.
+- `Q_osinfo`: answered 2026-10-24. No, the osinfo-db stops at 25.10, so the script uses
+  `ubuntu24.04`.
+- `Q_backing_chain`: half answered on 2026-10-24. Plain `domstats --block`, which is what
+  virtui runs (no `--backing`), lists only `vda`, `vdb` and `sda`, so `block.count=3` and there
+  is no entry for the backing file. Each entry carries a `block.N.backingIndex` (3, 2, 1). Still
+  open: whether the qcow2 `df` lookup copes with an overlay, which the first virtui tick will show.
 - `Q_ssh_alias`: add an `~/.ssh/config` `Host vt-ubuntu` block that the script keeps updated, or
   print the address and stop there? I lean towards printing it.
-- `Q_claude_power`: once Claude has a working `virsh`, should AGENTS.md say outright that Claude
-  may start, stop and `setmem` the `vt-*` domains without asking, and nothing else? That is a
-  durable authorization, so it is yours to grant.
+- `Q_claude_power`: answered 2026-10-24. Yes, the `vt-*` VMs are Claude's to test with as
+  needed. The rule is now in AGENTS.md *Commands*.
 
 ## Where the nuggets land when this graduates
 
-- The script itself at `dev/test-vms.sh`, its header comment saying what it creates.
-- AGENTS.md *Commands*: `dev/test-vms.sh up|down`, plus the rule that the `vt-*` domains are
-  the only ones a session touches.
+- Landed already: `bin/test-vms.sh`, and the `vt-*` rule in AGENTS.md *Commands*.
 - README install section: the `uri_default` line, if `Q_default_uri` keeps it the user's job.
 - Every *To check on a real host* list in the other ideas gets worked off against `vt-*`, and the
   facts land in `design/research.md` as **[verified]** with the date.

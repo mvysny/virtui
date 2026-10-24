@@ -76,7 +76,11 @@ bundle exec rspec spec/path/to_spec.rb:LINE     # one test
 bundle exec rubocop               # just the lint
 design/verify_design_tripwires.sh # the doc-layer checks alone
 bin/virtui                        # run; demo mode when no virsh is on the PATH
+bin/test-vms.sh up|down           # build / remove the nested vt-* test VMs on this dev box
 ```
+
+The `vt-*` domains and `vt-*` volumes on this dev box are Claude's to create, start, stop,
+`setmem` and destroy without asking (granted 2026-10-24); they are the only domains a session touches.
 
 A `virsh` command handed to the user to run on the host carries `-q`, as both runners do: without
 it the output differs from what virtui parses (a table's header and rule, a trailing blank line).
