@@ -384,11 +384,14 @@ module UI
     end
 
     # Opens the maintenance menu for the selected VM. Resizing a disk image needs the VM shut
-    # off, growing its root filesystem needs it running; the wrong state gets an alert saying so.
+    # off, growing its root filesystem needs it running; the item the state rules out is
+    # disabled. The menu is a snapshot, so a VM that changed state since gets an alert instead.
     # @return [void]
     def show_maintenance_popup
       vm = current_vm || return
-      options = [['r', 'Resize disk image… (VM stopped)'], ['g', 'Grow root filesystem… (VM running)']]
+      state = @virt_cache.state(vm)
+      options = [['r', 'Resize disk image…', state == :shut_off ? {} : { disabled: 'shut the VM down first' }],
+                 ['g', 'Grow root filesystem…', state == :running ? {} : { disabled: 'start the VM first' }]]
       Component::PickerWindow.open('Maintenance', options) do |key|
         state = @virt_cache.state(vm)
         if key == 'r' && state == :shut_off
@@ -475,14 +478,18 @@ module UI
     end
 
     # Opens the power menu for the selected VM: start, graceful shutdown, force off, soft
-    # reboot or hard reset. Each action logs an error if the VM is in the wrong state.
+    # reboot or hard reset, the ones the VM's state rules out disabled. The menu is a snapshot,
+    # so each action still logs an error if the VM changed state since.
     # @return [void]
     def show_power_popup
       current_vm = self.current_vm || return
       state = @virt_cache.state(current_vm)
-      opts = [['s', 'Start'], ['o', 'shut dOwn gracefully'], ['O', 'force Off'], ['r', 'reboot (soft)'],
-              ['R', 'Reset (hard)']]
+      stopped = state == :shut_off ? {} : { disabled: 'VM not stopped' }
+      running = state == :running ? {} : { disabled: 'VM not running' }
+      opts = [['s', 'Start', stopped], ['o', 'shut dOwn gracefully', running], ['O', 'force Off', running],
+              ['r', 'reboot (soft)', running], ['R', 'Reset (hard)', running]]
       Component::PickerWindow.open('Power', opts) do |key|
+        state = @virt_cache.state(current_vm)
         if key == 's' # start
           if state == :shut_off
             $log.info "Starting '#{current_vm}'"
