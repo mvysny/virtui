@@ -61,6 +61,10 @@ later one trims to its length.
   poller. **[verified 2026-06-10]**
 - `balloon.swap_in` / `balloon.swap_out` are since-boot I/O counters (the guest's `pswpin` /
   `pswpout`); they never fall when swap slots are freed. **[docs]**
+- A guest boots with all of `<memory>`; the balloon inflates to `<currentMemory>` only once the
+  guest's driver loads, ~20 s in, in 1 s `balloon-change` steps (4 → 3.6 → … → 1 GiB). Stats
+  collected before then describe the full-size guest: `balloon.unused` 3.6 GiB against a
+  `balloon.current` of 1 GiB. **[verified 2026-10-24, libvirt 12.0, Ubuntu 26.04 guest]**
 
 ## R_qemu_guest_agent — `qemu-guest-agent` through `virsh qemu-agent-command`
 
@@ -105,6 +109,20 @@ later one trims to its length.
 - `http://libosinfo.org/unknown` is a real, declarable id meaning "unknown". **[src]**
 - A hand-written domain XML usually carries no libosinfo metadata; on the author's
   virt-manager fleet 4/4 domains did. **[verified 2026-08-23]**
+- The osinfo-db Ubuntu 26.04 ships stops at `ubuntu25.10`, so `--osinfo ubuntu26.04` fails on
+  the release's own host. **[verified 2026-10-24]**
+
+## R_uefi_cloud_image_first_boot — virt-install's `--cloud-init` and shim's first-boot reset
+
+- On an empty NVRAM, shim's `fallback.efi` writes the boot entry and then resets the machine.
+  **[docs]**
+- With the Ubuntu 26.04 cloud image under OVMF that reset is a libvirt `reboot` event 5.8 s in,
+  still in firmware. **[verified 2026-10-24, libvirt 12.0]**
+- During virt-install's install phase the domain has `on_reboot=destroy`, so that reset ends as
+  `shut off (shutdown)`. With `--noautoconsole` and no `--wait` nothing restarts it.
+  **[verified 2026-10-24, virt-install 5.1.0]**
+- `--cloud-init` attaches its seed for that first boot only, so the guest next boots seedless.
+  A NoCloud seed left in a CD-ROM is applied once per `instance-id`. **[verified 2026-10-24]**
 
 ## R_virsh_domifaddr — `virsh domifaddr` and its three address sources
 
@@ -125,6 +143,25 @@ later one trims to its length.
 - A shut-off domain is an error on every source: `error: Requested operation is not valid:
   domain is not running`, exit 1. `--source agent` on a domain with no agent channel is `error:
   argument unsupported: QEMU guest agent is not configured`, exit 1. **[verified 2026-10-24]**
+
+## R_virsh_domstats_block — `virsh domstats --block`: which disks, and their three sizes
+
+- Without `--backing`, one `block.N` per attached disk; a qcow2 overlay's backing image gets no
+  entry of its own. **[verified 2026-10-24, libvirt 12.0]**
+- `allocation` is 0 for a disk nothing has written to, raw or qcow2, while `physical` is not
+  (seen on a fresh raw disk, a seed ISO and an empty 64 MiB qcow2). **[verified 2026-10-24]**
+- A qcow2 overlay on a base image reports its own `allocation` and `physical`, about equal.
+  **[verified 2026-10-24]**
+
+## R_libvirt_default_uri — which libvirt `virsh` reaches with no `-c`
+
+- As a non-root user with no `~/.config/libvirt/libvirt.conf`, no `LIBVIRT_DEFAULT_URI` and
+  `uri_default` commented out in `/etc/libvirt/libvirt.conf`, `virsh` connects to
+  `qemu:///system`: the client probes `virtqemud-sock`, then `libvirt-sock`.
+  **[verified 2026-10-24, libvirt 12.0, Ubuntu 26.04, strace]**
+- `LIBVIRT_DEBUG=1 virsh uri` still logs `Using config file uri 'qemu:///system'` there.
+  **[verified 2026-10-24]**
+- Whether other distros' builds probe the same way, or land on `qemu:///session`. **[unverified]**
 
 ## R_linux_swap — how the Linux guest kernel treats swapped pages
 

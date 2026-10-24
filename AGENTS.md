@@ -81,6 +81,9 @@ bin/test-vms.sh up|down           # build / remove the nested vt-* test VMs on t
 
 The `vt-*` domains and `vt-*` volumes on this dev box are Claude's to create, start, stop,
 `setmem` and destroy without asking (granted 2026-10-24); they are the only domains a session touches.
+To watch virtui drive them, run it in tmux (`tmux new -d -s vt -x 170 -y 50 bin/virtui`) and read
+the screen with `tmux capture-pane -p -t vt`; `ssh dev@<ip> memramp 3000 200 40` is the guest's
+repeatable memory load.
 
 A `virsh` command handed to the user to run on the host carries `-q`, as both runners do: without
 it the output differs from what virtui parses (a table's header and rule, a trailing blank line).

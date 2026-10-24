@@ -1,10 +1,9 @@
 # VM info window: `i` shows what the domain is configured as
 
-**Status:** proposal, nothing built (2026-10-24). Not checked against a real host: this machine
-has no `virsh`, so every claim below about what `virsh dumpxml` prints is from libvirt's
-domain-XML format docs and wants recording into `spec/virt/` before it is relied on (see *To check
-on a real host*, and `nested-vm-dev-env.md` for getting a real host onto this box). The read runs
-in a `UI::BackgroundTask` (`D_background_task`).
+**Status:** proposal, nothing built (2026-10-24). Partly checked against the `vt-*` VMs
+(`bin/test-vms.sh`); the rest of what `virsh dumpxml` prints is from libvirt's domain-XML format
+docs and wants recording into `spec/virt/` before it is relied on (see *To check on a real
+host*). The read runs in a `UI::BackgroundTask` (`D_background_task`).
 
 ## The ask
 

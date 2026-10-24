@@ -85,8 +85,8 @@ EOF
 }
 
 # The NoCloud seed stays in the CD-ROM for good. virt-install's own --cloud-init attaches it for
-# the first boot only; that boot shut the guest down before cloud-init applied anything (cause
-# unknown), and the next boot came up seedless as hostname `ubuntu`. cloud-init runs once per
+# the first boot only, which shim's first-boot reset turns into a shutdown, so the guest comes up
+# seedless (design/research.md R_uefi_cloud_image_first_boot). cloud-init runs once per
 # instance-id, so a seed left in place is harmless.
 make_seed() {
   local dir; dir=$(mktemp -d)
@@ -106,6 +106,7 @@ up_ubuntu() {
         --backing-vol "$BASE" --backing-vol-format qcow2
   virsh -q vol-create-as "$POOL" vt-shared.raw 1G --format raw
   make_seed
+  # ubuntu24.04: the distro's osinfo-db has no 26.04 (design/research.md R_osinfo_db).
   virt-install --name vt-ubuntu --osinfo ubuntu24.04 \
     --memory memory=4096,currentMemory=1024 --vcpus 2 \
     --boot uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes \
