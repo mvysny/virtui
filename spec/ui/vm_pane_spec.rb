@@ -361,7 +361,39 @@ module Tuile
       it 'disables starting a running VM and the rest on a stopped one' do
         assert_equal({ 's' => 'VM not stopped' }, disabled_options(ubuntu, 'p'))
         Screen.instance.key(Keys::ESC)
-        assert_equal(%w[o O r R].to_h { [_1, 'VM not running'] }, disabled_options(base, 'p'))
+        assert_equal(%w[o u O r b R].to_h { [_1, 'VM not running'] }, disabled_options(base, 'p'))
+      end
+
+      it 'disables the SysRq items for a guest that would ignore them' do
+        assert_equal({ 's' => 'VM not stopped', 'u' => 'not a Linux guest', 'b' => 'not a Linux guest' },
+                     disabled_options(win11, 'p'))
+        Screen.instance.key(Keys::ESC)
+        cache.virt.vm('Ubuntu').sysrq_mask = 16
+        cache.virt.vm('Ubuntu').force_off
+        Timecop.freeze(now + 15) { cache.update } # the mask is read once per boot
+        cache.virt.vm('Ubuntu').start
+        Timecop.freeze(now + 17) { cache.update }
+        assert_equal "the guest's kernel.sysrq = 16 allows no remount or power-off", disabled_options(ubuntu, 'p')['u']
+      end
+
+      it 'powers a running VM off through SysRq' do
+        pick(ubuntu, 'p', 'u')
+        wait_for('the power-off') { @log.string.include?("'Ubuntu' synced, remounted read-only and powered off") }
+        refute cache.virt.vm('Ubuntu').running?
+      end
+
+      it 'reboots a running VM through SysRq' do
+        pick(ubuntu, 'p', 'b')
+        wait_for('the reboot') { @log.string.include?("'Ubuntu' synced, remounted read-only and rebooted") }
+      end
+
+      it 'logs an error when the VM stopped since the menu opened, for the SysRq items too' do
+        window.list.cursor.go(ubuntu)
+        window.handle_key?('p')
+        cache.virt.force_off('Ubuntu')
+        Timecop.freeze(now + 15) { cache.update }
+        picker.handle_key?('u')
+        assert_includes @log.string, "'Ubuntu': no SysRq power-off: VM not running"
       end
 
       it 'refuses to start a VM started since the menu opened' do

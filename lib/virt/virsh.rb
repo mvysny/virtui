@@ -44,6 +44,7 @@ module Virt
       # Spawned, for the reason {#domain_config} is: {#guest_storage} runs behind a progress popup.
       @spawned_agent = GuestAgent.new(runner: VirshSpawn.new)
       @root_grow = GuestRootGrow.new(runner: VirshSpawn.new, agent: @spawned_agent)
+      @sysrq = MagicSysRq.new(runner: @runner)
     end
 
     # @return [VirshSpawn, VirshSession] the transport in use
@@ -72,6 +73,15 @@ module Virt
     # @return [Hash{String => ResourceUsage}, nil] keyed by host target, or `nil` if there is
     #   no sampler to ask (see {GuestSampler#fs_usage} for the other reasons)
     def guest_fs_usage(domain_name) = @guest_sampler&.fs_usage(domain_name)
+
+    # The guest's `kernel.sysrq`, which decides whether {#sysrq_power_off} reaches it. Read
+    # ahead, while the guest is healthy: a guest whose shutdown hangs has usually stopped its
+    # agent already.
+    #
+    # @param domain_name [String] VM name; must be running
+    # @return [Integer, nil] see {GuestAgent#sysrq_mask}; `nil` if there is no sampler to ask
+    #   (see {GuestSampler#sysrq_mask} for the other reasons)
+    def guest_sysrq_mask(domain_name) = @guest_sampler&.sysrq_mask(domain_name)
 
     # The OS family the VM's definition declares, from its libosinfo metadata.
     #
@@ -499,5 +509,20 @@ module Virt
     def force_off(domain_name)
       @runner.sync('destroy', domain_name)
     end
+
+    # Powers the VM off through magic SysRq S, U, O: softer than {#force_off}, and it works
+    # where {#shutdown} hangs (see {MagicSysRq}). Blocks for ~6–16 s.
+    #
+    # @param domain_name [String] a running Linux VM whose SysRq mask allows it
+    # @return [void]
+    # @raise [RuntimeError] if `virsh send-key` fails, or the VM did not turn off
+    def sysrq_power_off(domain_name) = @sysrq.power_off(domain_name)
+
+    # Reboots the VM through magic SysRq S, U, B: the soft counterpart of {#reset}. Blocks ~6 s.
+    #
+    # @param domain_name [String] a running Linux VM whose SysRq mask allows it
+    # @return [void]
+    # @raise [RuntimeError] if `virsh send-key` fails
+    def sysrq_reboot(domain_name) = @sysrq.reboot(domain_name)
   end
 end

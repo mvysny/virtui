@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
 module Virt
-  # Samples what a guest reports through its agent — its swap level, how full its disks are —
-  # and stops asking a guest that cannot answer:
+  # Samples what a guest reports through its agent — its swap level, how full its disks are,
+  # its SysRq mask — and stops asking a guest that cannot answer:
   #
   #   sampler = GuestSampler.new(agent: GuestAgent.new(runner: session))
   #   sampler.swap('Ubuntu')       # => #<ResourceUsage total=4GiB available=2.8GiB>, or nil
   #   sampler.fs_usage('Ubuntu')   # => {"vda" => #<ResourceUsage 3.4G/15G (23%)>}, or nil
+  #   sampler.sysrq_mask('Ubuntu') # => 176, or nil
   #   sampler.forget('Ubuntu')     # it stopped running; its strikes must not greet the next boot
   #
   # An enhancement, never a dependency: every failure answers `nil`, because a guest with no
@@ -68,6 +69,11 @@ module Virt
     # @return [Hash{String => ResourceUsage}, nil] how full each disk is (see
     #   {GuestAgent#fs_usage}), or `nil` for the reasons {#swap} gives
     def fs_usage(domain) = sample(domain, 'filesystem usage') { @agent.fs_usage(domain) }
+
+    # @param domain [String] VM name; must be running, or the agent call fails
+    # @return [Integer, nil] the guest's `kernel.sysrq` (see {GuestAgent#sysrq_mask}), or `nil`
+    #   for the reasons {#swap} gives
+    def sysrq_mask(domain) = sample(domain, 'SysRq mask') { @agent.sysrq_mask(domain) }
 
     # Forgets a guest's strike counts and any write-off, so its next samples start clean.
     #

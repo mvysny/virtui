@@ -491,19 +491,26 @@ module UI
     end
 
     # Opens the power menu for the selected VM: start, graceful shutdown, force off, soft
-    # reboot or hard reset, the ones the VM's state rules out disabled. The menu is a snapshot,
-    # so each action still logs an error if the VM changed state since.
+    # reboot or hard reset, and the magic-SysRq power-off and reboot between the two (see
+    # {Virt::MagicSysRq}); the ones the VM's state or guest rules out are disabled. The menu is
+    # a snapshot, so each action still logs an error if the VM changed state since.
     # @return [void]
     def show_power_popup
       current_vm = self.current_vm || return
       state = @virt_cache.state(current_vm)
       stopped = state == :shut_off ? {} : { disabled: 'VM not stopped' }
       running = state == :running ? {} : { disabled: 'VM not running' }
-      opts = [['s', 'Start', stopped], ['o', 'shut dOwn gracefully', running], ['O', 'force Off', running],
-              ['r', 'reboot (soft)', running], ['R', 'Reset (hard)', running]]
+      refusal = sysrq_refusal(current_vm)
+      sysrq = refusal.nil? ? {} : { disabled: refusal }
+      opts = [['s', 'Start', stopped], ['o', 'shut dOwn gracefully', running],
+              ['u', 'sync, remoUnt ro, power off (SysRq)', sysrq], ['O', 'force Off', running],
+              ['r', 'reboot (soft)', running], ['b', 'sync, remount ro, reBoot (SysRq)', sysrq],
+              ['R', 'Reset (hard)', running]]
       Component::PickerWindow.open('Power', opts) do |key|
         state = @virt_cache.state(current_vm)
-        if key == 's' # start
+        if %w[u b].include?(key)
+          sysrq_power(current_vm, reboot: key == 'b')
+        elsif key == 's' # start
           if state == :shut_off
             $log.info "Starting '#{current_vm}'"
             @virt_cache.virt.start(current_vm)
@@ -539,6 +546,34 @@ module UI
             $log.error "'#{current_vm}' is not running"
           end
         end
+      end
+    end
+
+    # @param vm [String]
+    # @return [String, nil] why the SysRq items cannot end this VM, or `nil` if they can
+    def sysrq_refusal(vm)
+      return 'VM not running' unless @virt_cache.running?(vm)
+
+      entry = @virt_cache.cache(vm)
+      Virt::MagicSysRq.refusal(entry.guest_os, entry.sysrq_mask)
+    end
+
+    # Syncs, remounts read-only and powers off or reboots the VM through magic SysRq, behind
+    # a popup that cannot be canceled: a guest left after U has every filesystem read-only.
+    # @param vm [String]
+    # @param reboot [Boolean] B rather than O as the last key
+    # @return [void]
+    def sysrq_power(vm, reboot:)
+      refusal = sysrq_refusal(vm)
+      return $log.error("'#{vm}': no SysRq #{reboot ? 'reboot' : 'power-off'}: #{refusal}") unless refusal.nil?
+
+      virt = @virt_cache.virt
+      if reboot
+        BackgroundTask.new("Rebooting #{vm} through SysRq", cancelable: false) { virt.sysrq_reboot(vm) }
+                      .run { $log.info "'#{vm}' synced, remounted read-only and rebooted" }
+      else
+        BackgroundTask.new("Powering #{vm} off through SysRq", cancelable: false) { virt.sysrq_power_off(vm) }
+                      .run { $log.info "'#{vm}' synced, remounted read-only and powered off" }
       end
     end
 

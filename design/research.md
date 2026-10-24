@@ -473,3 +473,18 @@ Source: [Hyper-V Dynamic Memory](https://learn.microsoft.com/en-us/windows-serve
   `Allocation` 1.64 GB → 536 MB; `Physical`, the file's length, stayed 1.64 GB. **[verified 2026-10-24]**
 - `vol-create-from` flattens a backing chain: a 200 KB overlay became 2.24 GB, with or
   without a `<backingStore>` in the new volume's XML. **[verified 2026-10-24, libvirt 12.0.0]**
+
+## R_sysrq_send_key — magic SysRq through `virsh send-key`
+
+- `virsh send-key <vm> KEY_LEFTALT KEY_SYSRQ KEY_S` reaches the guest kernel's SysRq handler
+  through the emulated PS/2 keyboard: `sysrq: Emergency Sync` lands in its `dmesg`.
+  **[verified 2026-10-24, libvirt 12.0.0, Ubuntu 26.04 kernel 7.0.0]**
+- A keyboard SysRq obeys the `kernel.sysrq` bitmask; `/proc/sysrq-trigger` ignores it. **[docs]**
+- Ubuntu's `55-magic-sysrq.conf` sets 176 — sync 16, remount-ro 32, reboot/power-off 128 —
+  over systemd's own `0x01b6`. **[verified 2026-10-24, systemd 259]**
+- S and U are queued kernel work, done only per the guest's log. With 26 MB dirty,
+  `block.0.wr.bytes` rose 27 MB within 0.5 s of S and stood still; U wrote 256 KiB; O then
+  went `in shutdown` → `shut off (shutdown)` within 1 s. **[verified 2026-10-24]**
+- A 64 MiB unsynced file survived S‑U‑O and `shutdown`, and was gone after `destroy`. None of
+  the three replayed ext4's journal; `orphan cleanup on readonly fs` followed all three.
+  **[verified 2026-10-24, ext4 `commit=30`]**

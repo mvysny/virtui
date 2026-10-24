@@ -704,3 +704,25 @@ mapper's 0 is blamed on the lowest layer: an LVM volume inherits it from the LUK
 the fixes are UI flows (a confirmation, a progress popup) that `lib/virt/` may not reach, a
 backend block would still need a `BackgroundTask` from the UI, and a Proc breaks the `Data`'s
 equality in specs.
+
+## D_sysrq_power_off — Why is there a magic-SysRq power-off between `o` and `O`, and why is it disabled until the guest's mask is known?
+
+A guest whose shutdown hangs on a stop job that never ends left two choices: wait, or `destroy`
+and lose whatever it had not yet written. `pu` types Alt+SysRq S, U, O through `virsh send-key`:
+the kernel syncs, remounts read-only and powers off, whatever userspace is stuck on. A 64 MiB
+unsynced file survived it as it survived `shutdown`, and was gone after `destroy`
+(`R_sysrq_send_key`). Storage that is itself hung never finishes the sync and O powers off
+anyway, so the worst case is `destroy`. `pb` is the same with B, the soft counterpart of `R`.
+
+Why read the mask ahead and disable the items while it is unknown: a key press obeys
+`kernel.sysrq`, so a guest that forbids U or O silently ignores them, and by the time a shutdown
+hangs systemd has usually stopped `qemu-guest-agent` — the mask is read once per boot on the
+timer thread and kept until the VM stops. The price is a guest already hung when virtui
+started: `O` is all it gets. Why not `guest-exec` writing `/proc/sysrq-trigger`, which ignores
+the mask: the agent is the first thing gone, and `guest-exec` stays in `Virt::GuestRootGrow`
+(`D_guest_root_grow`). Why a fixed 3 s between keys rather than watching the write counters
+settle: 26 MB synced in under 0.5 s, and a sync that never ends must not hold O back. Why no
+automatic `destroy` when the VM is still running 10 s after O: the operator chose the softer
+option, so they get an alert and `O` stays theirs. Why not REISUB's E and I, which might let
+systemd finish its own shutdown: Ubuntu's 176 leaves out their bit, so they do nothing there.
+Why not cancelable: a guest left after U has every filesystem read-only.

@@ -274,6 +274,28 @@ describe Virt::Cache do
     end
   end
 
+  context 'SysRq mask' do
+    it 'is read from a running Linux guest only' do
+      c = Virt::Cache.new(Virt::VMEmulator.demo, System::Emulator.new)
+      assert_equal 176, c.cache('Ubuntu').sysrq_mask
+      assert_nil c.cache('win11').sysrq_mask
+      assert_nil c.cache('BASE').sysrq_mask
+    end
+
+    it 'outlives an agent that stops answering, until the VM stops' do
+      e = Virt::VMEmulator.demo
+      start = Time.now
+      c = Timecop.freeze(start) { Virt::Cache.new(e, System::Emulator.new) }
+      e.vm('Ubuntu').sysrq_mask = nil # a hung shutdown has stopped qemu-ga
+      Timecop.freeze(start + 2) { c.update }
+      assert_equal 176, c.cache('Ubuntu').sysrq_mask
+
+      e.vm('Ubuntu').force_off
+      Timecop.freeze(start + 4) { c.update }
+      assert_nil c.cache('Ubuntu').sysrq_mask
+    end
+  end
+
   context 'ip_address' do
     it 'is carried on the entry of a running VM, and nil for a stopped one' do
       e = Virt::VMEmulator.demo

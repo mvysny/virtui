@@ -32,7 +32,7 @@ doc-comment content has crept in.
   fixture parameter, so parser specs bypass the runner entirely.
 - `Virt::Cache` is the one thing the UI reads: thread-safe, an immutable `VMCache` per domain
   plus the host figures from `System::Info`. Every per-domain memo of a backend read (the
-  guest-OS lookup, the 30 s guest filesystem usage) lives here, on the timer thread's side of the seam, never on `Virsh`.
+  guest-OS lookup, the 30 s guest filesystem usage, the once-per-boot SysRq mask) lives here, on the timer thread's side of the seam, never on `Virsh`.
 - Every subprocess goes through `Run` as argv. `Virt::Ballooning` acts on a VM only through
   `Virt::Cache#set_actual`, which validates against the VM's limits before delegating to
   `Virsh#set_actual`; the UI's memory keys take the same path.

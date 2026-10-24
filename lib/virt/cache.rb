@@ -167,8 +167,13 @@ module Virt
     #   @return [Hash{String => ResourceUsage}, nil] how full the guest has filled each disk,
     #     keyed by host target (see {Virsh#guest_fs_usage}), at most {GUEST_FS_SECONDS} old;
     #     `nil` for a stopped VM, or one that could not answer
+    # @!attribute [r] sysrq_mask
+    #   @return [Integer, nil] the guest's `kernel.sysrq` (see {Virsh#guest_sysrq_mask}), read
+    #     once its agent answers and kept until the VM stops — so it outlives the agent of a
+    #     guest whose shutdown hangs. `nil` for a stopped or non-Linux VM, or one whose agent
+    #     has not answered since it started
     class VMCache < Data.define(:data, :cpu_usage, :mem_data_age_seconds, :swap_out_rate, :guest_swap,
-                                :guest_os, :ip_address, :guest_fs_usage)
+                                :guest_os, :ip_address, :guest_fs_usage, :sysrq_mask)
       # Builds a cache entry by diffing the previous entry against the current snapshot
       # (for CPU usage, memory-data age and swap-out rate).
       #
@@ -178,15 +183,17 @@ module Virt
       # @param guest_os [GuestOS] what this domain's definition declares
       # @param ip_address [String, nil] this tick's address, if any
       # @param guest_fs_usage [Hash{String => ResourceUsage}, nil] the guest's filesystem usage, if any
+      # @param sysrq_mask [Integer, nil] the guest's `kernel.sysrq`, if known
       # @return [VMCache] the derived cache entry
       def self.diff(prev_cache, next_data, guest_swap = nil, guest_os = GuestOS::UNKNOWN, ip_address = nil,
-                    guest_fs_usage = nil)
+                    guest_fs_usage = nil, sysrq_mask = nil)
         prev_data = prev_cache&.data
         # Age is wall-clock (sampled_at minus last_updated), never the delta between two
         # polls' last_updated — see design/decisions.md D_wall_clock_mem_age.
         age = next_data.mem_stat.nil? ? nil : ((next_data.sampled_at / 1000) - next_data.mem_stat.last_updated)
         VMCache.new(next_data, next_data.cpu_usage(prev_data).clamp(0, nil), age,
-                    swap_out_rate(prev_cache, next_data), guest_swap, guest_os, ip_address, guest_fs_usage)
+                    swap_out_rate(prev_cache, next_data), guest_swap, guest_os, ip_address, guest_fs_usage,
+                    sysrq_mask)
       end
 
       # Bytes-per-second at which the guest wrote to swap between the previous sample and
@@ -264,15 +271,19 @@ module Virt
             guest_swap = guest_os.no_proc_meminfo? ? nil : @virt.guest_swap(did)
             ip_address = @virt.ip_address(did)
             guest_fs_usage = guest_fs_usage(did, old_cache[did]&.guest_fs_usage)
+            # Once per boot: a hung shutdown has no agent left to ask.
+            sysrq_mask = old_cache[did]&.sysrq_mask || (@virt.guest_sysrq_mask(did) if guest_os.linux?)
           else
             # Strikes burned during the shutdown must not greet the next boot.
             guest_swap = nil
             ip_address = nil
             guest_fs_usage = nil
+            sysrq_mask = nil
             @guest_fs_fresh.delete(did)
             @virt.forget_guest(did)
           end
-          cache[did] = VMCache.diff(old_cache[did], data, guest_swap, guest_os, ip_address, guest_fs_usage)
+          cache[did] = VMCache.diff(old_cache[did], data, guest_swap, guest_os, ip_address, guest_fs_usage,
+                                    sysrq_mask)
           # A VM just (re)started: arm its guest mem-stat collection, or the balloon stats
           # stay frozen (see {Virsh#set_mem_stats_period}).
           @virt.set_mem_stats_period(did, STATS_PERIOD_SECONDS) if data.running? && !prev_data&.running?

@@ -43,7 +43,15 @@ Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
 
 - `ps` - starts a VM
 - `po` - sends a shutdown signal to the guest OS which should gracefully shut down the VM.
+- `pO` - forces the VM off, like pulling the plug: whatever the guest had not yet written is lost.
+- `pu` - the middle way, for a Linux guest whose shutdown hangs: types Alt+SysRq S, U, O into
+  its keyboard, so the kernel writes everything out, remounts its filesystems read-only and
+  powers off, whatever systemd is stuck on. Takes ~6 s. The guest's `kernel.sysrq` must allow
+  sync, remount and power-off (Ubuntu's 176 does; a plain 16 does not), and virtui reads it
+  through `qemu-guest-agent` while the guest is healthy, so it is disabled until the agent has
+  answered once since boot.
 - `pr` - sends a reset signal to the guest OS to gracefully reboot the machine.
+- `pb` - like `pu`, but reboots (Alt+SysRq S, U, B).
 - `pR` - forcefully reboots the VM.
 - `v` - runs a graphical viewer for the VM (`virt-manager` needs to be installed)
 - `mb` - toggles automatic ballooning for a VM

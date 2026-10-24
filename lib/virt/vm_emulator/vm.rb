@@ -40,6 +40,7 @@ module Virt
         @disk_capacity = VMEmulator::DISK_CAPACITY
         @root_size = 100.GiB
         @discard = 'unmap'
+        @sysrq_mask = 176
         @guest_os = VMEmulator::LINUX
         @startup_seconds = 10
         @shutdown_seconds = 5
@@ -83,6 +84,10 @@ module Virt
       # @return [String, nil] its disk's `<driver discard=>`: `unmap` by default, `nil` for a
       #   VM whose health check warns that the host drops its discards
       attr_accessor :discard
+
+      # @return [Integer, nil] its guest's `kernel.sysrq`: Ubuntu's 176 by default, `nil` for a
+      #   guest whose agent cannot be asked
+      attr_accessor :sysrq_mask
 
       # @return [String] where its disk image would live, in libvirt's `default` pool
       def disk_path = "/var/lib/libvirt/images/#{name}.qcow2"

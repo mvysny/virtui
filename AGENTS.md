@@ -38,7 +38,7 @@ Every fact lives in exactly one of these; the others link to it.
 - **Nothing under `lib/virt/` or `lib/system/` references `UI::`.** Data flows up through `Virt::Cache`; glyphs and colors stay in `lib/ui/`.
 - **`MemLevelRaiseVoter`'s trigger stays above `MemLevelShrinkVoter`'s.** Otherwise both vote on one sample and the VM hunts. See `D_ballooning_voters`.
 - **Durations run on the uptime clock (`Cooldown`); specs move them with `Uptime.travel`, never Timecop.** Timecop leaves `CLOCK_MONOTONIC` where it is, so a Timecop'd cooldown test passes vacuously. See `D_cooldown_monotonic`.
-- **The guest-agent reads (swap level, filesystem usage) are the only reads allowed to go quiet.** A guest that cannot answer is written off and the poll goes on; every other backend failure raises. See `D_guest_agent_backoff`.
+- **The guest-agent reads (swap level, filesystem usage, SysRq mask) are the only reads allowed to go quiet.** A guest that cannot answer is written off and the poll goes on; every other backend failure raises. See `D_guest_agent_backoff`.
 
 ## Module map
 

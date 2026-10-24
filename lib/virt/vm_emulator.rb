@@ -80,6 +80,11 @@ module Virt
     #   `nil` for an unknown or stopped VM
     def ip_address(name) = @vms[name]&.ip_address
 
+    # @param name [String] VM name
+    # @return [Integer, nil] the simulated guest's {VMEmulator::VM#sysrq_mask}, or `nil` for an
+    #   unknown or stopped VM
+    def guest_sysrq_mask(name) = @vms[name]&.running? ? @vms[name].sysrq_mask : nil
+
     # What the VM declares — {LINUX} unless its {VMEmulator::VM#guest_os} was set. Mirrors
     # {Virsh#guest_os} so {Cache} can call it backend-agnostically, including the part where
     # a domain that declares nothing answers {GuestOS::UNKNOWN} rather than `nil`.
@@ -287,6 +292,18 @@ module Virt
     # @param domain_name [String] VM name
     def force_off(domain_name)
       @vms[domain_name].force_off
+    end
+
+    # Mirrors {Virsh#sysrq_power_off}, at once: a simulated guest has no dirty pages to sync.
+    # @param domain_name [String] VM name
+    def sysrq_power_off(domain_name)
+      @vms[domain_name].force_off
+    end
+
+    # Mirrors {Virsh#sysrq_reboot}, at once.
+    # @param domain_name [String] VM name
+    def sysrq_reboot(domain_name)
+      @vms[domain_name].force_reboot
     end
 
     # @param vm [VMEmulator::VM] a running VM that declares an OS

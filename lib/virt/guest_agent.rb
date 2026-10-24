@@ -32,6 +32,9 @@ module Virt
     # The guest file the swap level is read from.
     MEMINFO_PATH = '/proc/meminfo'
 
+    # The guest file holding which magic SysRq functions its keyboard may trigger.
+    SYSRQ_PATH = '/proc/sys/kernel/sysrq'
+
     # How much of a guest file to ask for in one `guest-file-read`. Comfortably over the
     # ~2 KB `/proc/meminfo` runs to, so one read gets the whole file and there is no loop: a
     # short read fails {System::MemoryStat.parse}'s key check instead of quietly reporting
@@ -92,6 +95,21 @@ module Virt
     # @raise [Unavailable] if the guest was never going to answer
     # @raise [RuntimeError] if the agent, or the file it returned, is not what it documents
     def swap(domain) = System::MemoryStat.parse(read_file(domain, MEMINFO_PATH)).swap
+
+    # The guest's `kernel.sysrq`: which magic SysRq functions a key press may trigger.
+    #
+    #   agent.sysrq_mask('vt-ubuntu')   # => 176, Ubuntu's sync + remount + power-off
+    #
+    # @param domain [String] VM name; must be running, or the agent call fails
+    # @return [Integer] `0` none, `1` all, otherwise a bitmask (see {MagicSysRq.refusal})
+    # @raise [Unavailable] if the guest was never going to answer
+    # @raise [RuntimeError] if the agent, or the file it returned, is not what it documents
+    def sysrq_mask(domain)
+      text = read_file(domain, SYSRQ_PATH)
+      raise "#{domain}: #{SYSRQ_PATH} is not a number: #{text.inspect}" unless text.match?(/\A\d+\n?\z/)
+
+      text.to_i
+    end
 
     # How full the guest has filled each of its disks, from its mounted filesystems.
     #

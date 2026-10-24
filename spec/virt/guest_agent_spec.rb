@@ -108,6 +108,25 @@ describe Virt::GuestAgent do
     assert_includes error.message, 'SwapTotal'
   end
 
+  context 'sysrq_mask' do
+    # @param content [String] the guest's /proc/sys/kernel/sysrq
+    def agent_reading(content)
+      b64 = [content].pack('m0')
+      Virt::GuestAgent.new(runner: ScriptedAgentRunner.new(
+        HEALTHY_AGENT.merge('guest-file-read' => %({"return":{"count":4,"buf-b64":"#{b64}","eof":true}}))
+      ))
+    end
+
+    it 'reads the number out of /proc/sys/kernel/sysrq' do
+      assert_equal 176, agent_reading("176\n").sysrq_mask('vt-ubuntu')
+    end
+
+    it 'refuses a file that is not one number' do
+      error = assert_raises(RuntimeError) { agent_reading("176 16\n").sysrq_mask('vt-ubuntu') }
+      assert_includes error.message, 'is not a number'
+    end
+  end
+
   context 'exist?' do
     it 'opens and closes the file, reading nothing' do
       runner = ScriptedAgentRunner.new(HEALTHY_AGENT)
