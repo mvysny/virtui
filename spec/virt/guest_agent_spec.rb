@@ -108,6 +108,29 @@ describe Virt::GuestAgent do
     assert_includes error.message, 'SwapTotal'
   end
 
+  context 'exist?' do
+    it 'opens and closes the file, reading nothing' do
+      runner = ScriptedAgentRunner.new(HEALTHY_AGENT)
+      assert Virt::GuestAgent.new(runner: runner).exist?('vt-ubuntu', '/etc/fstab')
+      assert_equal %w[guest-file-open guest-file-close], executes(runner)
+    end
+
+    it 'answers false for a missing file' do
+      runner = ScriptedAgentRunner.new('guest-file-open' => RuntimeError.new(
+        "error: internal error: unable to execute QEMU agent command 'guest-file-open': failed to open file " \
+        "'/etc/systemd/system/timers.target.wants/fstrim.timer' (mode: 'r'): No such file or directory"
+      ))
+      refute Virt::GuestAgent.new(runner: runner).exist?('vt-ubuntu', '/etc/systemd/system/timers.target.wants/fstrim.timer')
+    end
+
+    it 'still raises for a guest that cannot answer' do
+      runner = ScriptedAgentRunner.new('guest-file-open' => RuntimeError.new(
+        'error: Guest agent is not responding: QEMU guest agent is not connected'
+      ))
+      assert_raises(Virt::GuestAgent::Unavailable) { Virt::GuestAgent.new(runner: runner).exist?('vt-ubuntu', '/x') }
+    end
+  end
+
   # The class of the error, not the log level, is what a caller polling this hangs its
   # write-off and its log level off — see design/decisions.md D_guest_agent_backoff.
   context 'failure classification' do

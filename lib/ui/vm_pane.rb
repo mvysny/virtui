@@ -386,15 +386,19 @@ module UI
     # Opens the maintenance menu for the selected VM. Resizing a disk image needs the VM shut
     # off, growing its root filesystem needs it running; the item the state rules out is
     # disabled. The menu is a snapshot, so a VM that changed state since gets an alert instead.
+    # The health check is never disabled: a stopped VM is judged by its definition alone.
     # @return [void]
     def show_maintenance_popup
       vm = current_vm || return
       state = @virt_cache.state(vm)
       options = [['r', 'Resize disk image…', state == :shut_off ? {} : { disabled: 'shut the VM down first' }],
-                 ['g', 'Grow root filesystem…', state == :running ? {} : { disabled: 'start the VM first' }]]
+                 ['g', 'Grow root filesystem…', state == :running ? {} : { disabled: 'start the VM first' }],
+                 ['h', 'Health check… (full scan: VM running)', {}]]
       Component::PickerWindow.open('Maintenance', options) do |key|
         state = @virt_cache.state(vm)
-        if key == 'r' && state == :shut_off
+        if key == 'h'
+          check_health(vm)
+        elsif key == 'r' && state == :shut_off
           DiskResizeWindow.start(@virt_cache.virt, vm)
         elsif key == 'r'
           Component::ConfirmWindow.alert('Resize disk image', "Shut #{vm} down first: a running VM's disk image " \
@@ -406,6 +410,15 @@ module UI
                                                                  'from inside the running guest.')
         end
       end
+    end
+
+    # Judges the VM's setup in the background (see {Virt::Health}) and opens {HealthWindow}
+    # with the findings.
+    # @param vm [String]
+    # @return [void]
+    def check_health(vm)
+      virt = @virt_cache.virt
+      BackgroundTask.new("Checking #{vm}'s health") { virt.health(vm) }.run { HealthWindow.open(vm, _1) }
     end
 
     # Checks how the VM's root filesystem would grow, asks the user to confirm the commands it

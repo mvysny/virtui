@@ -1,0 +1,77 @@
+fs.count            : 4
+fs.0.name           : vda1
+fs.0.mountpoint     : /
+fs.0.fstype         : ext4
+fs.0.total-bytes    : 14371065856
+fs.0.used-bytes     : 3477950464
+fs.0.disk.count     : 1
+fs.0.disk.0.alias   : vda
+fs.0.disk.0.device  : /dev/vda1
+fs.1.name           : vda13
+fs.1.mountpoint     : /boot
+fs.1.fstype         : ext4
+fs.1.total-bytes    : 966021120
+fs.1.used-bytes     : 113242112
+fs.1.disk.count     : 1
+fs.1.disk.0.alias   : vda
+fs.1.disk.0.device  : /dev/vda13
+fs.2.name           : vda15
+fs.2.mountpoint     : /boot/efi
+fs.2.fstype         : vfat
+fs.2.total-bytes    : 109395456
+fs.2.used-bytes     : 6567424
+fs.2.disk.count     : 1
+fs.2.disk.0.alias   : vda
+fs.2.disk.0.device  : /dev/vda15
+fs.3.name           : dm-1
+fs.3.mountpoint     : /mnt/hc
+fs.3.fstype         : ext4
+fs.3.total-bytes    : 3892559872
+fs.3.used-bytes     : 1064960
+fs.3.disk.count     : 1
+fs.3.disk.0.alias   : vdc
+fs.3.disk.0.device  : /dev/vdc
+disk.count          : 10
+disk.0.name         : /dev/vda14
+disk.0.partition    : yes
+disk.0.dependency.count: 1
+disk.0.dependency.0.name: /dev/vda
+disk.1.name         : /dev/vda1
+disk.1.partition    : yes
+disk.1.dependency.count: 1
+disk.1.dependency.0.name: /dev/vda
+disk.2.name         : /dev/vda13
+disk.2.partition    : yes
+disk.2.dependency.count: 1
+disk.2.dependency.0.name: /dev/vda
+disk.3.name         : /dev/vda15
+disk.3.partition    : yes
+disk.3.dependency.count: 1
+disk.3.dependency.0.name: /dev/vda
+disk.4.name         : /dev/vda
+disk.4.partition    : no
+disk.4.alias        : vda
+disk.4.guest_bus    : virtio
+disk.5.name         : /dev/vdc
+disk.5.partition    : no
+disk.5.alias        : vdc
+disk.5.guest_bus    : virtio
+disk.6.name         : /dev/dm-0
+disk.6.partition    : no
+disk.6.dependency.count: 1
+disk.6.dependency.0.name: /dev/vdc
+disk.6.guest_alias  : hccrypt
+disk.7.name         : /dev/sr0
+disk.7.partition    : no
+disk.7.serial       : QEMU_DVD-ROM_QM00001
+disk.7.alias        : sda
+disk.7.guest_bus    : sata
+disk.8.name         : /dev/vdb
+disk.8.partition    : no
+disk.8.alias        : vdb
+disk.8.guest_bus    : virtio
+disk.9.name         : /dev/dm-1
+disk.9.partition    : no
+disk.9.dependency.count: 1
+disk.9.dependency.0.name: /dev/dm-0
+disk.9.guest_alias  : hcvg-hclv

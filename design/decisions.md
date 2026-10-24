@@ -687,3 +687,20 @@ a stopped VM: reading the qcow2's partitions offline means opening the image, wh
 never does, and the last figure seen may be out of date (`M` resizes a stopped disk). Why the
 filesystems' total rather than the disk's capacity: the row says what the guest can still
 write, and unpartitioned space is something the `i` window shows.
+
+## D_health_check — Why is the health check an `M` item that judges a stopped VM by its definition, and names its fixes rather than applying them?
+
+Its main check needs no guest: the host's `<driver discard=>` alone decides whether freed space
+leaves the image, and the guest cannot see it (`R_discard_reclaim`). So a stopped VM gets the
+definition's checks and one skipped line for the guest's, where the other `M` items are
+disabled in the wrong state. Why `M` and not a section of `i`: `i` shows facts, health is a judgement, and its
+fixes are often other `M` items. Why no marker on the VM's row: a VM's health is checked while
+it is set up, and a configured VM rarely drifts — not worth a guest read per tick. Why a
+mapper's 0 is blamed on the lowest layer: an LVM volume inherits it from the LUKS mapping.
+
+`Finding#fix` is words: a command, or the `M` item to pick. Why virtui does not apply the
+`discard=unmap` fix itself: it is a persistent definition edit that waits for a power-off, and
+`virt-xml` makes it in one line. Why a fix that could one day run is not a block on `Finding`:
+the fixes are UI flows (a confirmation, a progress popup) that `lib/virt/` may not reach, a
+backend block would still need a `BackgroundTask` from the UI, and a Proc breaks the `Data`'s
+equality in specs.

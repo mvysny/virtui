@@ -159,6 +159,17 @@ describe Virt::Virsh do
     end
   end
 
+  context 'health' do
+    # vt-bios has no agent channel, so its guest is never asked.
+    it 'reads both definitions, and nothing from a guest without an agent' do
+      runner = RecordingRunner.new
+      runner.define_singleton_method(:sync) { |*args| record(:sync, args) && File.read('spec/virt/dumpxml_vt-bios.xml') }
+      health = Virt::Virsh.new(runner: runner).health('vt-bios')
+      assert_equal [[:sync, 'dumpxml', 'vt-bios'], [:sync, 'dumpxml', 'vt-bios', '--inactive']], runner.calls
+      assert_equal([:skipped, 'guest'], health.findings.last.then { [_1.severity, _1.subject] })
+    end
+  end
+
   context 'volume' do
     it 'parses the vol-pool, vol-info and pool-info it is handed' do
       vol = Virt::Virsh.new.volume('/var/lib/libvirt/images/vt-ubuntu.qcow2', "default\n",

@@ -81,7 +81,20 @@ module Virt
     #     counts its Use%; `nil` when the agent could not stat it
     # @!attribute [r] used
     #   @return [Integer, nil] bytes
-    Filesystem = Data.define(:name, :mountpoint, :fstype, :total, :used)
+    # @!attribute [r] mappers
+    #   @return [Array<Mapper>] the device-mapper devices between it and its partition or disk,
+    #     top first: the LV, then the LUKS mapping under it; empty on a plain partition
+    Filesystem = Data.define(:name, :mountpoint, :fstype, :total, :used, :mappers)
+
+    # One device-mapper device, an LVM volume or a dm-crypt mapping.
+    # @!attribute [r] device
+    #   @return [String] the kernel's name, e.g. `dm-0`
+    # @!attribute [r] name
+    #   @return [String, nil] the name its user knows it by, e.g. `hccrypt`, `ubuntu--vg-root`
+    Mapper = Data.define(:device, :name) do
+      # @return [String] e.g. `hccrypt (dm-0)`
+      def to_s = name ? "#{name} (#{device})" : device
+    end
 
     # @param target [String] a host target, e.g. `vda`
     # @return [Disk, nil] the guest disk behind it, or `nil` if the guest reported none
@@ -99,8 +112,8 @@ module Virt
     #   not say what it should
     def self.parse(guestinfo, &read_file)
       values = values(guestinfo)
-      filesystems = filesystems(values)
-      devices = (0...values['disk.count'].to_i).map { |i| device(values, "disk.#{i}") }
+      devices = devices(values)
+      filesystems = filesystems(values, devices)
       wholes = devices.reject { _1[:partition] }.select { _1[:alias] }
       parts = devices.select { _1[:partition] }
       geometry = geometry(parts.map { _1[:name] }, &read_file)
@@ -134,7 +147,8 @@ module Virt
     # @return [Hash{String => ResourceUsage}] keyed by host target, e.g. `vda`
     # @raise [RuntimeError] on a line that is not `key : value`
     def self.fs_usage(guestinfo)
-      pairs = filesystems(values(guestinfo)).filter_map do |_device, target, fs|
+      values = values(guestinfo)
+      pairs = filesystems(values, devices(values)).filter_map do |_device, target, fs|
         [target, fs] unless fs.total.nil? || fs.used.nil?
       end
       pairs.uniq.group_by(&:first).transform_values do |on_target|
@@ -152,28 +166,52 @@ module Virt
       end
     end
 
+    # @param values [Hash{String => String}] from {.values}
+    # @return [Array<Hash{Symbol => Object}>] every `disk.N`, see {.device}
+    private_class_method def self.devices(values)
+      (0...values['disk.count'].to_i).map { |i| device(values, "disk.#{i}") }
+    end
+
     # @param values [Hash{String => String}]
     # @param key [String] e.g. `disk.4`
-    # @return [Hash{Symbol => Object}] `:name`, `:partition`, `:dependencies`, `:alias`
+    # @return [Hash{Symbol => Object}] `:name`, `:partition`, `:dependencies`, `:alias`, and
+    #   `:guest_alias`, a device-mapper device's own name
     private_class_method def self.device(values, key)
       { name: values["#{key}.name"], partition: values["#{key}.partition"] == 'yes',
         dependencies: (0...values["#{key}.dependency.count"].to_i).map { values["#{key}.dependency.#{_1}.name"] },
-        alias: values["#{key}.alias"] }
+        alias: values["#{key}.alias"], guest_alias: values["#{key}.guest_alias"] }
     end
 
     # One triple per (filesystem, disk it lives on): a btrfs spanning two disks appears twice.
     # @param values [Hash{String => String}]
+    # @param devices [Array<Hash{Symbol => Object}>] from {.device}
     # @return [Array<Array(String, String, Filesystem)>] the guest device, the host target, the filesystem
-    private_class_method def self.filesystems(values)
+    private_class_method def self.filesystems(values, devices)
       (0...values['fs.count'].to_i).flat_map do |i|
         key = "fs.#{i}"
         fs = Filesystem.new(name: values["#{key}.name"], mountpoint: values["#{key}.mountpoint"],
                             fstype: values["#{key}.fstype"], total: values["#{key}.total-bytes"]&.to_i,
-                            used: values["#{key}.used-bytes"]&.to_i)
+                            used: values["#{key}.used-bytes"]&.to_i, mappers: mappers(values["#{key}.name"], devices))
         (0...values["#{key}.disk.count"].to_i).map do |d|
           [values["#{key}.disk.#{d}.device"], values["#{key}.disk.#{d}.alias"], fs]
         end
       end
+    end
+
+    # Follows each `dm-*` down its one dependency until the chain leaves device-mapper
+    # (design/research.md R_guestinfo).
+    # @param name [String, nil] the filesystem's `fs.N.name`, e.g. `dm-1`
+    # @param devices [Array<Hash{Symbol => Object}>] from {.device}
+    # @return [Array<Mapper>]
+    private_class_method def self.mappers(name, devices)
+      by_name = devices.to_h { [_1[:name], _1] }
+      chain = []
+      device = by_name["/dev/#{name}"]
+      while device && File.basename(device[:name]).start_with?('dm-') && chain.size < by_name.size
+        chain << Mapper.new(device: File.basename(device[:name]), name: device[:guest_alias])
+        device = by_name[device[:dependencies].first]
+      end
+      chain
     end
 
     # @param partitions [Array<String>] guest partition devices, e.g. `/dev/vda1`

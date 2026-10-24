@@ -88,6 +88,8 @@ later one trims to its length.
 - The libvirt phrasing for a `guest-file-open` on a missing path in a non-Linux guest is
   assumed to contain `no such file or directory`; no such guest with an agent was at hand to
   capture it. **[unverified]**
+- `guest-file-open` follows a symlink; a missing path fails with `failed to open file '…'
+  (mode: 'r'): No such file or directory`, exit 1. **[verified 2026-10-24, qemu-ga 10.2.1]**
 
 ## R_osinfo_db — libosinfo metadata in a domain definition, and what osinfo-db ships
 
@@ -174,6 +176,8 @@ later one trims to its length.
 - The live agent channel reads `<target type='virtio' name='org.qemu.guest_agent.0'
   state='connected'/>`; `state` is live-only. A domain with no agent has no such channel.
   **[verified 2026-10-24]** for the live half, **[docs]** for live-only
+- A running domain's live XML opens `<domain type='kvm' id='5'>`; a shut-off domain's, and any
+  `--inactive` one, has no `id`. **[verified 2026-10-24]**
 - Plain `dumpxml` leaves the VNC/SPICE `passwd=` out; `--security-info` prints it.
   **[verified 2026-10-24, a VNC domain defined with `passwd=`]**
 - Every size comes out in KiB whatever unit it was defined in, and a shut-off domain's autoport
@@ -408,8 +412,12 @@ Source: [Hyper-V Dynamic Memory](https://learn.microsoft.com/en-us/windows-serve
   agent hangs: 2 min 18 s, until the agent was resumed. `qemu-agent-command
   '{"execute":"guest-ping"}' --timeout 2` against the same agent fails in 2.0 s with `error:
   guest agent command timed out: guest agent didn't respond to command within '2' seconds`.
-  **[verified 2026-10-24]** An LVM or LUKS root is reported through a `dm-*` device,
-  and a Windows guest's devices are not `/dev/…` names. **[unverified]**
+  **[verified 2026-10-24]** A Windows guest's devices are not `/dev/…` names. **[unverified]**
+- An ext4 on LVM on LUKS is `fs.N.name: dm-1` with the *host* disk as its `disk.0.alias`;
+  `disk.N` has each `dm-*` with its `guest_alias` (`hcvg-hclv`) and one `dependency` a layer
+  down, `dm-1` → `dm-0` → `/dev/vdc`. **[verified 2026-10-24]**
+- The guest's kernel names need not match the host's targets: host `sdd` (virtio-scsi) was
+  the guest's `sdb`; `alias` maps them. **[verified 2026-10-24]**
 
 ## R_volume_resize — `vol-resize`, `blockresize` and the image lock
 
@@ -443,3 +451,25 @@ Source: [Hyper-V Dynamic Memory](https://learn.microsoft.com/en-us/windows-serve
 - RHEL-family agents ship with `guest-exec` blocked; `guest-info`'s `supported_commands` says
   per command whether it is `enabled`. **[unverified]** (Ubuntu's has it on.)
 - `btrfs filesystem resize max /` grows a mounted single-device btrfs. **[docs]**
+
+## R_discard_reclaim — a guest's trim, `discard='unmap'`, and what reaches the host image
+
+- A virtio-blk, virtio-scsi or SATA disk advertises discard whatever the domain XML says
+  (`discard_max_bytes` > 0), and the Ubuntu cloud image mounts `/` with `discard` and enables
+  `fstrim.timer`. **[verified 2026-10-24, QEMU 10.2.1, Ubuntu 26.04]**
+- On all three buses, `discard='unmap'` on the disk's `<driver>` is the one switch: with it a
+  trim returns the space, without it the image keeps every byte while `fstrim` reports the
+  same "973.1 MiB trimmed". **[verified 2026-10-24]**
+- A partition has no `queue/` in sysfs; its limits are the parent disk's. **[verified 2026-10-24]**
+- dm-crypt without `allow-discards` reports `discard_max_bytes` 0, an LVM volume on it too, and
+  `fstrim` fails: `the discard operation is not supported`. `cryptsetup refresh
+  --allow-discards` fixes dm-crypt live, but the LV keeps 0 through `lvchange --refresh`
+  until a `dmsetup reload` + `suspend` + `resume`; then a trim returns the space.
+  **[verified 2026-10-24, cryptsetup and LVM of Ubuntu 26.04]**
+- `virsh domfstrim` exits 0 even when one filesystem cannot discard. `guest-fstrim` answers
+  per path — `path`, `trimmed`, `minimum` — **[verified 2026-10-24]** with an `error` member
+  for a failed one. **[docs]**
+- With it — taking effect only after a full power-off — `virsh domfstrim` took 1.5 s and cut
+  `Allocation` 1.64 GB → 536 MB; `Physical`, the file's length, stayed 1.64 GB. **[verified 2026-10-24]**
+- `vol-create-from` flattens a backing chain: a 200 KB overlay became 2.24 GB, with or
+  without a `<backingStore>` in the new volume's XML. **[verified 2026-10-24, libvirt 12.0.0]**

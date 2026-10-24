@@ -54,6 +54,21 @@ describe Virt::GuestStorage do
     assert_nil vda.size
   end
 
+  it 'finds no mappers under a plain partition' do
+    assert_empty vt_ubuntu.disk('vda').partitions.last.filesystems.first.mappers
+  end
+
+  # vt-ubuntu with a hot-plugged vdc holding ext4 on LVM on LUKS, mounted at /mnt/hc.
+  it 'follows a filesystem down its LVM volume and LUKS mapping' do
+    vdc = Helpers.vt_ubuntu_luks_storage.disk('vdc')
+    assert_empty vdc.partitions
+    hc = vdc.filesystems.first
+    assert_equal %w[/mnt/hc dm-1], [hc.mountpoint, hc.name]
+    assert_equal [Virt::GuestStorage::Mapper.new('dm-1', 'hcvg-hclv'), Virt::GuestStorage::Mapper.new('dm-0', 'hccrypt')],
+                 hc.mappers
+    assert_equal 'hccrypt (dm-0)', hc.mappers.last.to_s
+  end
+
   it 'raises on a line that is not key : value' do
     assert_raises(RuntimeError) { described_class.parse("fs.count : 0\nnonsense\n") { '' } }
   end

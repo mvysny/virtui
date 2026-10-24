@@ -19,6 +19,9 @@ module Virt
   #
   # @!attribute [r] name
   #   @return [String]
+  # @!attribute [r] running
+  #   @return [Boolean] whether this is a running domain's live XML: only that carries
+  #     `<domain id=>`
   # @!attribute [r] uuid
   #   @return [String]
   # @!attribute [r] hypervisor
@@ -81,8 +84,8 @@ module Virt
   # @!attribute [r] other_devices
   #   @return [Array<String>] the remaining devices worth naming, as element and model, e.g.
   #     `rng virtio`, `watchdog itco`, `sound ich9`, `redirdev spicevmc`; one entry per device
-  class DomainConfig < Data.define(:name, :uuid, :hypervisor, :arch, :machine, :guest_os, :vcpus, :vcpus_online,
-                                   :cpu_mode, :cpu_model, :topology, :max_memory, :memory_backing, :balloon,
+  class DomainConfig < Data.define(:name, :running, :uuid, :hypervisor, :arch, :machine, :guest_os, :vcpus,
+                                   :vcpus_online, :cpu_mode, :cpu_model, :topology, :max_memory, :memory_backing, :balloon,
                                    :agent, :firmware, :secure_boot, :loader, :nvram, :boot, :tpm, :disks,
                                    :filesystems, :interfaces, :graphics, :video, :hostdevs, :other_devices)
     # The virtio-serial channel name `qemu-guest-agent` listens on.
@@ -130,7 +133,11 @@ module Virt
     #   @return [Boolean] whether other domains may attach the same image
     # @!attribute [r] readonly
     #   @return [Boolean]
-    Disk = Data.define(:target, :bus, :device, :type, :format, :source, :shareable, :readonly)
+    # @!attribute [r] discard
+    #   @return [String, nil] `<driver discard=>`: `unmap` passes the guest's trims to the image,
+    #     `ignore` or `nil` drops them, though the guest is told it may discard either way
+    #     (design/research.md R_discard_reclaim)
+    Disk = Data.define(:target, :bus, :device, :type, :format, :source, :shareable, :readonly, :discard)
 
     # One `<filesystem>`: a host directory shared into the guest.
     # @!attribute [r] driver
@@ -188,6 +195,7 @@ module Virt
       vcpu = domain.elements['vcpu']
       devices = domain.elements['devices']
       new(name: domain.elements['name'].text,
+          running: !domain.attributes['id'].nil?,
           uuid: domain.elements['uuid']&.text,
           hypervisor: domain.attributes['type'],
           arch: os.elements['type'].attributes['arch'],
@@ -316,11 +324,13 @@ module Virt
       # @return [Disk]
       def disk(element)
         target = element.elements['target']
+        driver = element.elements['driver']&.attributes
         Disk.new(target: target.attributes['dev'], bus: target.attributes['bus'],
                  device: element.attributes['device'] || 'disk', type: element.attributes['type'],
-                 format: element.elements['driver']&.attributes&.[]('type'),
+                 format: driver&.[]('type'),
                  source: disk_source(element.attributes['type'], element.elements['source']),
-                 shareable: !element.elements['shareable'].nil?, readonly: !element.elements['readonly'].nil?)
+                 shareable: !element.elements['shareable'].nil?, readonly: !element.elements['readonly'].nil?,
+                 discard: driver&.[]('discard'))
       end
 
       # @param type [String] `<disk type=>`

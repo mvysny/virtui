@@ -44,6 +44,9 @@ module Virt
     # rather than as a read timeout, which kills and respawns the child.
     TIMEOUT_SECONDS = 2
 
+    # How the agent says a guest file is missing; {#exist?} answers `false` to it.
+    MISSING_FILE = 'no such file or directory'
+
     # The failures a healthy host produces on its own, matched against the error message to
     # raise {Unavailable} rather than a bare error. In order: the agent is not up (a guest
     # mid-boot or mid-shutdown, or one that never had `qemu-guest-agent`), the domain has no
@@ -59,7 +62,7 @@ module Virt
     # D_guest_agent_backoff.
     EXPECTED_FAILURES = ['guest agent is not responding', 'guest agent is not configured', 'guest agent disappeared',
                          'has not been found', 'domain is not running',
-                         'no such file or directory'].freeze
+                         MISSING_FILE].freeze
 
     # Raised when this guest was never going to answer: no agent connected, the RPC blocked,
     # the domain gone, the file absent ({EXPECTED_FAILURES}). A normal state of a healthy
@@ -144,6 +147,27 @@ module Virt
       ensure
         close_quietly(domain, handle)
       end
+    end
+
+    # Whether a file exists in the guest; a symlink counts when its target does.
+    #
+    #   agent.exist?('vt-ubuntu', '/etc/systemd/system/timers.target.wants/fstrim.timer')   # => true
+    #
+    # Where {#read_file} folds a missing file into {Unavailable}, this tells it apart from a
+    # guest that cannot answer, which still raises.
+    #
+    # @param domain [String] VM name
+    # @param path [String] absolute path, as the *guest* sees it
+    # @return [Boolean] `false` only when the guest says the file is not there
+    # @raise [Unavailable] if the guest was never going to answer
+    # @raise [RuntimeError] if the agent replies with something other than what it documents
+    def exist?(domain, path)
+      close_quietly(domain, agent_command(domain, 'guest-file-open', { path: path, mode: 'r' }))
+      true
+    rescue Unavailable => e
+      raise unless e.message.downcase.include?(MISSING_FILE)
+
+      false
     end
 
     # Closes a guest file handle, logging rather than raising if that fails.

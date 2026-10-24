@@ -314,6 +314,20 @@ module Tuile
         assert_equal 128.GiB - 107.MiB, cache.virt.vm('Ubuntu').root_size
       end
 
+      it "'M' → health on a running VM lists its findings, the guest's included" do
+        pick(win11, 'M', 'h')
+        health = wait_for('the health window') { popup_contents.find { _1.is_a?(UI::HealthWindow) } }
+        text = health.instance_variable_get(:@view).text.to_s
+        assert_includes text, "the host drops this disk's discards"
+        assert_includes text, 'virt-xml win11 --edit target=vda --disk discard=unmap'
+      end
+
+      it "'M' → health on a stopped VM judges its definition, and skips the guest" do
+        pick(base, 'M', 'h')
+        health = wait_for('the health window') { popup_contents.find { _1.is_a?(UI::HealthWindow) } }
+        assert_includes health.instance_variable_get(:@view).text.to_s, 'not running: start the VM for the guest checks'
+      end
+
       it 'returns false for an unhandled key' do
         refute window.handle_key?('z')
       end
