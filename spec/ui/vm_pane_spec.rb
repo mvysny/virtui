@@ -292,7 +292,6 @@ module Tuile
         cache.virt.start('BASE')
         Timecop.freeze(now + 15) { cache.update }
         picker.handle_key?('r')
-        Testing.loop # lays the alert out, which the screen's close would otherwise trip over
         alert = popup_contents.find { _1.is_a?(Component::ConfirmWindow) }
         assert_includes alert.message, 'Shut BASE down first'
       end

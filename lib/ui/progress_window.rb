@@ -64,21 +64,12 @@ module UI
       # @param window [ProgressWindow]
       def initialize(window)
         @window = window
-        super(content: window, close_on_outside_click: false)
+        super(content: window, close_on_outside_click: false, close_on_key: window.cancelable?)
       end
 
       # @param screen_size [Size]
       # @return [Size] {ProgressWindow#measured_size}
       def declared_size_in(screen_size) = @window.measured_size(screen_size)
-
-      # Swallows the keys {Tuile::Component::Popup} closes on when the window is not cancelable.
-      # @param key [String]
-      # @return [Boolean] true if the key was handled
-      def handle_key?(key)
-        return true if !@window.cancelable? && [Tuile::Keys::ESC, 'q'].include?(key)
-
-        super
-      end
     end
     private_constant :MeasuredPopup
   end
