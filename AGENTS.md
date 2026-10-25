@@ -65,6 +65,7 @@ Every fact lives in exactly one of these; the others link to it.
 - **Readable, not obfuscated.** The simplest implementation that does the job; no abstraction layers or knobs ahead of the next concrete step.
 - **A tuning constant carries its reason beside its value**, or cites the `D_` that argues it; never a bare number.
 - **Grow by adding a class under the right namespace**: new backend data → `lib/virt/`, new host metric → `lib/system/` with a `System::Emulator` counterpart, new widget → `lib/ui/`.
+- **What feels like a tuile bug or a missing tuile feature becomes a ticket.** Note it while coding, keep going, and once the task is done open it with `gh issue create -R mvysny/tuile`; a workaround here cites the `tuile#N`.
 
 ## Commands
 
