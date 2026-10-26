@@ -28,9 +28,10 @@ module Virt
     SECTOR = 512
 
     # The smallest {Disk#free_tail} that is room anyone left on purpose: a GPT disk always
-    # keeps ~17 KiB there for its backup table, and partitioners align to 1 MiB.
+    # keeps ~17 KiB there for its backup table, and installers commonly leave ~1 MiB of
+    # alignment slack after the last partition — neither is worth growing into.
     # @return [Integer] bytes
-    MIN_FREE_TAIL = 1.MiB
+    MIN_FREE_TAIL = 10.MiB
 
     # One whole disk of the guest.
     # @!attribute [r] target
