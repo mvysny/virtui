@@ -10,7 +10,8 @@ gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
 # Unreleased tuile: FakeEventQueue's queued submit and Testing.loop (tuile#65), which the
 # BackgroundTask specs need, PickerWindow's disabled options (tuile#71), which the power and
-# maintenance menus use, the `@_`-prefixed framework ivars (tuile#69), which let
+# maintenance menus use, PickerWindow#open_in_popup (tuile#72), which opens those menus with no
+# override, the `@_`-prefixed framework ivars (tuile#69), which let
 # DiskResizeWindow keep its own `@caption`, and Popup's `close_on_key:` (tuile#66), which
 # ProgressWindow's uncancelable popup uses, land after 0.17.0 and have no gem yet, so this rides
 # master until they do — a git source rather than `path: '../tuile'` so CI can resolve it too. To work against

@@ -5,7 +5,7 @@ module UI
     # The `m` menu of {VMPane}: toggle one VM's automatic ballooning, or give it its maximum
     # memory and switch the ballooning off.
     #
-    #   MemoryPickerWindow.open(virt_cache, ballooning, 'vt-ubuntu')
+    #   MemoryPickerWindow.new(virt_cache, ballooning, 'vt-ubuntu').open_in_popup
     #
     #   ┌Memory──────────────────────────────────┐
     #   │b toggle autoBallooning                 │
@@ -27,20 +27,6 @@ module UI
         running = virt_cache.running?(vm) ? {} : { disabled: 'VM not running' }
         super('Memory', [['b', 'toggle autoBallooning', running],
                          ['m', 'Max memory & disable autoballooning', running]]) { pick(_1) }
-      end
-
-      # Opens the menu as a modal popup that closes after a pick.
-      #
-      # @param virt_cache [Virt::Cache] see {#initialize}
-      # @param ballooning [Virt::Ballooning] see {#initialize}
-      # @param vm [String] see {#initialize}
-      # @return [Tuile::Component::Popup] the opened popup
-      def self.open(virt_cache, ballooning, vm)
-        # Not PickerWindow.open, which builds a plain PickerWindow (tuile#72).
-        picker = new(virt_cache, ballooning, vm)
-        popup = Tuile::Component::Popup.new(content: picker)
-        picker.on_pick { popup.close }
-        popup.open
       end
 
       private

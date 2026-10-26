@@ -150,7 +150,7 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
       options = pooled.each_with_index.map do |(disk, volume), i|
         [(i + 1).to_s, "#{disk.target}  #{format_byte_size(volume.capacity)}  #{volume.path}"]
       end
-      Component::PickerWindow.open('Which disk?', options) { open_for.call(pooled[_1.to_i - 1]) }
+      Component::PickerWindow.new('Which disk?', options) { open_for.call(pooled[_1.to_i - 1]) }.open_in_popup
     end
 
     # @param virt [Virt::Virsh, Virt::VMEmulator]

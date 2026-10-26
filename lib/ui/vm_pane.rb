@@ -231,9 +231,9 @@ module UI
       return false if vm.nil?
 
       case key
-      when 'p' then PowerPickerWindow.open(@virt_cache, vm)
-      when 'm' then MemoryPickerWindow.open(@virt_cache, @ballooning, vm)
-      when 'M' then MaintenancePickerWindow.open(@virt_cache, vm)
+      when 'p' then PowerPickerWindow.new(@virt_cache, vm).open_in_popup
+      when 'm' then MemoryPickerWindow.new(@virt_cache, @ballooning, vm).open_in_popup
+      when 'M' then MaintenancePickerWindow.new(@virt_cache, vm).open_in_popup
       when 'i' then VMInfoWindow.start(@virt_cache, vm)
       when 'd' then self.show_disk_stat = !show_disk_stat
       when 'v'

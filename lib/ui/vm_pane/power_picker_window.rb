@@ -6,7 +6,7 @@ module UI
     # reset of one VM, and the magic-SysRq power-off and reboot between them (see
     # {Virt::MagicSysRq}).
     #
-    #   PowerPickerWindow.open(virt_cache, 'vt-ubuntu')
+    #   PowerPickerWindow.new(virt_cache, 'vt-ubuntu').open_in_popup
     #
     #   ┌Power─────────────────────────────────────────┐
     #   │s Start (VM not stopped)                      │
@@ -26,19 +26,6 @@ module UI
         @virt_cache = virt_cache
         @vm = vm
         super('Power', options) { pick(_1) }
-      end
-
-      # Opens the menu as a modal popup that closes after a pick.
-      #
-      # @param virt_cache [Virt::Cache] see {#initialize}
-      # @param vm [String] see {#initialize}
-      # @return [Tuile::Component::Popup] the opened popup
-      def self.open(virt_cache, vm)
-        # Not PickerWindow.open, which builds a plain PickerWindow (tuile#72).
-        picker = new(virt_cache, vm)
-        popup = Tuile::Component::Popup.new(content: picker)
-        picker.on_pick { popup.close }
-        popup.open
       end
 
       private

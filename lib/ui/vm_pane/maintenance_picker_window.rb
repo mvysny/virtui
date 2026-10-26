@@ -5,7 +5,7 @@ module UI
     # The `M` menu of {VMPane}: resize one VM's disk image, grow its root filesystem, or check
     # its health.
     #
-    #   MaintenancePickerWindow.open(virt_cache, 'vt-ubuntu')
+    #   MaintenancePickerWindow.new(virt_cache, 'vt-ubuntu').open_in_popup
     #
     #   ┌Maintenance──────────────────────────────────────────┐
     #   │r Resize disk image… (shut the VM down first)        │
@@ -29,19 +29,6 @@ module UI
               [['r', 'Resize disk image…', state == :shut_off ? {} : { disabled: 'shut the VM down first' }],
                ['g', 'Grow root filesystem…', state == :running ? {} : { disabled: 'start the VM first' }],
                ['h', 'Health check… (full scan: VM running)', {}]]) { pick(_1) }
-      end
-
-      # Opens the menu as a modal popup that closes after a pick.
-      #
-      # @param virt_cache [Virt::Cache] see {#initialize}
-      # @param vm [String] see {#initialize}
-      # @return [Tuile::Component::Popup] the opened popup
-      def self.open(virt_cache, vm)
-        # Not PickerWindow.open, which builds a plain PickerWindow (tuile#72).
-        picker = new(virt_cache, vm)
-        popup = Tuile::Component::Popup.new(content: picker)
-        picker.on_pick { popup.close }
-        popup.open
       end
 
       private
