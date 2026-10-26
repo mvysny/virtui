@@ -1,16 +1,14 @@
-# VM info window: what `i` could show next
+# VM info window: "changed, takes effect on next boot"
 
-The `i` window (`UI::VMInfoWindow`) shipped 2026-10-24 with what `dumpxml` holds. These were left
-out to keep the first cut small:
+The `i` window (`UI::VMInfoWindow`) shows the live XML of a running domain. A marker for a
+definition edited since the VM started would need `dumpxml --inactive` too, and a comparison.
 
-- `Q_autostart`: "starts with the host" is a useful static fact, but it is not in the XML. It
-  comes from `virsh dominfo` (`Autostart:`, `Persistent:`), one more spawned read inside the
-  same `BackgroundTask`, plus its `VMEmulator` counterpart. Worth it?
-- `Q_hostdev_names`: show `PCI 0000:01:00.0` as is (what ships), or resolve it to "NVIDIA RTX
-  3060" through `/sys/bus/pci/devices/*/` or `lspci`? More useful, but it is a host read in
-  `lib/system/` and a second source.
-- `Q_window_size`: the popup is a fixed `Fraction.new(0.7, 0.8)`. A plain VM is ~20 rows, so
-  the box is mostly empty. Tuile's `Popup` has no fit-to-content; a `Size` computed from the
-  wrapped row count would need the width first.
-- `Q_live_or_inactive`: the window shows the live XML of a running domain. A "changed, takes
-  effect on next boot" marker would need `--inactive` too and a diff.
+- `Q_live_or_inactive`: compare the two XMLs char-by-char? Never equal for a running domain:
+  the live one adds `id=`, an `<alias>` per device, `index=` and `<backingStore>` per disk,
+  `<resource>`, assigned ports and the agent's `state=`, and `<currentMemory>` is wherever the
+  balloon has it (virtui moves it itself). The vt-ubuntu fixtures differ in 98 lines, one of
+  them a real pending change (`discard='unmap'`). Counter-proposal: compare the two parsed
+  `DomainConfig`s with the runtime-only fields (`running`, `agent` state, graphics `port`)
+  normalized away, and name the fields that differ — `Pending   vda discard, max memory —
+  takes effect once powered off and on`. Watch out for `host-model`: the live XML may expand
+  it to `custom` + a model (unverified).

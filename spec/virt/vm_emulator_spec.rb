@@ -154,6 +154,13 @@ describe Virt::VMEmulator do
     assert_equal 'cannot answer: no guest agent channel', e.health('BASE').findings.last.text
   end
 
+  it 'autostart? says whether the VM starts with the host' do
+    e = Virt::VMEmulator.demo
+    assert e.autostart?('Ubuntu')
+    refute e.autostart?('Fedora')
+    assert_raises(RuntimeError) { e.autostart?('nope') }
+  end
+
   it 'domain_config raises for a VM it does not know' do
     assert_raises(RuntimeError) { Virt::VMEmulator.new.domain_config('nope') }
   end

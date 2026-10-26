@@ -17,6 +17,7 @@ module Tuile
       assert_equal <<~TEXT.lines.map(&:rstrip), text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), disks))
         OS        linux — http://ubuntu.com/ubuntu/24.04
         Machine   x86_64, pc-q35-10.2, KVM
+        Starts    by hand — no autostart
         UUID      4878e503-790a-4b94-a1fb-c3205aeb7ea0
 
         CPU       2 vCPUs, host-passthrough
@@ -47,6 +48,11 @@ module Tuile
         Other
           sound ich9, redirdev spicevmc ×2, watchdog itco, rng virtio
       TEXT
+    end
+
+    it 'says when the VM starts with the host' do
+      text = text_of(UI::VMInfoWindow.new(config('vt-bios'), autostart: true))
+      assert_includes text, 'Starts    with the host (autostart)'
     end
 
     it 'says what a missing balloon and agent cost, and leaves empty sections out' do

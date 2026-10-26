@@ -1,0 +1,14 @@
+Id:             -
+Name:           vt-ubuntu
+UUID:           4878e503-790a-4b94-a1fb-c3205aeb7ea0
+OS Type:        hvm
+State:          shut off
+CPU(s):         2
+Max memory:     4194304 KiB
+Used memory:    1048576 KiB
+Persistent:     yes
+Autostart:      disable
+Autostart Once: disable
+Managed save:   no
+Security model: apparmor
+Security DOI:   0

@@ -6,6 +6,7 @@ module UI
   #   ┌─ vt-ubuntu ──────────────────────────────────────────┐
   #   │ OS        linux — http://ubuntu.com/ubuntu/24.04     │
   #   │ Machine   x86_64, pc-q35-10.2, KVM                   │
+  #   │ Starts    with the host (autostart)                  │
   #   │ CPU       2 vCPUs, host-passthrough                  │
   #   │ Balloon   virtio, free page reporting                │
   #   │ Agent     no channel — no swap level for this VM     │
@@ -44,9 +45,11 @@ module UI
     #   capacities; a disk missing here gets a blank size
     # @param guest [Virt::GuestStorage, String, nil] the guest's view of its disks; a `String`
     #   says why the guest could not tell, `nil` means it was not asked
-    def initialize(config, disk_stats = [], guest = nil)
+    # @param autostart [Boolean] whether libvirt starts the VM with the host
+    def initialize(config, disk_stats = [], guest = nil, autostart: false)
       super(config.name)
       @config = config
+      @autostart = autostart
       @disk_stats = disk_stats
       @guest = guest
       @view = Component::TextView.new
@@ -60,9 +63,10 @@ module UI
     # @param config [Virt::DomainConfig] what the VM is defined as
     # @param disk_stats [Array<Virt::DiskStat>] see {#initialize}
     # @param guest [Virt::GuestStorage, String, nil] see {#initialize}
+    # @param autostart [Boolean] see {#initialize}
     # @return [Tuile::Component::Popup] the opened popup
-    def self.open(config, disk_stats = [], guest = nil)
-      Tuile::Component::Popup.new(content: new(config, disk_stats, guest), declared_size: SIZE).open
+    def self.open(config, disk_stats = [], guest = nil, autostart: false)
+      Tuile::Component::Popup.new(content: new(config, disk_stats, guest, autostart:), declared_size: SIZE).open
     end
 
     # The whole `i` flow: reads the VM's definition behind a progress popup, fresh on every
@@ -88,9 +92,11 @@ module UI
           # virsh's own `error: …` line, not the `Command '…' failed` wrapper around it.
           e.message[/error: ([^\n]*)/, 1] || e.message.lines.first.strip
         end
-        [config, guest]
+        [config, guest, virt.autostart?(vm)]
       end
-      task.run { |config, guest| VMInfoWindow.open(config, virt_cache.data(vm)&.disk_stat || [], guest) }
+      task.run do |config, guest, autostart|
+        VMInfoWindow.open(config, virt_cache.data(vm)&.disk_stat || [], guest, autostart:)
+      end
     end
 
     protected
@@ -116,6 +122,7 @@ module UI
       os = c.guest_os
       [line('OS', "#{os.family} — #{os.osinfo_id || 'no osinfo declaration'}"),
        line('Machine', [c.arch, c.machine, c.hypervisor.upcase].compact.join(', ')),
+       line('Starts', @autostart ? 'with the host (autostart)' : 'by hand — no autostart'),
        line('UUID', c.uuid)]
     end
 

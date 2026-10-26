@@ -159,6 +159,22 @@ module Virt
       DomainConfig.from_xml(xml || @runner.sync('dumpxml', domain_name, *('--inactive' if inactive)))
     end
 
+    # Whether libvirt starts the domain with the host, from `virsh dominfo`'s `Autostart:`;
+    # not in the XML. Spawned, like {#domain_config}.
+    #
+    # @param domain_name [String] VM name
+    # @param dominfo [String, nil] canned `dominfo` output for testing; runs the real command
+    #   when `nil`
+    # @return [Boolean]
+    # @raise [RuntimeError] if `virsh dominfo` fails, or prints no `Autostart:` it documents
+    def autostart?(domain_name, dominfo = nil)
+      dominfo ||= @runner.sync('dominfo', domain_name)
+      value = fields(dominfo)['Autostart']
+      raise "virsh printed no Autostart enable/disable: #{dominfo.inspect}" unless %w[enable disable].include?(value)
+
+      value == 'enable'
+    end
+
     # The running guest's own view of its disks: partitions, and what is mounted where.
     #
     #   virsh.guest_storage('vt-ubuntu').disk('vda').partitions.last.name   # => "vda1"

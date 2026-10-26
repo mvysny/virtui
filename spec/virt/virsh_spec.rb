@@ -159,6 +159,29 @@ describe Virt::Virsh do
     end
   end
 
+  context 'autostart?' do
+    let(:dominfo) { File.read('spec/virt/dominfo_vt-ubuntu.txt') }
+
+    it 'reads Autostart, not Autostart Once' do
+      virsh = Virt::Virsh.new(runner: RecordingRunner.new)
+      refute virsh.autostart?('vt-ubuntu', dominfo)
+      assert virsh.autostart?('vt-ubuntu', dominfo.sub(/^Autostart: +disable/, 'Autostart:      enable'))
+      refute virsh.autostart?('vt-ubuntu', dominfo.sub(/^Autostart Once: +disable/, 'Autostart Once: enable'))
+    end
+
+    it 'raises when dominfo has no Autostart' do
+      assert_raises(RuntimeError) { Virt::Virsh.new.autostart?('vt-ubuntu', dominfo.sub(/^Autostart:.*\n/, '')) }
+    end
+
+    it 'spawns dominfo' do
+      runner = RecordingRunner.new
+      dominfo = self.dominfo
+      runner.define_singleton_method(:sync) { |*args| record(:sync, args) && dominfo }
+      Virt::Virsh.new(runner: runner).autostart?('vt-ubuntu')
+      assert_equal [[:sync, 'dominfo', 'vt-ubuntu']], runner.calls
+    end
+  end
+
   context 'health' do
     # vt-bios has no agent channel, so its guest is never asked.
     it 'reads both definitions, and nothing from a guest without an agent' do

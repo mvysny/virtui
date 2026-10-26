@@ -195,6 +195,8 @@ later one trims to its length.
   assigned. An empty CD-ROM drive has no `<source>`. **[verified 2026-10-24]**
 - `virt-install --osinfo detect=off,require=off` writes no libosinfo metadata at all.
   **[verified 2026-10-24]**
+- Autostart is in neither XML; `virsh dominfo` prints it as `Autostart:      disable` (or
+  `enable`), followed by a separate `Autostart Once:` line. **[verified 2026-10-26, libvirt 12.0]**
 
 ## R_libvirt_default_uri — which libvirt `virsh` reaches with no `-c`
 

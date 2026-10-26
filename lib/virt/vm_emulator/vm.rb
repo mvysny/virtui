@@ -41,6 +41,7 @@ module Virt
         @root_size = 100.GiB
         @discard = 'unmap'
         @sysrq_mask = 176
+        @autostart = false
         @guest_os = VMEmulator::LINUX
         @startup_seconds = 10
         @shutdown_seconds = 5
@@ -88,6 +89,9 @@ module Virt
       # @return [Integer, nil] its guest's `kernel.sysrq`: Ubuntu's 176 by default, `nil` for a
       #   guest whose agent cannot be asked
       attr_accessor :sysrq_mask
+
+      # @return [Boolean] whether libvirt would start it with the host; `false` by default
+      attr_accessor :autostart
 
       # @return [String] where its disk image would live, in libvirt's `default` pool
       def disk_path = "/var/lib/libvirt/images/#{name}.qcow2"

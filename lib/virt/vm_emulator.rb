@@ -107,6 +107,13 @@ module Virt
       DomainConfig.from_xml(vm.to_domain_xml)
     end
 
+    # Mirrors {Virsh#autostart?}.
+    #
+    # @param name [String] VM name
+    # @return [Boolean] the VM's {VMEmulator::VM#autostart}
+    # @raise [RuntimeError] for an unknown VM, as `virsh dominfo` does
+    def autostart?(name) = (@vms[name] || raise("failed to get domain '#{name}'")).autostart
+
     # The guest's disk layout, run through the same {GuestStorage.parse} as
     # {Virsh#guest_storage}. A Linux guest is the easy case: an EFI partition, then `/` as the
     # last partition, 100 GiB until {#grow_root} grows it, with the rest of the disk after it —
@@ -265,6 +272,7 @@ module Virt
       e.vm('BASE').guest_os = GuestOS::UNKNOWN
       # A health warning for the demo to show: win11's host drops its discards.
       e.vm('win11').discard = nil
+      e.vm('Ubuntu').autostart = true
       e.vm('Ubuntu').address = '192.168.122.84'
       e.vm('win11').address = '192.168.122.23'
       e
