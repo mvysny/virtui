@@ -84,15 +84,16 @@ deadline; all others are UI-thread-confined).
 
 **A power key** (UI thread only):
 
-1. `UI::VMPane#handle_key?` sees `p`, then the power submenu letter, for the selected VM.
+1. `UI::VMPane#handle_key?` sees `p` and opens `UI::VMPane::PowerPickerWindow` for the selected
+   VM; the user picks a letter.
 2. `@virt_cache.virt.start(name)` → `Virsh#start` → `runner.async('start', name)` →
    `VirshSpawn#async` → `Run.async`: a process of its own, failure logged rather than raised.
 3. Nothing on screen changes until the next tick's `domstats` reports the new state.
 
 **An info key** (UI thread, then a worker):
 
-1. `UI::VMPane#handle_key?` sees `i` and starts a `UI::BackgroundTask`; the progress popup
-   opens.
+1. `UI::VMPane#handle_key?` sees `i`; `UI::VMInfoWindow.start` starts a `UI::BackgroundTask` and
+   the progress popup opens.
 2. On the worker, `Virsh#domain_config` → `runner.sync('dumpxml', name)`, a process of its own
    even though it is a read → `Virt::DomainConfig.from_xml`.
 3. Back on the UI thread, `UI::VMInfoWindow.open(config, disk_stats)` with the disk capacities

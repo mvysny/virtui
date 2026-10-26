@@ -4,7 +4,8 @@ module UI
   # The VM pane: a scrollable, cursor-selectable list of all VMs, each with guest-vs-host
   # CPU/RAM/disk usage bars and a ballooning-status indicator. Per-VM actions are reachable
   # via key shortcuts: power menu (`p`), launch viewer (`v`), memory menu (`m`), toggle disk
-  # stats (`d`), the VM's definition (`i`) and search (`/`).
+  # stats (`d`), the VM's definition (`i`), maintenance (`M`) and search (`/`). Each menu is a
+  # component of its own under `lib/ui/vm_pane/`, handed the VM's name.
   #
   # A borderless `Layout::Vertical`, not a `Window` (see design/decisions.md D_panes_are_layouts):
   # a one-row header — the focus chip plus the Guest/Host column captions — over the
@@ -226,31 +227,22 @@ module UI
         return true
       end
 
-      return false if current_vm.nil?
+      vm = current_vm
+      return false if vm.nil?
 
-      if key == 'p' # Power menu
-        show_power_popup
-        true
-      elsif key == 'v' # view
-        $log.info "Launching viewer for '#{current_vm}'"
-        Run.async('virt-manager', '--connect', 'qemu:///system',
-                  '--show-domain-console', current_vm)
-        true
-      elsif key == 'm' # memory
-        show_memory_popup
-        true
-      elsif key == 'd'
-        self.show_disk_stat = !show_disk_stat
-        true
-      elsif key == 'i'
-        show_info_popup
-        true
-      elsif key == 'M'
-        show_maintenance_popup
-        true
+      case key
+      when 'p' then PowerPickerWindow.open(@virt_cache, vm)
+      when 'm' then MemoryPickerWindow.open(@virt_cache, @ballooning, vm)
+      when 'M' then MaintenancePickerWindow.open(@virt_cache, vm)
+      when 'i' then VMInfoWindow.start(@virt_cache, vm)
+      when 'd' then self.show_disk_stat = !show_disk_stat
+      when 'v'
+        $log.info "Launching viewer for '#{vm}'"
+        Run.async('virt-manager', '--connect', 'qemu:///system', '--show-domain-console', vm)
       else
-        false
+        return false
       end
+      true
     end
 
     # @return [Tuile::StyledString] the pane's focus chip, inverted iff the pane owns the
@@ -376,222 +368,6 @@ module UI
       @list.show_cursor_when_inactive = false
       @list.focus
       remove(field)
-    end
-
-    # Opens {VMInfoWindow} for the selected VM once its definition is read, fresh on every
-    # press so the window never shows a definition older than the keypress
-    # (design/decisions.md D_background_task). The guest is asked for its disk layout only
-    # when the live definition says its agent is connected; one that still cannot answer
-    # gets the reason in the window rather than failing the whole read.
-    # @return [void]
-    def show_info_popup
-      vm = current_vm || return
-      virt = @virt_cache.virt
-      task = BackgroundTask.new("Reading #{vm}'s definition") do
-        config = virt.domain_config(vm)
-        guest = begin
-          virt.guest_storage(vm) if config.agent == :connected
-        rescue Virt::GuestAgent::Unavailable => e
-          # virsh's own `error: …` line, not the `Command '…' failed` wrapper around it.
-          e.message[/error: ([^\n]*)/, 1] || e.message.lines.first.strip
-        end
-        [config, guest]
-      end
-      task.run { |config, guest| VMInfoWindow.open(config, @virt_cache.data(vm)&.disk_stat || [], guest) }
-    end
-
-    # Opens the maintenance menu for the selected VM. Resizing a disk image needs the VM shut
-    # off, growing its root filesystem needs it running; the item the state rules out is
-    # disabled. The menu is a snapshot, so a VM that changed state since gets an alert instead.
-    # The health check is never disabled: a stopped VM is judged by its definition alone.
-    # @return [void]
-    def show_maintenance_popup
-      vm = current_vm || return
-      state = @virt_cache.state(vm)
-      options = [['r', 'Resize disk image…', state == :shut_off ? {} : { disabled: 'shut the VM down first' }],
-                 ['g', 'Grow root filesystem…', state == :running ? {} : { disabled: 'start the VM first' }],
-                 ['h', 'Health check… (full scan: VM running)', {}]]
-      Component::PickerWindow.open('Maintenance', options) do |key|
-        state = @virt_cache.state(vm)
-        if key == 'h'
-          check_health(vm)
-        elsif key == 'r' && state == :shut_off
-          DiskResizeWindow.start(@virt_cache.virt, vm)
-        elsif key == 'r'
-          Component::ConfirmWindow.alert('Resize disk image', "Shut #{vm} down first: a running VM's disk image " \
-                                                              'cannot be resized.')
-        elsif key == 'g' && state == :running
-          grow_root_filesystem(vm)
-        elsif key == 'g'
-          Component::ConfirmWindow.alert('Grow root filesystem', "Start #{vm} first: its root filesystem is grown " \
-                                                                 'from inside the running guest.')
-        end
-      end
-    end
-
-    # Judges the VM's setup in the background (see {Virt::Health}) and opens {HealthWindow}
-    # with the findings.
-    # @param vm [String]
-    # @return [void]
-    def check_health(vm)
-      virt = @virt_cache.virt
-      BackgroundTask.new("Checking #{vm}'s health") { virt.health(vm) }.run { HealthWindow.open(vm, _1) }
-    end
-
-    # Checks how the VM's root filesystem would grow, asks the user to confirm the commands it
-    # runs in the guest, then runs them behind a popup that cannot be canceled and reports the
-    # new size. A guest whose layout or agent will not do gets the reason instead.
-    # @param vm [String] a running VM
-    # @return [void]
-    def grow_root_filesystem(vm)
-      virt = @virt_cache.virt
-      check = BackgroundTask.new("Checking #{vm}'s root filesystem") do
-        virt.root_grow_plan(vm)
-      rescue Virt::GuestRootGrow::Refused, Virt::GuestAgent::Unavailable => e
-        # virsh's own `error: …` line, not the `Command '…' failed` wrapper around it.
-        e.message[/error: ([^\n]*)/, 1] || e.message
-      end
-      check.run do |plan|
-        next Component::ConfirmWindow.alert("Cannot grow #{vm}'s root filesystem", plan) if plan.is_a?(String)
-
-        fs = plan.filesystem
-        Component::ConfirmWindow.confirm(
-          "Grow #{vm}'s root filesystem?",
-          "/ (#{fs.fstype} on #{plan.partition.name}, #{format_byte_size(plan.partition.size)}) grows by " \
-          "#{format_byte_size(plan.growth)}, into the free space at the end of #{plan.disk.target}. This runs " \
-          "#{plan.commands.map { _1[0][0] }.join(', ')} as root inside the guest, and cannot be canceled once it starts.",
-          confirm: 'Grow'
-        ) { run_root_grow(vm, plan) }
-      end
-    end
-
-    # @param vm [String]
-    # @param plan [Virt::GuestRootGrow::Plan]
-    # @return [void]
-    def run_root_grow(vm, plan)
-      virt = @virt_cache.virt
-      # Not cancelable: the agent runs each command to its end whatever virtui does.
-      task = BackgroundTask.new("Growing #{vm}'s root filesystem", cancelable: false) do
-        virt.grow_root(vm, plan)
-        virt.guest_storage(vm).disk(plan.disk.target).partitions.last
-      end
-      task.run do |partition|
-        # The partition's size, as `df` shows it; the filesystem's own total leaves out ext4's reserve.
-        root = partition.filesystems.first
-        Component::ConfirmWindow.alert("#{vm}'s / is now #{format_byte_size(partition.size)}",
-                                       "#{format_byte_size(root.total - root.used)} of it free.")
-      end
-    end
-
-    # Opens the memory menu for the selected VM: toggle auto-ballooning, or give it max
-    # memory and disable ballooning. No-op (logs an error) if the VM isn't running.
-    # @return [void]
-    def show_memory_popup
-      current_vm = self.current_vm || return
-      state = @virt_cache.state(current_vm)
-      if state != :running
-        $log.error "'#{current_vm}' is not running"
-        return
-      end
-      opts = [['b', 'toggle autoBallooning'], ['m', 'Max memory & disable autoballooning']]
-      Component::PickerWindow.open('Memory', opts) do |key|
-        if key == 'b' # toggle ballooning
-          $log.info "Toggling balloning for '#{current_vm}'"
-          @ballooning.toggle_enable(current_vm)
-        elsif key == 'm'
-          max_memory = @virt_cache.info(current_vm).max_memory
-          $log.info "Disabling balooning & giving max mem (#{format_byte_size(max_memory)}) to '#{current_vm}'"
-          @ballooning.enabled(current_vm, false)
-          @virt_cache.set_actual(current_vm, max_memory)
-        end
-      end
-    end
-
-    # Opens the power menu for the selected VM: start, graceful shutdown, force off, soft
-    # reboot or hard reset, and the magic-SysRq power-off and reboot between the two (see
-    # {Virt::MagicSysRq}); the ones the VM's state or guest rules out are disabled. The menu is
-    # a snapshot, so each action still logs an error if the VM changed state since.
-    # @return [void]
-    def show_power_popup
-      current_vm = self.current_vm || return
-      state = @virt_cache.state(current_vm)
-      stopped = state == :shut_off ? {} : { disabled: 'VM not stopped' }
-      running = state == :running ? {} : { disabled: 'VM not running' }
-      refusal = sysrq_refusal(current_vm)
-      sysrq = refusal.nil? ? {} : { disabled: refusal }
-      opts = [['s', 'Start', stopped], ['o', 'shut dOwn gracefully', running],
-              ['u', 'sync, remoUnt ro, power off (SysRq)', sysrq], ['O', 'force Off', running],
-              ['r', 'reboot (soft)', running], ['b', 'sync, remount ro, reBoot (SysRq)', sysrq],
-              ['R', 'Reset (hard)', running]]
-      Component::PickerWindow.open('Power', opts) do |key|
-        state = @virt_cache.state(current_vm)
-        if %w[u b].include?(key)
-          sysrq_power(current_vm, reboot: key == 'b')
-        elsif key == 's' # start
-          if state == :shut_off
-            $log.info "Starting '#{current_vm}'"
-            @virt_cache.virt.start(current_vm)
-          else
-            $log.error "'#{current_vm}' is already running"
-          end
-        elsif key == 'o' # shutdown gracefully
-          if state == :running
-            $log.info "Shutting down '#{current_vm}' gracefully"
-            @virt_cache.virt.shutdown(current_vm)
-          else
-            $log.error "'#{current_vm}' is not running"
-          end
-        elsif key == 'O' # Force Off
-          if state == :running
-            $log.info "Force off '#{current_vm}'"
-            @virt_cache.virt.force_off(current_vm)
-          else
-            $log.error "'#{current_vm}' is not running"
-          end
-        elsif key == 'r' # reboot
-          if state == :running
-            $log.info "Asking '#{current_vm}' to reboot"
-            @virt_cache.virt.reboot(current_vm)
-          else
-            $log.error "'#{current_vm}' is not running"
-          end
-        elsif key == 'R' # reset
-          if state == :running
-            $log.info "Resetting '#{current_vm}' forcefully"
-            @virt_cache.virt.reset(current_vm)
-          else
-            $log.error "'#{current_vm}' is not running"
-          end
-        end
-      end
-    end
-
-    # @param vm [String]
-    # @return [String, nil] why the SysRq items cannot end this VM, or `nil` if they can
-    def sysrq_refusal(vm)
-      return 'VM not running' unless @virt_cache.running?(vm)
-
-      entry = @virt_cache.cache(vm)
-      Virt::MagicSysRq.refusal(entry.guest_os, entry.sysrq_mask)
-    end
-
-    # Syncs, remounts read-only and powers off or reboots the VM through magic SysRq, behind
-    # a popup that cannot be canceled: a guest left after U has every filesystem read-only.
-    # @param vm [String]
-    # @param reboot [Boolean] B rather than O as the last key
-    # @return [void]
-    def sysrq_power(vm, reboot:)
-      refusal = sysrq_refusal(vm)
-      return $log.error("'#{vm}': no SysRq #{reboot ? 'reboot' : 'power-off'}: #{refusal}") unless refusal.nil?
-
-      virt = @virt_cache.virt
-      if reboot
-        BackgroundTask.new("Rebooting #{vm} through SysRq", cancelable: false) { virt.sysrq_reboot(vm) }
-                      .run { $log.info "'#{vm}' synced, remounted read-only and rebooted" }
-      else
-        BackgroundTask.new("Powering #{vm} off through SysRq", cancelable: false) { virt.sysrq_power_off(vm) }
-                      .run { $log.info "'#{vm}' synced, remounted read-only and powered off" }
-      end
     end
 
     # Builds a VM's overview row: state glyph, guest-OS marker, name, and (when running) a

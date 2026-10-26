@@ -47,6 +47,7 @@ Every fact lives in exactly one of these; the others link to it.
 - `lib/virt/ballooning_vm/` — the ballooning inputs, one voter or vetoer per class.
 - `lib/system/` → `System::` — host CPU, RAM and disk from `/proc` and `df`, with an emulator double.
 - `lib/ui/` → `UI::` — the tuile panes, theme and tint; reads only `Virt::Cache`.
+- `lib/ui/vm_pane/` — the VM pane's menus, one `PickerWindow` per key, each handed the VM's name.
 - `lib/*.rb` — shared top-level value objects and helpers, deliberately namespace-free.
 - `lib/core_ext/` — the byte-unit monkey-patches; required by hand, ignored by Zeitwerk.
 - `spec/` — rspec; parser specs feed the recorded `/proc`, `domstats` and `df` fixtures beside them.
@@ -64,7 +65,7 @@ Every fact lives in exactly one of these; the others link to it.
 - **Composition over inheritance.** Shared mechanics become a concrete helper taking keyword parameters, not a base class with template methods.
 - **Readable, not obfuscated.** The simplest implementation that does the job; no abstraction layers or knobs ahead of the next concrete step.
 - **A tuning constant carries its reason beside its value**, or cites the `D_` that argues it; never a bare number.
-- **Grow by adding a class under the right namespace**: new backend data → `lib/virt/`, new host metric → `lib/system/` with a `System::Emulator` counterpart, new widget → `lib/ui/`.
+- **Grow by adding a class under the right namespace**: new backend data → `lib/virt/`, new host metric → `lib/system/` with a `System::Emulator` counterpart, new widget → `lib/ui/`, new VM-pane menu or maintenance task → `lib/ui/vm_pane/`.
 - **What feels like a tuile bug or a missing tuile feature becomes a ticket.** Note it while coding, keep going, and once the task is done open it with `gh issue create -R mvysny/tuile`; a workaround here cites the `tuile#N`.
 
 ## Commands

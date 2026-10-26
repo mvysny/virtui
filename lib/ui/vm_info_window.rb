@@ -65,6 +65,34 @@ module UI
       Tuile::Component::Popup.new(content: new(config, disk_stats, guest), declared_size: SIZE).open
     end
 
+    # The whole `i` flow: reads the VM's definition behind a progress popup, fresh on every
+    # press so the window never shows a definition older than the keypress
+    # (design/decisions.md D_background_task), then opens the window.
+    #
+    #   VMInfoWindow.start(virt_cache, 'vt-ubuntu')
+    #
+    # The guest is asked for its disk layout only when the live definition says its agent is
+    # connected; one that still cannot answer gets the reason in the window rather than
+    # failing the whole read.
+    #
+    # @param virt_cache [Virt::Cache] the runtime cache, for the backend and the disks' capacities
+    # @param vm [String] the VM's name
+    # @return [void]
+    def self.start(virt_cache, vm)
+      virt = virt_cache.virt
+      task = BackgroundTask.new("Reading #{vm}'s definition") do
+        config = virt.domain_config(vm)
+        guest = begin
+          virt.guest_storage(vm) if config.agent == :connected
+        rescue Virt::GuestAgent::Unavailable => e
+          # virsh's own `error: …` line, not the `Command '…' failed` wrapper around it.
+          e.message[/error: ([^\n]*)/, 1] || e.message.lines.first.strip
+        end
+        [config, guest]
+      end
+      task.run { |config, guest| VMInfoWindow.open(config, virt_cache.data(vm)&.disk_stat || [], guest) }
+    end
+
     protected
 
     # @return [void]

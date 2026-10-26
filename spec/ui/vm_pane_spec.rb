@@ -467,22 +467,29 @@ module Tuile
 
       it 'toggles auto-ballooning for a running VM' do
         assert ballooning.enabled?('Ubuntu')
-        assert pick(ubuntu, 'm', 'b').include?("Toggling balloning for 'Ubuntu'")
+        assert pick(ubuntu, 'm', 'b').include?("Toggling ballooning for 'Ubuntu'")
         refute ballooning.enabled?('Ubuntu')
       end
 
       it 'gives a VM max memory and disables ballooning' do
         log = pick(ubuntu, 'm', 'm')
-        assert log.include?('Disabling balooning'), log
+        assert log.include?('Disabling ballooning'), log
         refute ballooning.enabled?('Ubuntu')
         assert_equal 16.GiB, cache.virt.vm('Ubuntu').to_mem_stat.actual # max_actual of demo Ubuntu
       end
 
-      it 'refuses to open the memory menu for a shut-off VM' do
-        window.list.cursor.go(base)
+      it 'disables both items on a shut-off VM' do
+        assert_equal({ 'b' => 'VM not running', 'm' => 'VM not running' }, disabled_options(base, 'm'))
+      end
+
+      it 'logs an error when the VM stopped since the menu opened' do
+        window.list.cursor.go(ubuntu)
         window.handle_key?('m')
-        assert_nil picker
-        assert @log.string.include?("'BASE' is not running")
+        cache.virt.force_off('Ubuntu')
+        Timecop.freeze(now + 15) { cache.update }
+        picker.handle_key?('b')
+        assert_includes @log.string, "'Ubuntu' is not running"
+        assert ballooning.enabled?('Ubuntu')
       end
     end
 

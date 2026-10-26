@@ -8,7 +8,8 @@ the window into a picker: a finding whose fix is something virtui can already do
 
 - `Virt::Health::Finding` gains `remedy` [Symbol, nil], e.g. `:grow_root` on the free-tail
   note. Data, not a block: see `D_health_check`.
-- `UI::HealthWindow` maps a remedy it knows to the existing `VMPane` flow (`grow_root_filesystem`)
+- `UI::HealthWindow` maps a remedy it knows to the existing grow-root flow (private in
+  `UI::VMPane::MaintenancePickerWindow` today; a second caller is what lifts it out)
   and shows `Button("Fix")` beside that finding; an unknown or nil remedy shows no button.
 - `fix` stays the words, for every finding.
 
