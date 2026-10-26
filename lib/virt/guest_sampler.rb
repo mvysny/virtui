@@ -8,6 +8,7 @@ module Virt
   #   sampler.swap('Ubuntu')       # => #<ResourceUsage total=4GiB available=2.8GiB>, or nil
   #   sampler.fs_usage('Ubuntu')   # => {"vda" => #<ResourceUsage 3.4G/15G (23%)>}, or nil
   #   sampler.sysrq_mask('Ubuntu') # => 176, or nil
+  #   sampler.revive('Ubuntu')     # every tick: its agent just connected, so ask again now
   #   sampler.forget('Ubuntu')     # it stopped running; its strikes must not greet the next boot
   #
   # An enhancement, never a dependency: every failure answers `nil`, because a guest with no
@@ -23,7 +24,8 @@ module Virt
   # RHEL agent refuses the swap level's `guest-file-*`, not `guest-get-fsinfo`). A read that
   # keeps failing is written off and then probed once a minute (see
   # {FAILURES_BEFORE_BACKOFF}); a failed poll costs up to {GuestAgent::TIMEOUT_SECONDS} of
-  # the timer thread, so a guest that cannot answer has to stop being asked.
+  # the timer thread, so a guest that cannot answer has to stop being asked. A write-off
+  # made while the agent was down ends early, when {#revive} sees it connect.
   #
   # A {GuestAgent::Unavailable} — the failure a healthy host produces on its own — stays at
   # `debug`, since every VM start passes through one while `qemu-ga` comes up; anything else
@@ -57,6 +59,9 @@ module Virt
       # both keyed by (domain, read).
       @failures = {}
       @retry_at = {}
+      # Hash{String => Symbol}: each domain with a write-off whose agent {#revive} still
+      # watches — `:unchecked`, or `:down` once its channel was seen disconnected.
+      @agent_watch = {}
     end
 
     # @param domain [String] VM name; must be running, or the agent call fails
@@ -78,15 +83,39 @@ module Virt
     # Forgets a guest's strike counts and any write-off, so its next samples start clean.
     #
     # Call it when a VM leaves the running state: the agent goes down before libvirt calls
-    # the domain stopped, so a shutdown otherwise burns strikes that greet the next boot. It
-    # cannot cover a guest-induced *reboot*, which never leaves the running state — that one
-    # heals by {BACKOFF_SECONDS} lapsing instead.
+    # the domain stopped, so a shutdown otherwise burns strikes that greet the next boot. A
+    # guest-induced *reboot* never leaves the running state; {#revive} covers that one.
     #
     # @param domain [String] VM name
     # @return [void]
     def forget(domain)
       @failures.delete_if { |(d, _), _| d == domain }
       @retry_at.delete_if { |(d, _), _| d == domain }
+      @agent_watch.delete(domain)
+    end
+
+    # Lifts a guest's write-offs the moment its agent connects, so a booting or rebooting
+    # guest is read on the next tick instead of after {BACKOFF_SECONDS}.
+    #
+    # Call it every tick for every running VM, after its samples. Only a disconnected →
+    # connected edge lifts: an agent connected at the write-off is wedged or refusing the
+    # RPC, and waits out its time. Costs one libvirtd read per tick while a written-off
+    # guest's agent stays down, and none otherwise. See design/decisions.md D_guest_agent_backoff.
+    #
+    # @param domain [String] VM name
+    # @return [void]
+    # @raise [RuntimeError] if libvirt cannot say whether the agent is connected
+    def revive(domain)
+      return unless @agent_watch.key?(domain)
+
+      if !@agent.connected?(domain)
+        @agent_watch[domain] = :down
+      elsif @agent_watch[domain] == :down
+        $log.debug("#{domain}: guest agent connected; asking again")
+        forget(domain)
+      else
+        @agent_watch.delete(domain)
+      end
     end
 
     # One sample of one read, or `nil` if it could not be had.
@@ -130,6 +159,7 @@ module Virt
         $log.debug("#{domain}: no #{read} (#{count}/#{FAILURES_BEFORE_BACKOFF}): #{reason}")
       else
         @retry_at[key] = Cooldown.of(@backoff_seconds)
+        @agent_watch[domain] ||= :unchecked
         # Exactly at the write-off, so an unforeseen failure is announced once per episode:
         # earlier is a blip that may yet clear, later is a re-arm of something already said.
         unforeseen = count == FAILURES_BEFORE_BACKOFF && !error.is_a?(GuestAgent::Unavailable)

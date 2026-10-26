@@ -197,6 +197,32 @@ describe Virt::GuestAgent do
     end
   end
 
+  context 'connected?' do
+    # @param output [String] what `virsh dumpxml --xpath` prints
+    # @return [Boolean, RuntimeError] the agent's answer, or what it raised
+    def connected_over(output)
+      runner = Object.new
+      runner.define_singleton_method(:query) { |*_args| output }
+      Virt::GuestAgent.new(runner: runner).connected?('vt-ubuntu')
+    rescue RuntimeError => e
+      e
+    end
+
+    # Recorded from vt-ubuntu across a reboot, as virsh prints them: a leading space, a newline.
+    it 'reads the channel state' do
+      assert connected_over(" state=\"connected\"\n")
+      refute connected_over(" state=\"disconnected\"\n")
+    end
+
+    it 'answers false for a domain that is not running or has no agent channel' do
+      refute connected_over('')
+    end
+
+    it 'refuses a state it does not know' do
+      assert_includes connected_over(' state="hungry"').message, 'unexpected agent channel'
+    end
+  end
+
   # The payload is nothing but nested quotes, and this is the end-to-end proof that the
   # session does not mangle it: `test:///default` needs no libvirtd but does reach libvirt's own
   # virDomainQemuAgentCommand, which it then declines — so a quoting bug would surface as a
@@ -210,6 +236,14 @@ describe Virt::GuestAgent do
       error = assert_raises(StandardError) { Virt::GuestAgent.new(runner: session).swap('test') }
       assert_includes error.message, 'virDomainQemuAgentCommand'
       refute session.degraded?, 'a declined agent call must not write off the session'
+      assert_equal 'ok', session.query('echo', 'ok'), 'the session must still line up'
+    ensure
+      session&.close
+    end
+
+    it 'reads a channel state through a session' do
+      session = Virt::VirshSession.new(uri: 'test:///default')
+      refute Virt::GuestAgent.new(runner: session).connected?('test'), 'the test driver declares no agent channel'
       assert_equal 'ok', session.query('echo', 'ok'), 'the session must still line up'
     ensure
       session&.close

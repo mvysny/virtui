@@ -47,6 +47,10 @@ module Virt
     # rather than as a read timeout, which kills and respawns the child.
     TIMEOUT_SECONDS = 2
 
+    # The live XML's agent-channel state, as `virsh dumpxml --xpath` prints it: ` state="connected"`.
+    # A node set, not `string(…)`, which `virsh` refuses as an incorrect xpath.
+    CHANNEL_STATE_XPATH = "//devices/channel/target[@name=\"#{DomainConfig::AGENT_CHANNEL}\"]/@state".freeze
+
     # How the agent says a guest file is missing; {#exist?} answers `false` to it.
     MISSING_FILE = 'no such file or directory'
 
@@ -134,6 +138,25 @@ module Virt
         raise
       end
       GuestStorage.fs_usage(guestinfo)
+    end
+
+    # Whether `qemu-ga` has the guest's end of the agent channel open, as libvirtd last saw it.
+    #
+    #   agent.connected?('vt-ubuntu')   # => false while booting, true from the second qemu-ga is up
+    #
+    # Answered by libvirtd from the live XML, never by the guest, so unlike every other read
+    # here a wedged agent cannot stall it. See design/research.md R_domain_xml.
+    #
+    # @param domain [String] VM name
+    # @return [Boolean] `false` also for a domain that is not running or has no agent channel
+    # @raise [RuntimeError] if `virsh` fails, or prints a state it does not document
+    def connected?(domain)
+      state = @runner.query('dumpxml', domain, '--xpath', CHANNEL_STATE_XPATH).strip
+      case state
+      when 'state="connected"' then true
+      when '', 'state="disconnected"' then false
+      else raise "#{domain}: unexpected agent channel #{state.inspect}"
+      end
     end
 
     # Reads one file from inside the guest, in three agent calls: open, read, close.

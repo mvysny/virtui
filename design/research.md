@@ -79,6 +79,7 @@ later one trims to its length.
   the command's `--timeout` flag. **[verified 2026-08-23]**
 - No guest has its agent connected within 6 s of `virsh start`; 20–40 s is the normal window,
   and the agent goes down before libvirt calls the domain stopped. **[verified 2026-08-23]**
+  The nested vt-ubuntu takes over 60 s, start and reboot alike. **[verified 2026-10-26]**
 - `virsh guestinfo <dom> --os` has no `--timeout` flag. **[docs]**
 - `guest-get-osinfo` exists from qemu-ga 2.10; older agents refuse it while `guest-file-*`
   works. **[docs]**
@@ -176,6 +177,14 @@ later one trims to its length.
 - The live agent channel reads `<target type='virtio' name='org.qemu.guest_agent.0'
   state='connected'/>`; `state` is live-only. A domain with no agent has no such channel.
   **[verified 2026-10-24]** for the live half, **[docs]** for live-only
+- The state tracks `qemu-ga` exactly: across an ACPI reboot of vt-ubuntu it read
+  `disconnected` for the whole time `guest-ping` was refused with `… agent is not connected`, and
+  flipped to `connected` within the same 1 s sample as the first good ping.
+  **[verified 2026-10-26, libvirt 12.0, qemu-ga 10.2.1]**
+- `dumpxml --xpath "//devices/channel/target[@name=\"org.qemu.guest_agent.0\"]/@state"` prints
+  ` state="connected"` (leading space) in ~26 ms as its own process; no match — a shut-off
+  domain, or no channel — prints nothing and exits 0. `string(…)` is refused as `Incorrect
+  xpath`: it must select a node set. **[verified 2026-10-26, libvirt 12.0]**
 - A running domain's live XML opens `<domain type='kvm' id='5'>`; a shut-off domain's, and any
   `--inactive` one, has no `id`. **[verified 2026-10-24]**
 - Plain `dumpxml` leaves the VNC/SPICE `passwd=` out; `--security-info` prints it.

@@ -18,6 +18,8 @@ class RecordingEmulator < Virt::VMEmulator
   def set_mem_stats_period(vmid, period_seconds) = period_calls << [vmid, period_seconds]
   def forget_calls = @forget_calls ||= []
   def forget_guest(name) = forget_calls << name
+  def revive_calls = @revive_calls ||= []
+  def revive_guest(name) = revive_calls << name
 end
 
 # A VMEmulator that declares win11 as Windows, and records what {Virt::Cache} asked about
@@ -349,6 +351,7 @@ describe Virt::Cache do
       Timecop.freeze(Time.now) do
         cache = Virt::Cache.new(e, System::Emulator.new) # constructor runs update once
         assert_equal ['BASE'], e.forget_calls, 'the running VM must be sampled, not forgotten'
+        assert_equal ['Ubuntu'], e.revive_calls, 'only a running VM has an agent to watch connect'
 
         e.vm('Ubuntu').force_off
         Timecop.travel(Time.now + 2)

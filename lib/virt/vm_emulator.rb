@@ -235,6 +235,12 @@ module Virt
     # @return [void]
     def forget_guest(name); end
 
+    # No-op, for the reason {#forget_guest} gives. Mirrors {Virsh#revive_guest}.
+    #
+    # @param name [String] VM name
+    # @return [void]
+    def revive_guest(name); end
+
     # Builds a ready-made demo fleet: BASE (shut off), Ubuntu (running), win11 (running),
     # Fedora (shut off). Three OS declarations between them, so the guest-OS marker has a
     # penguin, a window and an undeclared `?` to draw.

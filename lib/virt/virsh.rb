@@ -284,6 +284,13 @@ module Virt
     # @return [void]
     def forget_guest(domain_name) = @guest_sampler&.forget(domain_name)
 
+    # Lifts a running VM's written-off guest reads if its agent has just connected.
+    #
+    # @param domain_name [String] VM name (see {GuestSampler#revive})
+    # @return [void]
+    # @raise [RuntimeError] if libvirt cannot say whether the agent is connected
+    def revive_guest(domain_name) = @guest_sampler&.revive(domain_name)
+
     # Reads runtime stats for every VM via `virsh domstats`.
     #
     # @param domstats_file [String, nil] canned `virsh domstats` output for testing; runs

@@ -296,9 +296,25 @@ stays at `debug`, accepted since anything misconfigured is persistent and surfac
 Why not one strike: a single hiccup then blanks a healthy guest's gauge for a minute. What
 remains: nothing in the UI says a guest is written off, and at the default `:info` level
 nothing in the log does either; `EXPECTED_FAILURES` is a list of another project's phrasings
-and rots by definition, benignly — a renamed phrase shows up as a `warn` on a healthy host; and
-a guest-induced reboot is still not detected, healing within the 60 s instead, which is what
-makes the short backoff load-bearing and `forget` mere hygiene.
+and rots by definition, benignly — a renamed phrase shows up as a `warn` on a healthy host.
+
+The 60 s alone still left a booting guest's disks and swap level blank for up to a minute after
+its agent came up, so a write-off ends early on the agent channel's disconnected → connected
+edge: `GuestSampler#revive`, called by `Cache#update` for each running VM after its reads, watches
+any domain holding a write-off through `GuestAgent#connected?` — the live XML's channel
+`state`, which libvirtd answers itself and which flips the same second `guest-ping` starts
+answering (`R_domain_xml`) — and on seeing it down then up calls `#forget`. A guest-induced
+reboot, which never leaves the running state, heals the same way. Why the edge and not the
+level: a wedged agent keeps its channel connected, and lifting on `connected` would retry it every
+tick at a full `TIMEOUT_SECONDS` each — exactly what the write-off bounds. So a domain seen
+connected on its first check is unwatched and waits out its 60 s. Why not ask the channel
+before every read instead of after a write-off: three libvirtd reads per VM per tick in steady
+state, where this costs nothing until a read is written off. Why not `virsh event --event
+agent-lifecycle --loop`, the push version: a second long-lived `virsh` child and a reader
+thread for a ~13 ms read that happens only while a guest is down. What it costs: a guest
+declaring the channel but running no `qemu-ga` costs one `dumpxml --xpath` per tick for as long
+as it runs; and an agent connecting between a write-off and that tick's `revive` is taken for
+one connected all along — a millisecond window that falls back to the 60 s.
 
 ## D_swap_sampler_split — Why is the guest-agent client split from the sampler that owns the write-off?
 

@@ -5,13 +5,22 @@ require_relative '../spec_helper'
 # A {Virt::GuestAgent} stand-in that answers every domain the same way and counts the
 # samples it was asked for. `reply` is writable so a test can heal a guest mid-run.
 class ScriptedGuestAgent
-  attr_reader :domains
-  attr_accessor :reply
+  attr_reader :domains, :channel_reads
+  attr_accessor :reply, :connected
 
   # @param reply [ResourceUsage, StandardError] what {#swap} answers with, or raises
   def initialize(reply)
     @reply = reply
     @domains = []
+    @connected = false
+    @channel_reads = 0
+  end
+
+  # @param _domain [String] VM name
+  # @return [Boolean] the scripted channel state
+  def connected?(_domain)
+    @channel_reads += 1
+    @connected
   end
 
   # @param domain [String] VM name
@@ -130,6 +139,43 @@ describe Virt::GuestSampler do
     agent.reply = LEVEL
     assert_equal LEVEL, sampler.swap('win11')
     assert_equal({ 'vda' => LEVEL }, sampler.fs_usage('win11'))
+  end
+
+  context 'revive' do
+    it 'asks a booting guest again the tick its agent connects' do
+      sampler, agent = sampler_over(MUTE)
+      3.times do
+        sampler.swap('Ubuntu')
+        sampler.fs_usage('Ubuntu')
+        sampler.revive('Ubuntu')
+      end
+      assert_nil sampler.swap('Ubuntu'), 'written off while the agent is down'
+
+      agent.connected = true
+      agent.reply = LEVEL
+      sampler.revive('Ubuntu')
+      assert_equal LEVEL, sampler.swap('Ubuntu'), 'no BACKOFF_SECONDS wait once the agent is up'
+      assert_equal({ 'vda' => LEVEL }, sampler.fs_usage('Ubuntu'), 'every read of the guest is lifted')
+    end
+
+    # A wedged agent costs the timer thread a full timeout per ask; only the time lifts it.
+    it 'leaves a write-off made against a connected agent to its time' do
+      sampler, agent = sampler_over(MUTE)
+      agent.connected = true
+      3.times { sampler.swap('win11') }
+      5.times { sampler.revive('win11') }
+
+      assert_nil sampler.swap('win11')
+      assert_equal Virt::GuestSampler::FAILURES_BEFORE_BACKOFF, agent.domains.size
+      assert_equal 1, agent.channel_reads, 'an agent seen up at the write-off is not watched any further'
+    end
+
+    it 'reads no channel state for a guest with nothing written off' do
+      sampler, agent = sampler_over(LEVEL)
+      sampler.swap('Ubuntu')
+      sampler.revive('Ubuntu')
+      assert_equal 0, agent.channel_reads
+    end
   end
 
   # `TTY::Logger` renders the level as a word, so 'warning' is what a warn line is spotted by.

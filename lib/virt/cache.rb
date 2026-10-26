@@ -17,8 +17,8 @@ module Virt
 
     # How long a guest's filesystem usage is kept before it is asked again. A disk fills over
     # minutes, not ticks, so a read every 2s would be fifteen agent round-trips for one
-    # figure; a read that failed is retried the next tick, so a booting guest's disks appear
-    # as soon as its agent does.
+    # figure; a read that failed is retried the next tick, and {GuestSampler#revive} lifts the
+    # write-off a booting guest earns, so its disks appear a tick after its agent does.
     GUEST_FS_SECONDS = 30
 
     # @return [System::MemoryStat] host memory statistics, refreshed by {#update}
@@ -273,6 +273,8 @@ module Virt
             guest_fs_usage = guest_fs_usage(did, old_cache[did]&.guest_fs_usage)
             # Once per boot: a hung shutdown has no agent left to ask.
             sysrq_mask = old_cache[did]&.sysrq_mask || (@virt.guest_sysrq_mask(did) if guest_os.linux?)
+            # After the reads, so a write-off they just made sees the agent's state at once.
+            @virt.revive_guest(did)
           else
             # Strikes burned during the shutdown must not greet the next boot.
             guest_swap = nil
