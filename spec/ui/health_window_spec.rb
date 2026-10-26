@@ -7,27 +7,117 @@ module Tuile
     before { Screen.fake }
     after { Screen.close }
 
-    # @return [Array<String>] the window's text rows, styling stripped
-    def text_of(window) = window.instance_variable_get(:@view).text.to_s.lines.map(&:rstrip)
+    let(:finding) { Virt::Health::Finding }
+    let(:virt) { Virt::VMEmulator.demo }
+
+    # @param window [UI::HealthWindow]
+    # @param width [Integer]
+    # @param height [Integer]
+    # @return [Array<String>] the painted rows, the border and bar included
+    def painted(window, width, height)
+      Testing.place(window, Rect.new(0, 0, width, height))
+      Testing.paint(window).text.map(&:rstrip)
+    end
 
     it 'lists each finding by subject, its fix beneath' do
-      finding = Virt::Health::Finding
       health = Virt::Health.new(findings: [
                                   finding.new(:ok, 'balloon', 'virtio, free page reporting', nil),
                                   finding.new(:warning, '/mnt/hc', 'hccrypt (dm-0) blocks discard', 'add `discard`'),
-                                  finding.new(:note, 'vda', '2.0G unused after vda1', 'M → Grow root filesystem'),
                                   finding.new(:skipped, 'guest', 'not running', nil)
                                 ])
-      window = UI::HealthWindow.new('vt-ubuntu', health)
-      assert_equal <<~TEXT.lines.map(&:rstrip), text_of(window)
-        ✓ balloon  virtio, free page reporting
-        ! /mnt/hc  hccrypt (dm-0) blocks discard
-                   add `discard`
-        · vda      2.0G unused after vda1
-                   M → Grow root filesystem
-        – guest    not running
-      TEXT
-      assert_equal 'vt-ubuntu health', window.caption.to_s
+      window = UI::HealthWindow.new(virt, 'vt-ubuntu', health)
+      assert_equal ['┌vt-ubuntu health────────────────────────┐',
+                    '│ ✓ balloon  virtio, free page reporting ░',
+                    '│ ! /mnt/hc  hccrypt (dm-0) blocks       ░',
+                    '│            discard                     ░',
+                    '│            add `discard`               ░',
+                    '│ – guest    not running                 ░',
+                    '└q/ESC to close──────────────────────────┘'], painted(window, 42, 7)
+    end
+
+    it 'wraps a long finding under its own text, and scrolls what does not fit' do
+      health = Virt::Health.new(findings: [
+                                  finding.new(:note, 'vda', 'unused space after the last partition', 'grow it'),
+                                  finding.new(:ok, 'agent', 'connected', nil)
+                                ])
+      window = UI::HealthWindow.new(virt, 'vt-ubuntu', health)
+      assert_equal ['┌vt-ubuntu health──────────┐',
+                    '│ · vda    unused space    █',
+                    '│          after the last  █',
+                    '│          partition       ░',
+                    '└q/ESC to close────────────┘'], painted(window, 28, 5)
+      assert window.handle_key?(Keys::DOWN_ARROW)
+      assert_includes Testing.paint(window).text[3], 'grow it'
+    end
+
+    it 'shows a Fix button under a finding it can fix, and none under the others' do
+      health = Virt::Health.new(findings: [
+                                  finding.new(:note, 'vda', '28G unused after vda1', 'M → Grow root filesystem',
+                                              :grow_root),
+                                  finding.new(:warning, 'sda', 'the host drops its discards', 'virt-xml …')
+                                ])
+      window = UI::HealthWindow.new(virt, 'Ubuntu', health)
+      rows = painted(window, 50, 8)
+      assert_equal '│        [ Fix: grow root filesystem… ]          ░', rows[3]
+      assert_equal 1, Testing.find(Component::Button, in: window).size
+    end
+
+    it "runs the grow-root flow from the finding's Fix button" do
+      health = Virt::Health.new(findings: [finding.new(:note, 'vda', '28G unused after vda1', 'M → Grow root',
+                                                       :grow_root)])
+      UI::HealthWindow.open(virt, 'Ubuntu', health)
+      Testing.click(Testing.get(Component::Button))
+      confirm = wait_for('the confirmation') { popup_window(Component::ConfirmWindow) }
+      assert_equal "Grow Ubuntu's root filesystem?", confirm.caption.to_s
+    end
+
+    it 'turns on free page reporting from its Fix button, once confirmed' do
+      health = Virt::Health.new(findings: [finding.new(:note, 'balloon', 'no free page reporting', 'virt-xml …',
+                                                       :free_page_reporting)])
+      UI::HealthWindow.open(virt, 'BASE', health)
+      Testing.click(Testing.get(Component::Button))
+      confirm = popup_window(Component::ConfirmWindow)
+      assert_includes confirm.message, 'virt-xml BASE --edit --memballoon freePageReporting=on'
+      Screen.instance.key(Keys::ENTER) # the focused Turn on button
+      done = wait_for('the result') { popup_window(Component::ConfirmWindow) { _1 != confirm } }
+      assert_equal "BASE's free page reporting is on", done.caption.to_s
+      assert virt.vm('BASE').free_page_reporting
+    end
+
+    it 'says to install virt-xml when it is missing, on the button and when pressed' do
+      virt.define_singleton_method(:virt_xml_available?) { false }
+      health = Virt::Health.new(findings: [finding.new(:note, 'balloon', 'no free page reporting', 'virt-xml …',
+                                                       :free_page_reporting)])
+      UI::HealthWindow.open(virt, 'BASE', health)
+      button = Testing.get(Component::Button)
+      assert_includes button.caption.to_s, 'please install virt-xml for this to work'
+      Testing.click(button)
+      assert_includes popup_window(Component::ConfirmWindow).message, 'sudo apt install virt-install'
+      refute virt.vm('BASE').free_page_reporting
+    end
+
+    # @param klass [Class]
+    # @yield [window] an extra filter
+    # @return [Component, nil] the content of the topmost open popup that is a `klass`
+    def popup_window(klass, &filter)
+      Testing.loop
+      Screen.instance.popups.map(&:content).reverse.find { _1.is_a?(klass) && (filter.nil? || filter.call(_1)) }
+    end
+
+    # Runs the event loop until the block answers, for a result a {UI::BackgroundTask} hands
+    # back from its worker.
+    # @param what [String] for the failure message
+    # @return [Object] the block's answer
+    def wait_for(what)
+      deadline = Time.now + 5
+      loop do
+        Thread.pass
+        Testing.loop
+        result = yield
+        return result if result
+
+        flunk "#{what} never opened" if Time.now > deadline
+      end
     end
   end
 end

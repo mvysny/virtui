@@ -205,6 +205,20 @@ module Virt
                     file_exist: ->(path) { path == Health::TRIM_TIMER })
     end
 
+    # Mirrors {Virsh#enable_free_page_reporting}, which a simulated VM takes at once: it has
+    # no inactive definition to wait in.
+    #
+    # @param name [String] VM name
+    # @return [void]
+    # @raise [RuntimeError] for an unknown VM
+    def enable_free_page_reporting(name)
+      (@vms[name] || raise("failed to get domain '#{name}'")).free_page_reporting = true
+    end
+
+    # Mirrors {Virsh#virt_xml_available?}: the demo needs no `virt-xml`.
+    # @return [Boolean] `true`
+    def virt_xml_available? = true
+
     # Mirrors {Virsh#grow_root}: the root partition takes the rest of the disk.
     #
     # @param name [String] VM name
@@ -270,8 +284,10 @@ module Virt
       e.vm('win11').guest_os = WINDOWS
       # BASE is the hand-written definition that names no OS at all.
       e.vm('BASE').guest_os = GuestOS::UNKNOWN
-      # A health warning for the demo to show: win11's host drops its discards.
+      # Health findings for the demo to show: win11's host drops its discards, BASE's balloon
+      # keeps freed pages, which the window offers to fix.
       e.vm('win11').discard = nil
+      e.vm('BASE').free_page_reporting = false
       e.vm('Ubuntu').autostart = true
       e.vm('Ubuntu').address = '192.168.122.84'
       e.vm('win11').address = '192.168.122.23'

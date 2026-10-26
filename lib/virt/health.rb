@@ -16,7 +16,9 @@ module Virt
   # and the balloon and agent checks need only the definition; the guest checks — the
   # device-mapper layers, periodic trim, unused disk space — need it running, with an agent.
   #
-  # Each finding is words for the user, and a fix to type; nothing here changes the VM.
+  # Each finding is words for the user, and a fix to type; a fix virtui can run itself also
+  # names it as a {Finding#remedy}, which the window offers as a button. Nothing here changes
+  # the VM.
   #
   # @!attribute [r] findings
   #   @return [Array<Finding>] in the order the window lists them
@@ -32,7 +34,14 @@ module Virt
     #   @return [String] the finding, e.g. `the host drops this disk's discards`
     # @!attribute [r] fix
     #   @return [String, nil] what to do about it: a command, or a Maintenance item
-    Finding = Data.define(:severity, :subject, :text, :fix)
+    # @!attribute [r] remedy
+    #   @return [Symbol, nil] the fix as one virtui can run, for {UI::HealthWindow}'s button:
+    #     `:grow_root` (Maintenance → Grow root filesystem) or `:free_page_reporting`
+    #     ({Virsh#enable_free_page_reporting}); `nil` when the fix is the user's to make.
+    #     A Symbol, not a block: see design/decisions.md D_health_check
+    Finding = Data.define(:severity, :subject, :text, :fix, :remedy) do
+      def initialize(severity:, subject:, text:, fix:, remedy: nil) = super
+    end
 
     # `systemctl enable fstrim.timer` makes this symlink, and so do distro presets.
     TRIM_TIMER = '/etc/systemd/system/timers.target.wants/fstrim.timer'
@@ -49,7 +58,7 @@ module Virt
     # @param file_exist [#call] guest path → `Boolean`
     # @return [Health]
     def self.assess(live, inactive, guest, read_file:, file_exist:)
-      findings = [balloon(live), agent(live)] + live.disks.select { checked_disk?(_1) }.map do |disk|
+      findings = [balloon(live, inactive), agent(live)] + live.disks.select { checked_disk?(_1) }.map do |disk|
         discard(live.name, disk, inactive.disks.find { _1.target == disk.target })
       end
       findings += case guest
@@ -83,18 +92,23 @@ module Virt
     private_class_method def self.checked_disk?(disk) = disk.device == 'disk' && !disk.readonly
 
     # @param config [DomainConfig]
+    # @param next_boot [DomainConfig] the inactive definition
     # @return [Finding]
-    private_class_method def self.balloon(config)
+    private_class_method def self.balloon(config, next_boot)
       balloon = config.balloon
       if balloon.nil?
         Finding.new(:warning, 'balloon', 'no balloon device: virtui cannot resize this VM\'s memory',
                     "virt-xml #{config.name} --edit --memballoon model=virtio, then power it off and on")
-      elsif !balloon.free_page_reporting
+      elsif balloon.free_page_reporting
+        Finding.new(:ok, 'balloon', "#{balloon.model}, free page reporting", nil)
+      elsif next_boot.balloon&.free_page_reporting
+        Finding.new(:note, 'balloon', "#{balloon.model}, free page reporting is set, and takes effect once the VM " \
+                                      'is powered off and on', nil)
+      else
         Finding.new(:note, 'balloon', "#{balloon.model}, no free page reporting: memory the guest frees " \
                                       'stays with it until the balloon takes it',
-                    "virt-xml #{config.name} --edit --memballoon freePageReporting=on, then power it off and on")
-      else
-        Finding.new(:ok, 'balloon', "#{balloon.model}, free page reporting", nil)
+                    "virt-xml #{config.name} --edit --memballoon freePageReporting=on, then power it off and on",
+                    :free_page_reporting)
       end
     end
 
@@ -206,8 +220,10 @@ module Virt
           next if tail.nil? || tail < GuestStorage::MIN_FREE_TAIL
 
           last = disk.partitions.last.name
-          fix = disk.target == grow_target ? 'M → Grow root filesystem' : "grow #{last} into it, from inside the guest"
-          Finding.new(:note, disk.target, "#{format_byte_size(tail)} unused after #{last}", fix)
+          growable = disk.target == grow_target
+          fix = growable ? 'M → Grow root filesystem' : "grow #{last} into it, from inside the guest"
+          Finding.new(:note, disk.target, "#{format_byte_size(tail)} unused after #{last}", fix,
+                      (:grow_root if growable))
         end
       end
 

@@ -39,6 +39,12 @@ module Tuile
     # @return [Array<Tuile::Component>] what the open popups hold
     def popup_contents = Screen.instance.popups.map(&:content)
 
+    # @param health [UI::HealthWindow]
+    # @return [String] its labels' text, a label per line, unwrapped back into one
+    def health_text(health)
+      Testing.find(Component::Label, in: health).map { _1.text.to_s.lines.map(&:strip).join(' ') }.join("\n")
+    end
+
     # The PickerWindow of whatever popup is currently open, or nil.
     def picker = Screen.instance.popups.map(&:content).find { |c| c.is_a?(Component::PickerWindow) }
 
@@ -350,7 +356,7 @@ module Tuile
       it "'M' → health on a running VM lists its findings, the guest's included" do
         pick(win11, 'M', 'h')
         health = wait_for('the health window') { popup_contents.find { _1.is_a?(UI::HealthWindow) } }
-        text = health.instance_variable_get(:@view).text.to_s
+        text = health_text(health)
         assert_includes text, "the host drops this disk's discards"
         assert_includes text, 'virt-xml win11 --edit target=vda --disk discard=unmap'
       end
@@ -358,7 +364,7 @@ module Tuile
       it "'M' → health on a stopped VM judges its definition, and skips the guest" do
         pick(base, 'M', 'h')
         health = wait_for('the health window') { popup_contents.find { _1.is_a?(UI::HealthWindow) } }
-        assert_includes health.instance_variable_get(:@view).text.to_s, 'not running: start the VM for the guest checks'
+        assert_includes health_text(health), 'not running: start the VM for the guest checks'
       end
 
       it 'returns false for an unhandled key' do

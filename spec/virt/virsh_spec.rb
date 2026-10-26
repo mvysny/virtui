@@ -193,6 +193,36 @@ describe Virt::Virsh do
     end
   end
 
+  context 'enable_free_page_reporting' do
+    # A real virt-xml against libvirt's in-process test driver, whose `test` domain has a
+    # virtio balloon; each connection starts from the stock domain, so nothing persists.
+    it 'runs virt-xml, which defines the edit' do
+      virsh = Virt::Virsh.new
+      skip 'virt-xml not installed' unless virsh.virt_xml_available?
+
+      uri = ENV.fetch('LIBVIRT_DEFAULT_URI', nil)
+      ENV['LIBVIRT_DEFAULT_URI'] = 'test:///default'
+      virsh.enable_free_page_reporting('test')
+      assert_raises(RuntimeError) { virsh.enable_free_page_reporting('no-such-vm') }
+    ensure
+      ENV['LIBVIRT_DEFAULT_URI'] = uri
+    end
+
+    it 'finds virt-xml on the PATH only' do
+      Dir.mktmpdir do |dir|
+        path = ENV.fetch('PATH')
+        ENV['PATH'] = dir
+        refute Virt::Virsh.new.virt_xml_available?
+        File.write("#{dir}/virt-xml", '')
+        refute Virt::Virsh.new.virt_xml_available?, 'not executable'
+        File.chmod(0o755, "#{dir}/virt-xml")
+        assert Virt::Virsh.new.virt_xml_available?
+      ensure
+        ENV['PATH'] = path
+      end
+    end
+  end
+
   context 'volume' do
     it 'parses the vol-pool, vol-info and pool-info it is handed' do
       vol = Virt::Virsh.new.volume('/var/lib/libvirt/images/vt-ubuntu.qcow2', "default\n",

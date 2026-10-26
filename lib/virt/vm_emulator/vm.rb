@@ -40,6 +40,7 @@ module Virt
         @disk_capacity = VMEmulator::DISK_CAPACITY
         @root_size = 100.GiB
         @discard = 'unmap'
+        @free_page_reporting = true
         @sysrq_mask = 176
         @autostart = false
         @guest_os = VMEmulator::LINUX
@@ -85,6 +86,10 @@ module Virt
       # @return [String, nil] its disk's `<driver discard=>`: `unmap` by default, `nil` for a
       #   VM whose health check warns that the host drops its discards
       attr_accessor :discard
+
+      # @return [Boolean] whether its balloon reports free pages: `true` by default, `false`
+      #   for a VM whose health check offers to turn it on
+      attr_accessor :free_page_reporting
 
       # @return [Integer, nil] its guest's `kernel.sysrq`: Ubuntu's 176 by default, `nil` for a
       #   guest whose agent cannot be asked
@@ -283,7 +288,7 @@ module Virt
               </interface>
               #{"<channel type='unix'><target type='virtio' name='#{DomainConfig::AGENT_CHANNEL}'#{" state='connected'" if running?}/></channel>" if declared}
               #{"<tpm model='tpm-crb'><backend type='emulator' version='2.0'/></tpm>" if os.windows?}
-              <memballoon model='virtio' freePageReporting='on'/>
+              <memballoon model='virtio'#{" freePageReporting='on'" if free_page_reporting}/>
             </devices>
           </domain>
         XML

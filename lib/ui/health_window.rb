@@ -1,22 +1,34 @@
 # frozen_string_literal: true
 
 module UI
-  # The `M` → Health check popup of {VMPane}: one line per {Virt::Health::Finding}, its fix
-  # on a hint-colored line beneath.
+  # The `M` → Health check popup of {VMPane}: one row per {Virt::Health::Finding}, its fix in
+  # hint color beneath, and a Fix button under a finding whose fix virtui can run itself:
   #
-  #   ┌─ vt-ubuntu health ─────────────────────────────────────────────────┐
-  #   │ ✓ balloon  virtio, free page reporting                             │
-  #   │ ✓ agent    connected                                               │
-  #   │ ✓ vda      discards reach the image                                │
-  #   │ · vdb      shared with other VMs, and the host drops its discards  │
-  #   │            virt-xml vt-ubuntu --edit target=vdb --disk discard=unmap, …│
-  #   │ ! /mnt/hc  hccrypt (dm-0) blocks discard                           │
-  #   │            if it is LUKS: add `discard` to its /etc/crypttab options, …│
-  #   │ ✓ trim     fstrim.timer enabled                                    │
-  #   └──────────────────────────────────────────────────── q/ESC to close ─┘
+  #   HealthWindow.open(virt, 'vt-ubuntu', virt.health('vt-ubuntu'))
   #
-  # `✓` ok, `·` a note, `!` a warning, `–` not checked. A snapshot of the moment it was
-  # asked for.
+  #   ┌vt-ubuntu health────────────────────────────────────────────────┐
+  #   │ · balloon  virtio, no free page reporting: memory the guest    █
+  #   │            frees stays with it until the balloon takes it      █
+  #   │            virt-xml vt-ubuntu --edit --memballoon              █
+  #   │            freePageReporting=on, then power it off and on      █
+  #   │            [ Fix: turn on free page reporting… ]               █
+  #   │ ✓ agent    connected                                           █
+  #   │ ! /mnt/hc  hccrypt (dm-0) blocks discard                       █
+  #   │            if it is LUKS: add `discard` to its /etc/crypttab   █
+  #   │            options, then reboot the guest                      █
+  #   │ · vda      28G unused after vda1                               █
+  #   │            M → Grow root filesystem                            ░
+  #   └q/ESC to close──────────────────────────────────────────────────┘
+  #
+  # `✓` ok, `·` a note, `!` a warning, `–` not checked. A snapshot of the moment it was asked
+  # for: a fix leaves it as it is, and picking Health check again shows the result.
+  #
+  # Tab moves between the buttons; PgUp/PgDn, the arrows and the wheel scroll.
+  #
+  # == Implementation details
+  # Tuile wraps no text it does not also scroll, so each finding is wrapped here, at the text
+  # column's width, and its row count handed to the layout and the {Tuile::Component::Scroller}
+  # (tuile#73). The bar stays `:visible`, so the width never depends on the row count.
   #
   # UI-thread-confined.
   class HealthWindow < Tuile::Component::Window
@@ -26,24 +38,77 @@ module UI
     # @return [Fraction]
     SIZE = Fraction.new(0.7, 0.6)
 
-    # @param vm [String] VM name, for the caption
+    # The Fix buttons' captions, by {Virt::Health::Finding#remedy}; a remedy not here gets no
+    # button.
+    # @return [Hash{Symbol => String}]
+    FIXES = { grow_root: 'Fix: grow root filesystem…',
+              free_page_reporting: 'Fix: turn on free page reporting…' }.freeze
+
+    # The free-page-reporting button's caption while `virt-xml`, which it runs, is missing.
+    # @return [String]
+    NO_VIRT_XML = 'Fix: turn on free page reporting (please install virt-xml for this to work)'
+
+    # The columns a {Tuile::Component::Scroller} keeps for its bar and the gap beside it.
+    # @return [Integer]
+    SCROLLBAR_COLUMNS = 2
+
+    # One finding's components.
+    # @!attribute [r] finding
+    #   @return [Virt::Health::Finding]
+    # @!attribute [r] row
+    #   @return [Tuile::Component::Layout::Horizontal] the head, then the body
+    # @!attribute [r] head
+    #   @return [Tuile::Component::Label] the mark and the subject
+    # @!attribute [r] body
+    #   @return [Tuile::Component::Layout::Vertical] the text, then the button
+    # @!attribute [r] text
+    #   @return [Tuile::Component::Label] the finding and its fix, wrapped
+    # @!attribute [r] button
+    #   @return [Tuile::Component::Button, nil]
+    Entry = Data.define(:finding, :row, :head, :body, :text, :button)
+    private_constant :Entry
+
+    # @param virt [Virt::Virsh, Virt::VMEmulator] the backend a Fix button runs through
+    # @param vm [String] VM name
     # @param health [Virt::Health]
-    def initialize(vm, health)
+    def initialize(virt, vm, health)
       super("#{vm} health")
-      @health = health
-      @view = Component::TextView.new
-      self.content = @view
+      @virt = virt
+      @vm = vm
+      @subject_width = health.findings.map { _1.subject.length }.max.to_i
+      @rows = Component::Layout::Vertical.new
+      @scroller = Component::Scroller.new(@rows)
+      self.content = @scroller
+      self.scrollbar = true
       self.footer_text = 'q/ESC to close'
-      rebuild
+      @entries = health.findings.map { add_entry(_1) }
+      @wrapped_at = nil
+      paint_heads
     end
 
     # Opens the window as a modal popup, sized {SIZE}.
     #
+    # @param virt [Virt::Virsh, Virt::VMEmulator] the backend
     # @param vm [String] VM name
     # @param health [Virt::Health]
     # @return [Tuile::Component::Popup] the opened popup
-    def self.open(vm, health)
-      Tuile::Component::Popup.new(content: new(vm, health), declared_size: SIZE).open
+    def self.open(virt, vm, health)
+      Tuile::Component::Popup.new(content: new(virt, vm, health), declared_size: SIZE).open
+    end
+
+    # PgUp/PgDn scroll half a page, the arrows a row: the {Tuile::Component::Scroller} claims
+    # no keys of its own.
+    # @param key [String]
+    # @return [Boolean]
+    def handle_key?(key)
+      case key
+      when Keys::PAGE_UP then @scroller.scroll_half_page_up
+      when Keys::PAGE_DOWN then @scroller.scroll_half_page_down
+      when *Keys::UP_ARROWS then scroll_by(-1)
+      when *Keys::DOWN_ARROWS then scroll_by(1)
+      else return super
+      end
+      true
     end
 
     protected
@@ -51,20 +116,107 @@ module UI
     # @return [void]
     def handle_theme_changed
       super
-      rebuild
+      paint_heads
+      @wrapped_at = nil
+      invalidate_layout
+    end
+
+    # @return [void]
+    def relayout
+      super
+      width = content_rect.width - SCROLLBAR_COLUMNS - head_width
+      wrap(width) unless width == @wrapped_at
     end
 
     private
 
+    # @return [Integer] the head column: a margin, the mark, a space, the subject, two spaces
+    def head_width = @subject_width + 5
+
+    # @param finding [Virt::Health::Finding]
+    # @return [Entry]
+    def add_entry(finding)
+      head = Component::Label.new
+      text = Component::Label.new
+      body = Component::Layout::Vertical.new
+      body.add(text)
+      caption = FIXES[finding.remedy]
+      caption = NO_VIRT_XML if finding.remedy == :free_page_reporting && !@virt.virt_xml_available?
+      button = caption && Component::Button.new(caption) { fix(finding.remedy) }
+      body.add(button) if button
+      row = Component::Layout::Horizontal.new
+      row.add(head, Component::Layout::Fixed[head_width])
+      row.add(body, Component::Layout::Expand[1])
+      @rows.add(row)
+      Entry.new(finding, row, head, body, text, button)
+    end
+
     # @return [void]
-    def rebuild
+    def paint_heads
       theme = screen.theme
-      findings = @health.findings
-      width = findings.map { _1.subject.length }.max.to_i
-      @view.text = findings.flat_map do |finding|
-        line = "#{mark(theme, finding.severity)} #{finding.subject.ljust(width)}  #{finding.text}"
-        finding.fix ? [line, theme.hint("#{' ' * (width + 4)}#{finding.fix}")] : [line]
-      end.join("\n")
+      @entries.each { _1.head.text = " #{mark(theme, _1.finding.severity)} #{_1.finding.subject}" }
+    end
+
+    # Wraps every finding at `width` and sizes the rows to it.
+    # @param width [Integer] the text column's; at most 0 leaves the lines unwrapped
+    # @return [void]
+    def wrap(width)
+      @wrapped_at = width
+      theme = screen.theme
+      @scroller.content_rows = @entries.sum do |entry|
+        finding = entry.finding
+        lines = StyledString.parse(finding.text).wrap(width)
+        lines += StyledString.parse(theme.hint(finding.fix)).wrap(width) if finding.fix
+        entry.text.text = lines.map(&:to_ansi).join("\n")
+        entry.body.constrain(entry.text, Component::Layout::Fixed[lines.size])
+        rows = lines.size + (entry.button ? 1 : 0)
+        @rows.constrain(entry.row, Component::Layout::Fixed[rows])
+        rows
+      end
+    end
+
+    # @param delta [Integer] rows; negative scrolls up
+    # @return [void]
+    def scroll_by(delta)
+      bottom = [@scroller.content_rows - @scroller.viewport_rows, 0].max
+      @scroller.scroll_top_row = (@scroller.scroll_top_row + delta).clamp(0, bottom)
+    end
+
+    # @param remedy [Symbol] one of {FIXES}' keys
+    # @return [void]
+    def fix(remedy)
+      case remedy
+      when :grow_root then VMPane::RootGrower.new(@virt, @vm).start
+      when :free_page_reporting then turn_on_free_page_reporting
+      end
+    end
+
+    # Asks the user to confirm the definition edit, then makes it behind a popup.
+    # @return [void]
+    def turn_on_free_page_reporting
+      virt = @virt
+      vm = @vm
+      unless virt.virt_xml_available?
+        return Component::ConfirmWindow.alert('Please install virt-xml',
+                                              'virtui turns free page reporting on through virt-xml, which is not ' \
+                                              'on the PATH: sudo apt install virt-install')
+      end
+
+      Component::ConfirmWindow.confirm(
+        "Turn on free page reporting for #{vm}?",
+        "This runs virt-xml #{vm} --edit --memballoon freePageReporting=on, which changes the definition " \
+        "#{vm}'s next start reads. It takes effect once #{vm} is powered off and on: a reboot from inside the guest " \
+        'keeps the old device.',
+        confirm: 'Turn on'
+      ) do
+        task = BackgroundTask.new("Turning on #{vm}'s free page reporting", cancelable: false) do
+          virt.enable_free_page_reporting(vm)
+        end
+        task.run do
+          Component::ConfirmWindow.alert("#{vm}'s free page reporting is on",
+                                         'From its next power-on. Pick Health check again to see it.')
+        end
+      end
     end
 
     # @param theme [Theme]

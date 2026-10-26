@@ -75,8 +75,8 @@ describe Virt::Health do
       grown = files.merge('/proc/partitions' => files['/proc/partitions'].sub('14680064 vda', '16777216 vda'))
       storage = Virt::GuestStorage.parse(File.read('spec/virt/guestinfo_vt-ubuntu.txt')) { grown.fetch(_1) }
       vda = assess(live, live, storage, grown.merge(Virt::Health::TRIM_TIMER => '')).findings.last
-      assert_equal [:note, 'vda', '2.0G unused after vda1', 'M → Grow root filesystem'],
-                   [vda.severity, vda.subject, vda.text, vda.fix]
+      assert_equal [:note, 'vda', '2.0G unused after vda1', 'M → Grow root filesystem', :grow_root],
+                   [vda.severity, vda.subject, vda.text, vda.fix, vda.remedy]
     end
   end
 
@@ -96,6 +96,19 @@ describe Virt::Health do
       assert_equal [[:note, 'balloon'], [:warning, 'agent'], [:warning, 'sda'], [:skipped, 'guest']], rows(health)
       assert_includes finding(health, 'agent').fix, '--add-device --channel unix,target.type=virtio'
       assert_includes finding(health, 'balloon').fix, 'freePageReporting=on'
+      assert_equal :free_page_reporting, finding(health, 'balloon').remedy
+      assert_nil finding(health, 'agent').remedy
+    end
+
+    it 'says free page reporting set for the next power-on is waiting for it' do
+      bios = config('vt-bios')
+      inactive = Virt::DomainConfig.from_xml(File.read('spec/virt/dumpxml_vt-bios.xml')
+                                                 .sub("<memballoon model='virtio'>",
+                                                      "<memballoon model='virtio' freePageReporting='on'>"))
+      balloon = finding(assess(bios, inactive, nil), 'balloon')
+      assert_includes balloon.text, 'free page reporting is set, and takes effect once the VM is powered off and on'
+      assert_nil balloon.fix
+      assert_nil balloon.remedy
     end
 
     it 'warns about a VM with no balloon' do

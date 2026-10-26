@@ -233,6 +233,29 @@ module Virt
       e.message[/error: ([^\n]*)/, 1] || e.message.lines.first.strip
     end
 
+    # Turns on the balloon's free page reporting in the VM's persistent definition, the fix
+    # {Health} offers for its absence: the `virt-xml` line that finding prints. Takes effect
+    # once the VM is powered off and on; a running QEMU keeps the device it has.
+    #
+    # `virt-xml`, not `dumpxml` + `define`: it reads the definition with its secrets, which a
+    # plain `dumpxml` leaves out and a `define` of it would wipe (design/decisions.md
+    # D_health_check). Install it with `sudo apt install virt-install`.
+    #
+    # @param domain_name [String] VM name, running or not
+    # @return [void]
+    # @raise [RuntimeError] if `virt-xml` is missing or fails, e.g. on a VM with no balloon
+    def enable_free_page_reporting(domain_name)
+      Run.sync('virt-xml', domain_name, '--edit', '--memballoon', 'freePageReporting=on')
+      $log.info "#{domain_name}: free page reporting on, from its next power-on"
+    end
+
+    # Whether {#enable_free_page_reporting} can run: `virt-xml` is on the `PATH`. Looked up
+    # in Ruby, so the UI thread may ask.
+    # @return [Boolean]
+    def virt_xml_available?
+      ENV.fetch('PATH', '').split(File::PATH_SEPARATOR).any? { File.executable?(File.join(_1, 'virt-xml')) }
+    end
+
     # The storage-pool volume behind a disk image, found by its path.
     #
     #   virsh.volume('/var/lib/libvirt/images/vt-ubuntu.qcow2').pool   # => "default"

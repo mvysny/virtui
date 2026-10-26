@@ -705,7 +705,7 @@ never does, and the last figure seen may be out of date (`M` resizes a stopped d
 filesystems' total rather than the disk's capacity: the row says what the guest can still
 write, and unpartitioned space is something the `i` window shows.
 
-## D_health_check — Why is the health check an `M` item that judges a stopped VM by its definition, and names its fixes rather than applying them?
+## D_health_check — Why is the health check an `M` item that judges a stopped VM by its definition, and runs only some of its fixes?
 
 Its main check needs no guest: the host's `<driver discard=>` alone decides whether freed space
 leaves the image, and the guest cannot see it (`R_discard_reclaim`). So a stopped VM gets the
@@ -715,12 +715,21 @@ fixes are often other `M` items. Why no marker on the VM's row: a VM's health is
 it is set up, and a configured VM rarely drifts — not worth a guest read per tick. Why a
 mapper's 0 is blamed on the lowest layer: an LVM volume inherits it from the LUKS mapping.
 
-`Finding#fix` is words: a command, or the `M` item to pick. Why virtui does not apply the
-`discard=unmap` fix itself: it is a persistent definition edit that waits for a power-off, and
-`virt-xml` makes it in one line. Why a fix that could one day run is not a block on `Finding`:
-the fixes are UI flows (a confirmation, a progress popup) that `lib/virt/` may not reach, a
-backend block would still need a `BackgroundTask` from the UI, and a Proc breaks the `Data`'s
-equality in specs.
+`Finding#fix` is words for every finding: a command, or the `M` item to pick. A fix virtui runs
+itself also names a `remedy`, which the window shows as a Fix button: Grow root filesystem, and
+free page reporting. Why a Symbol and not a block on `Finding`: the fixes are UI flows (a
+confirmation, a progress popup) that `lib/virt/` may not reach, a backend block would still
+need a `BackgroundTask` from the UI, and a Proc breaks the `Data`'s equality in specs.
+
+Why free page reporting goes through `virt-xml` rather than `dumpxml --inactive`, an edit and
+`define`: a plain `dumpxml` leaves out the VNC/SPICE `passwd=`, and defining it back wipes the
+password; `virt-xml` reads the definition with its secrets (`VIR_DOMAIN_XML_SECURE`), and a
+dedicated tool beats virtui's own XML surgery on whatever else the XML holds. The price is
+`virt-install`, which a host may lack, so the button stays and says to install it: the fix
+remains discoverable. Why `discard=unmap` is still words only: not yet built — the same
+`virt-xml` line would do it. Why the window does not re-run the check after a fix: a definition
+edit shows only as a pending note until the power cycle, and picking Health check again is one
+keypress.
 
 ## D_sysrq_power_off — Why is there a magic-SysRq power-off between `o` and `O`, and why is it disabled until the guest's mask is known?
 
