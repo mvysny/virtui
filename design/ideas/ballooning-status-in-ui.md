@@ -1,6 +1,7 @@
 # Show what the balloon controller is doing, and why
 
-**Status:** brainstorming (2026-10-24). Nothing built.
+**Status:** decided (2026-10-26), ready to build. How red *at max* gets is split off into
+`ballooning-severity.md`.
 
 ## The problem
 
@@ -42,76 +43,73 @@ These are counts from that run's status log (242 lines, two VMs, ~4 min):
 So the new information is four states: *acted*, *holding*, *at floor*, *at max*. The rest is
 either noise or already on screen.
 
-## Where it could go
+## Decided: words in the header rule, transitions in the log (A + C)
+
+Option B, a glyph only with the words in the focused VM's status bar, was rejected: question 1
+would then need the cursor on the right VM, and on a screen you glance at, "at max" should not
+need a keypress.
+
+### A. Words in the header rule
 
 The header rule is mostly empty. At 170 columns, `vt-ubuntu`'s header has ~130 columns of `─`
 between 🎈 and the IP. `VMPane#overview_row`'s own rule says that right of the name is what the VM
 is *doing right now*, so this is where the status belongs.
 
-### A. Words in the header rule (my favourite)
-
 ```
  ▶ 🐧 vt-ubuntu 🎈↑ raised to 2.6G: 70% used ──────────────────────── 192.168.123.239 ─
  ▶ 🐧 vt-ubuntu 🎈↓ lowered to 1.8G: 41% used ─────────────────────── 192.168.123.239 ─
- ▶ 🐧 vt-ubuntu 🎈⏸ holding 58s: the guest swapped ────────────────── 192.168.123.239 ─
+ ▶ 🐧 vt-ubuntu 🎈‖ holding 58s: the guest swapped ────────────────── 192.168.123.239 ─   yellow
  ▶ 🐧 vt-ubuntu 🎈▲ at its 4G max, 92% used ───────────────────────── 192.168.123.239 ─   red
  ▶ 🐧 vt-ubuntu 🎈_ at its 2G floor ───────────────────────────────── 192.168.123.239 ─   dim
  ▶ 🐧 vt-ubuntu 🎈- ───────────────────────────────────────────────── 192.168.123.239 ─   fine: as today
+ ▶ 🐧 vt-ubuntu 🎈↑ raised to 2.6G: 70%… ─── 192.168.123.239 ─                            narrow
 ```
 
-- The glyph after 🎈 says which group the VM is in. The words say why. Colour is by severity:
-  dim for routine, yellow for *holding*, red for *at max*.
-- *acted* stays up until something else replaces it, or for N seconds (`Q_acted_lifetime`).
-- The countdown ticks every 2 s. That's fine, because nothing to its right moves except the
+- **Glyphs** `↑ ↓ ‖ ▲ _ - x`. Not `⏸`: it renders emoji-wide in some fonts, and the Promise is
+  no special font. `‖` and `▲` are East Asian *ambiguous* width, the same class as the `↑ ↓`
+  already on screen.
+- **Colour by severity:** dim for routine, yellow for *holding*, red for *at max*. When *at max*
+  turns red is `ballooning-severity.md`'s question; until it is answered, red as soon as capped.
+- **Short header wording** ("70% used", "swapping 20M/s", "the guest swapped"). The voters'
+  full reasons go to the log (C), which is naturally more verbose.
+- ***acted* lasts 10 s**, then back to *fine*: after that "fine" is the truth. A VM that stops
+  at 2.6G must not say "raised to 2.6G" for an hour.
+- ***acted* takes priority over the back-off.** `resize` arms the 10 s back-off on every change,
+  so the next fresh sample after a lower says "not lowering: backing off". If that counted
+  as *holding*, it would replace "lowered to 1.8G" after one or two frames, and question 3
+  would be back. The back-off runs exactly as long as *acted*, so it never shows as its
+  own state. *Holding* is shown only for the swap veto and the boot back-off, the two that
+  aren't caused by our own action. Raises are never vetoed, so this only affects lowers.
+- ***at floor* gets its text.** It is the normal resting state of an idle small VM, so if it
+  turns out chatty, the fallback is a dim `_` alone.
+- **The countdown ticks every 2 s.** That's fine, because nothing to its right moves except the
   IP, which is right-aligned.
-- On a narrow terminal the words go first, then the glyph never does (`Q_narrow`).
+- **Narrow terminals:** the words are shortened with `…`; the glyph never is. The IP is always
+  shown, with at least `───` before it, so the status reads as separate from the IP. If even
+  🎈, glyph, `───` and IP don't fit, the header falls back to today's layout.
 
-### B. One glyph only, the words in the focused VM's status bar
+### C. Transitions to the log pane
 
-The header gets just the glyph. When a VM is selected, the status bar adds its full text. This
-is quieter, but question 1 then needs the cursor on the right VM. On a screen you glance at,
-"at max" should not need a keypress.
-
-### C. Actions and transitions to the log pane
-
-`$log.info` once per change of state, not per tick:
+`$log.info` once per change of kind, not per tick (a holding countdown is not a change),
+with the voters' full reasons:
 
 ```
-11:47:02 vt-ubuntu ↑ 1G → 1.3G: 70% used
-11:47:07 vt-ubuntu ↑ 1.3G → 1.7G: 70% used, swapping out 20M/s
-11:47:31 vt-ubuntu ▲ at its 4G max, 92% used
-11:48:40 vt-ubuntu ↓ 4G → 3.6G: 41% used
+11:47:02 vt-ubuntu ↑ 1G → 1.3G: usage is at or over the 65% trigger
+11:47:07 vt-ubuntu ↑ 1.3G → 1.7G: usage is at or over the 65% trigger, swapping out 20M/s
+11:47:31 vt-ubuntu ▲ at its 4G max, 92% used: usage is at or over the 65% trigger
+11:48:40 vt-ubuntu ↓ 4G → 3.6G: usage is under the 55% target
 ```
 
 That is the history the header can't show: how a burst was absorbed. A `memramp` cycle produces
-~15 lines over three minutes, and an idle box produces none. This works alongside A, not
-instead of it.
+~15 lines over three minutes, and an idle box produces none.
 
 ## A shape for the code
 
 `Status` stays a value, but gains a `kind` (`:fine`, `:raised`, `:lowered`, `:holding`,
-`:at_floor`, `:at_max`, `:unsupported`, `:stale`, `:disabled`, `:stopped`) and a short
-user-facing text. The `"VM reports …"` log line stays as it is for debug. The glyphs and
-colours for each kind live in `lib/ui/`, as the invariant requires.
+`:at_floor`, `:at_max`, `:unsupported`, `:stale`, `:disabled`, `:stopped`), a short header
+text, and the long reason for the log. The `"VM reports …"` debug line stays as it is. The
+glyphs and colours for each kind live in `lib/ui/`, as the invariant requires.
 
-*acted* needs one change in `BallooningVM`: remember the last action (kind, text, uptime) so the
-next "no new data" tick can still report it. The voters' reasons already read well after a
-colon ("usage is at or over the 65% trigger"); the header may want them shorter
-(`Q_reason_wording`).
-
-## Open questions
-
-- `Q_which_view`: A, B, C, or A + C? My lean is **A + C**. A answers "what now" at a glance,
-  and C answers "what happened".
-- `Q_acted_lifetime`: how long ↑/↓ and their text stay up after the action. Until the next
-  state change (so a VM that stops at 2.6G says "raised to 2.6G" for an hour), or ~10 s and
-  then back to *fine*? I lean towards ~10 s. After that "fine" is the truth.
-- `Q_glyphs`: `↑ ↓ ⏸ ▲ _ - x`? `⏸` is emoji-width in some fonts, and the Promise is no special
-  font. `=` or `‖` for holding might be safer.
-- `Q_at_max_severity`: red as soon as it's capped, or only once the guest is also swapping?
-  A guest capped at 66% is fine, one capped at 95% and swapping is not.
-- `Q_narrow`: below what width do the words drop, and do they drop before the IP?
-- `Q_reason_wording`: reuse the voters' reasons verbatim, or a shorter header form ("70% used",
-  "swapping 20M/s")?
-- `Q_floor_shown`: is *at floor* worth any text at all, or is a dim `_` enough? It is the
-  normal resting state of an idle small VM.
+*acted* needs one change in `BallooningVM`: remember the last action (kind, text, uptime on
+the `Cooldown` clock) so the following "no new data" and back-off ticks still report it for
+10 s.
