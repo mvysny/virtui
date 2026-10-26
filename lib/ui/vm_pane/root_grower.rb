@@ -25,18 +25,18 @@ module UI
       def start
         virt = @virt
         vm = @vm
-        check = BackgroundTask.new("Checking #{vm}'s root filesystem") do
+        check = BackgroundTask.new("Checking the root filesystem of '#{vm}'") do
           virt.root_grow_plan(vm)
         rescue Virt::GuestRootGrow::Refused, Virt::GuestAgent::Unavailable => e
           # virsh's own `error: …` line, not the `Command '…' failed` wrapper around it.
           e.message[/error: ([^\n]*)/, 1] || e.message
         end
         check.run do |plan|
-          next Tuile::Component::ConfirmWindow.alert("Cannot grow #{vm}'s root filesystem", plan) if plan.is_a?(String)
+          next Tuile::Component::ConfirmWindow.alert("Cannot grow the root filesystem of '#{vm}'", plan) if plan.is_a?(String)
 
           fs = plan.filesystem
           Tuile::Component::ConfirmWindow.confirm(
-            "Grow #{vm}'s root filesystem?",
+            "Grow the root filesystem of '#{vm}'?",
             "/ (#{fs.fstype} on #{plan.partition.name}, #{format_byte_size(plan.partition.size)}) grows by " \
             "#{format_byte_size(plan.growth)}, into the free space at the end of #{plan.disk.target}. This runs " \
             "#{plan.commands.map { _1[0][0] }.join(', ')} as root inside the guest, and cannot be canceled once " \
@@ -54,14 +54,14 @@ module UI
         virt = @virt
         vm = @vm
         # Not cancelable: the agent runs each command to its end whatever virtui does.
-        task = BackgroundTask.new("Growing #{vm}'s root filesystem", cancelable: false) do
+        task = BackgroundTask.new("Growing the root filesystem of '#{vm}'", cancelable: false) do
           virt.grow_root(vm, plan)
           virt.guest_storage(vm).disk(plan.disk.target).partitions.last
         end
         task.run do |partition|
           # The partition's size, as `df` shows it; the filesystem's own total leaves out ext4's reserve.
           root = partition.filesystems.first
-          Tuile::Component::ConfirmWindow.alert("#{vm}'s / is now #{format_byte_size(partition.size)}",
+          Tuile::Component::ConfirmWindow.alert("/ of '#{vm}' is now #{format_byte_size(partition.size)}",
                                                 "#{format_byte_size(root.total - root.used)} of it free.")
         end
       end

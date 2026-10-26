@@ -21,7 +21,8 @@ module UI
   #   └q/ESC to close──────────────────────────────────────────────────┘
   #
   # `✓` ok, `·` a note, `!` a warning, `–` not checked. A snapshot of the moment it was asked
-  # for: a fix leaves it as it is, and picking Health check again shows the result.
+  # for, so a Fix button closes it before its flow starts; picking Health check again shows the
+  # result.
   #
   # Tab moves between the buttons; PgUp/PgDn, the arrows and the wheel scroll.
   #
@@ -182,9 +183,11 @@ module UI
       @scroller.scroll_top_row = (@scroller.scroll_top_row + delta).clamp(0, bottom)
     end
 
+    # Closes the window, which the fix would leave stale, then starts the fix's flow.
     # @param remedy [Symbol] one of {FIXES}' keys
     # @return [void]
     def fix(remedy)
+      parent.close if parent.is_a?(Component::Popup)
       case remedy
       when :grow_root then VMPane::RootGrower.new(@virt, @vm).start
       when :free_page_reporting then turn_on_free_page_reporting
@@ -203,17 +206,17 @@ module UI
       end
 
       Component::ConfirmWindow.confirm(
-        "Turn on free page reporting for #{vm}?",
-        "This runs virt-xml #{vm} --edit --memballoon freePageReporting=on, which changes the definition " \
-        "#{vm}'s next start reads. It takes effect once #{vm} is powered off and on: a reboot from inside the guest " \
-        'keeps the old device.',
+        "Turn on free page reporting for '#{vm}'?",
+        "This runs virt-xml '#{vm}' --edit --memballoon freePageReporting=on, which changes the definition " \
+        "'#{vm}' reads at its next start. It takes effect once '#{vm}' is powered off and on: a reboot from inside " \
+        'the guest keeps the old device.',
         confirm: 'Turn on'
       ) do
-        task = BackgroundTask.new("Turning on #{vm}'s free page reporting", cancelable: false) do
+        task = BackgroundTask.new("Turning on free page reporting for '#{vm}'", cancelable: false) do
           virt.enable_free_page_reporting(vm)
         end
         task.run do
-          Component::ConfirmWindow.alert("#{vm}'s free page reporting is on",
+          Component::ConfirmWindow.alert("Free page reporting is on for '#{vm}'",
                                          'From its next power-on. Pick Health check again to see it.')
         end
       end

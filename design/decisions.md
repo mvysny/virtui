@@ -727,9 +727,10 @@ password; `virt-xml` reads the definition with its secrets (`VIR_DOMAIN_XML_SECU
 dedicated tool beats virtui's own XML surgery on whatever else the XML holds. The price is
 `virt-install`, which a host may lack, so the button stays and says to install it: the fix
 remains discoverable. Why `discard=unmap` is still words only: not yet built — the same
-`virt-xml` line would do it. Why the window does not re-run the check after a fix: a definition
-edit shows only as a pending note until the power cycle, and picking Health check again is one
-keypress.
+`virt-xml` line would do it. Why a Fix button closes the window rather than re-running the check
+after the fix: a definition edit shows only as a pending note until the power cycle, picking
+Health check again is one keypress, and a window left open would show the fixed finding as
+still wrong.
 
 ## D_sysrq_power_off — Why is there a magic-SysRq power-off between `o` and `O`, and why is it disabled until the guest's mask is known?
 

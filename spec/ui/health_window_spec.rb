@@ -62,13 +62,14 @@ module Tuile
       assert_equal 1, Testing.find(Component::Button, in: window).size
     end
 
-    it "runs the grow-root flow from the finding's Fix button" do
+    it "runs the grow-root flow from the finding's Fix button, closing the window" do
       health = Virt::Health.new(findings: [finding.new(:note, 'vda', '28G unused after vda1', 'M → Grow root',
                                                        :grow_root)])
       UI::HealthWindow.open(virt, 'Ubuntu', health)
       Testing.click(Testing.get(Component::Button))
       confirm = wait_for('the confirmation') { popup_window(Component::ConfirmWindow) }
-      assert_equal "Grow Ubuntu's root filesystem?", confirm.caption.to_s
+      assert_equal "Grow the root filesystem of 'Ubuntu'?", confirm.caption.to_s
+      assert_nil popup_window(UI::HealthWindow)
     end
 
     it 'turns on free page reporting from its Fix button, once confirmed' do
@@ -77,11 +78,12 @@ module Tuile
       UI::HealthWindow.open(virt, 'BASE', health)
       Testing.click(Testing.get(Component::Button))
       confirm = popup_window(Component::ConfirmWindow)
-      assert_includes confirm.message, 'virt-xml BASE --edit --memballoon freePageReporting=on'
+      assert_includes confirm.message, "virt-xml 'BASE' --edit --memballoon freePageReporting=on"
       Screen.instance.key(Keys::ENTER) # the focused Turn on button
       done = wait_for('the result') { popup_window(Component::ConfirmWindow) { _1 != confirm } }
-      assert_equal "BASE's free page reporting is on", done.caption.to_s
+      assert_equal "Free page reporting is on for 'BASE'", done.caption.to_s
       assert virt.vm('BASE').free_page_reporting
+      assert_nil popup_window(UI::HealthWindow)
     end
 
     it 'says to install virt-xml when it is missing, on the button and when pressed' do

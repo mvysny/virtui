@@ -344,12 +344,12 @@ module Tuile
       it "'M' → grow on a running VM confirms the commands, grows, and reports the new size" do
         pick(ubuntu, 'M', 'g')
         confirm = wait_for('the confirmation') { popup_contents.find { _1.is_a?(Component::ConfirmWindow) } }
-        assert_equal "Grow Ubuntu's root filesystem?", confirm.caption.to_s
+        assert_equal "Grow the root filesystem of 'Ubuntu'?", confirm.caption.to_s
         assert_includes confirm.message, 'grows by 28G, into the free space at the end of vda'
         assert_includes confirm.message, 'runs sfdisk, partx, resize2fs as root inside the guest'
         Screen.instance.key(Keys::ENTER) # the focused Grow button
         done = wait_for('the result') { popup_contents.find { _1.is_a?(Component::ConfirmWindow) && _1 != confirm } }
-        assert_equal "Ubuntu's / is now 128G", done.caption.to_s
+        assert_equal "/ of 'Ubuntu' is now 128G", done.caption.to_s
         assert_equal 128.GiB - 107.MiB, cache.virt.vm('Ubuntu').root_size
       end
 
