@@ -27,12 +27,14 @@ describe Virt::BallooningVM::SwapOutRaiseVoter do
     v = voter
     v.observe sample(0.0)
     assert_nil v.vote_reason
+    assert_nil v.brief
   end
 
   it 'votes while the guest is swapping, and says how fast' do
     v = voter
     v.observe sample(20.0 * 1.MiB)
     assert_equal 'the guest is swapping out 20M/s', v.vote_reason
+    assert_equal 'swapping out 20M/s', v.brief
   end
 
   it 'votes at exactly the noise floor, not below it' do

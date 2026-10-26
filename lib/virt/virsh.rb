@@ -443,7 +443,7 @@ module Virt
       raise "#{new_actual} must be at least 256m" if new_actual < 256.MiB
 
       @runner.sync('setmem', domain_name, (new_actual / 1024).to_s)
-      $log.info "#{domain_name}: set new actual memory to #{format_byte_size(new_actual)}"
+      $log.debug "#{domain_name}: set new actual memory to #{format_byte_size(new_actual)}"
     end
 
     # Enables periodic guest memory-stat collection on a running VM, so the guest-reported

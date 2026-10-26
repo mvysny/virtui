@@ -39,10 +39,10 @@ module Virt
     end
 
     # @param vm_name [String] VM name
-    # @return [BallooningVM::Status, nil] the VM's latest ballooning status, or `nil` if
-    #   the VM is unknown
-    def status(vm_name)
-      @ballooning[vm_name]&.status
+    # @return [BallooningVM::Status, nil] the VM's {BallooningVM#standing} decision, or `nil`
+    #   if the VM is unknown
+    def standing(vm_name)
+      @ballooning[vm_name]&.standing
     end
 
     # @param vm_name [String] VM name

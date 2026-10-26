@@ -58,6 +58,10 @@ module Virt
         "the guest is swapping out #{format_byte_size(@rate.round)}/s"
       end
 
+      # @return [String, nil] {#vote_reason} short enough for the VM pane's header:
+      #   `"swapping out 20M/s"`
+      def brief = vote_reason && "swapping out #{format_byte_size(@rate.round)}/s"
+
       # Drops what was observed, for a VM we are no longer watching (stopped, or ballooning
       # switched off). The guest's counters reset with it.
       #

@@ -131,6 +131,8 @@ describe Virt::BallooningVM do
       cache, b = ballooner(mem_at(65))
       b.update
       assert_equal 'VM reports 1.2G (65%), raising memory by 30% to 2.6G: usage is at or over the 65% trigger; d=30', b.status.to_s
+      assert_equal :raised, b.status.kind
+      assert_equal 'raised to 2.6G: 65% used', b.status.brief
       assert_equal [2_791_728_742], cache.set_actuals
     end
 
@@ -179,6 +181,8 @@ describe Virt::BallooningVM do
       b.update
       assert_equal 'VM reports 5.5G (70%), want to raise memory (usage is at or over the 65% trigger) ' \
                    "but can't go over configured max mem 8G; d=0", b.status.to_s
+      assert_equal :at_max, b.status.kind
+      assert_equal 'at its 8G max: 70% used', b.status.brief
       assert_equal [], cache.set_actuals
     end
 
@@ -211,6 +215,7 @@ describe Virt::BallooningVM do
       cache, b = ballooner(mem_at(55))
       Uptime.travel(21) { b.update } # past the 20s boot back-off
       assert_equal 'VM reports 1.0G (55%), lowering memory by 10% to 1.8G: usage is at or under the 55% trigger; d=-10', b.status.to_s
+      assert_equal 'lowered to 1.8G: 55% used', b.status.brief
       assert_equal [1_932_735_283], cache.set_actuals
     end
 
@@ -219,6 +224,8 @@ describe Virt::BallooningVM do
       b.update # still inside the boot back-off
       assert_equal 0, b.status.memory_delta
       assert b.status.to_s.include?('backing off'), b.status.to_s
+      assert_equal :backing_off, b.status.kind
+      assert_equal 'holding 20s: settling', b.status.brief
       assert_equal [], cache.set_actuals
     end
 
@@ -241,14 +248,17 @@ describe Virt::BallooningVM do
     it 'does not raise a VM booted below its floor when it votes to lower' do
       cache, b = ballooner(mem_at(40, actual: 1.GiB), info: Virt::DomainInfo.new('vm0', 1, 4.GiB), min_actual: 8.GiB)
       Uptime.travel(21) { b.update }
-      assert_equal 'New actual 1G is the same as current one 1G, doing nothing; d=0', b.status.to_s
+      assert_equal 'VM reports 358M (40%), not lowering memory: below its 2G floor; d=0', b.status.to_s
+      assert_equal 'below its 2G floor', b.status.brief
       assert_equal [], cache.set_actuals
     end
 
     it 'does nothing when the decrease would clamp back to the current size' do
       cache, b = ballooner(mem_at(40), min_actual: 2.GiB) # floor == current actual
       Uptime.travel(21) { b.update }
-      assert_equal 'New actual 2G is the same as current one 2G, doing nothing; d=0', b.status.to_s
+      assert_equal 'VM reports 768M (40%), not lowering memory: at its 2G floor; d=0', b.status.to_s
+      assert_equal :at_floor, b.status.kind
+      assert_equal 'at its 2G floor', b.status.brief
       assert_equal [], cache.set_actuals
     end
   end
@@ -284,6 +294,7 @@ describe Virt::BallooningVM do
       b.update
       assert_equal 'VM reports 1.2G (65%), raising memory by 30% to 2.6G: usage is at or over the ' \
                    '65% trigger, the guest is swapping out 20M/s; d=30', b.status.to_s
+      assert_equal 'raised to 2.6G: 65% used, swapping out 20M/s', b.status.brief
       assert_equal [2_791_728_742], cache.set_actuals
     end
 
@@ -292,6 +303,7 @@ describe Virt::BallooningVM do
       b.update
       assert_equal 'VM reports 768M (40%), want to raise memory (the guest is swapping out 20M/s) ' \
                    "but can't go over configured max mem 2G; d=0", b.status.to_s
+      assert_equal 'at its 2G max: swapping out 20M/s', b.status.brief
       assert_equal [], cache.set_actuals
     end
 
@@ -302,7 +314,17 @@ describe Virt::BallooningVM do
       Uptime.travel(21) { b.update } # past the 20s boot back-off, inside the 60s veto
       assert_equal 'VM reports 768M (40%), not lowering memory: the guest swapped recently; ' \
                    'holding its memory for 39.0s; d=0', b.status.to_s
+      assert_equal :holding, b.status.kind
+      assert_equal 'holding 39s: the guest swapped', b.status.brief
       assert_equal 1, cache.set_actuals.size, 'the raise, and no shrink after it'
+    end
+
+    it 'lets the guest veto replace a raise on the pane at once' do
+      cache, b = swapping_ballooner(40)
+      b.update
+      go_quiet(cache, 40)
+      b.update # inside the 10s a change stays up, but the guest's veto is news
+      assert_equal :holding, b.standing.kind
     end
 
     it 'shrinks once the veto lapses' do
@@ -320,6 +342,64 @@ describe Virt::BallooningVM do
       assert_equal(-10, b.status.memory_delta)
       assert_equal [1_932_735_283], cache.set_actuals
     end
+  end
+
+  # What the VM pane draws from: {Virt::BallooningVM#standing}, and its one exception to
+  # "the latest decision".
+  context 'standing' do
+    it 'keeps a raise up for 10s, through the ticks with no new data' do
+      _cache, b = ballooner(mem_at(65))
+      b.update
+      b.update
+      assert_equal :no_new_data, b.status.kind
+      assert_equal 'raised to 2.6G: 65% used', b.standing.brief
+      Uptime.travel(11) do
+        b.update
+        assert_equal :fine, b.standing.kind
+        assert_equal '', b.standing.brief
+      end
+    end
+
+    it 'keeps a lower up over the back-off it arms' do
+      cache, b = ballooner(mem_at(40))
+      Uptime.travel(21) do # past the 20s boot back-off
+        b.update
+        cache.next_sample(mem_at(40, actual: 1_932_735_283, at: now_secs + 5))
+        b.update
+        assert_equal :backing_off, b.status.kind
+        assert_equal 'lowered to 1.8G: 40% used', b.standing.brief
+      end
+    end
+
+    it 'shows a cap at once, even right after a change' do
+      cache, b = ballooner(mem_at(65, actual: 8.GiB), info: Virt::DomainInfo.new('vm0', 1, 10.GiB))
+      b.update # raises 8G to the 10G max
+      cache.next_sample(mem_at(70, actual: 10.GiB, at: now_secs + 5))
+      b.update
+      assert_equal :at_max, b.standing.kind
+    end
+
+    it 'drops the last change once the VM stops' do
+      _cache, b = ballooner(mem_at(65))
+      b.update
+      b.enabled = false
+      b.update
+      assert_equal :disabled, b.standing.kind
+    end
+  end
+
+  it 'info-logs each change, and each turn into a state worth knowing, once' do
+    log = Helpers.setup_dummy_logger
+    cache, b = ballooner(mem_at(65, actual: 8.GiB), info: Virt::DomainInfo.new('vm0', 1, 10.GiB))
+    b.update # raises to the max
+    cache.next_sample(mem_at(70, actual: 10.GiB, at: now_secs + 5))
+    b.update
+    b.update # still at max, the same sample: no second line
+    lines = log.string.lines.grep(/info/)
+    assert_equal 2, lines.size, log.string
+    assert_includes lines[0], 'vm0: VM reports 5.1G (65%), raising memory by 30% to 10G: usage is at or over the 65% trigger'
+    assert_includes lines[1], 'vm0: VM reports 6.9G (70%), want to raise memory (usage is at or over the 65% trigger) ' \
+                              "but can't go over configured max mem 10G"
   end
 
   it 'skips a second update on the same guest data' do

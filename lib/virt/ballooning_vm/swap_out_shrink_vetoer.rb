@@ -69,6 +69,14 @@ module Virt
         "the guest swapped recently; holding its memory for #{@veto.remaining.round(1)}s"
       end
 
+      # @return [String, nil] {#veto_reason} short enough for the VM pane's header:
+      #   `"holding 59s: the guest swapped"`
+      def brief
+        return nil unless @veto.active?
+
+        "holding #{@veto.remaining.ceil}s: the guest swapped"
+      end
+
       # Drops the veto and the sample it was armed from, for a VM we are no longer watching
       # (stopped, or ballooning switched off). The guest's counters reset with it, so
       # nothing observed before applies to the next boot.

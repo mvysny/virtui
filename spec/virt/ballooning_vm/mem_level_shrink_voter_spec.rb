@@ -31,6 +31,7 @@ describe Virt::BallooningVM::MemLevelShrinkVoter do
     v = voter
     v.observe sample(55)
     assert_equal 'usage is at or under the 55% trigger', v.vote_reason
+    assert_equal '55% used', v.brief
   end
 
   it 'stays silent one point above it' do

@@ -1,13 +1,13 @@
 # How alarmed should the balloon status be?
 
-**Status:** seed (2026-10-26), to be brainstormed in its own session. Split off from
-`ballooning-status-in-ui.md`'s `Q_at_max_severity`.
+**Status:** seed (2026-10-26), to be brainstormed in its own session. Split off from the
+balloon status in the VM header, built 2026-10-26.
 
 ## The question
 
-`ballooning-status-in-ui.md` colours the header status by severity: dim, yellow, red. Its one
-red state is *at max*: the guest wants more memory and virtui can't give it. But "capped" covers
-everything from a guest that is fine to one about to OOM-kill its load. A guest capped at 66%
+The VM header colours the balloon status by severity (`UI::VMPane::BALLOON_GLYPHS`): grey,
+yellow, red. Its one red state is *at max*: the guest wants more memory and virtui can't give
+it. But "capped" covers everything from a guest that is fine to one about to OOM-kill its load. A guest capped at 66%
 is fine. One capped at 95% and swapping is not. Red on every cap is a red that people learn to
 ignore.
 

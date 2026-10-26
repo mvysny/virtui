@@ -46,6 +46,10 @@ module Virt
         "usage is at or over the #{@trigger_at}% trigger"
       end
 
+      # @return [String, nil] {#vote_reason} short enough for the VM pane's header:
+      #   `"70% used"`
+      def brief = vote_reason && "#{@percent_used}% used"
+
       # @return [void]
       def forget
         @percent_used = nil

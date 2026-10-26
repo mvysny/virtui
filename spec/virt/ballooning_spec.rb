@@ -16,14 +16,14 @@ describe Virt::Ballooning do
   it 'reports safe defaults for an unknown VM' do
     _cache, b = build
     b.update
-    assert_nil b.status('does-not-exist')
+    assert_nil b.standing('does-not-exist')
     refute b.enabled?('does-not-exist')
   end
 
   it 'creates a ballooner for every VM on update' do
     cache, b = build
     b.update
-    cache.domains.each { |vm| refute_nil b.status(vm), vm }
+    cache.domains.each { |vm| refute_nil b.standing(vm), vm }
   end
 
   it 'has ballooning enabled by default for each VM' do

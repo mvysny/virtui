@@ -41,6 +41,14 @@ module Virt
         "backing off for #{@veto.remaining.round(1)}s"
       end
 
+      # @return [String, nil] {#veto_reason} short enough for the VM pane's header:
+      #   `"holding 9s: settling"`
+      def brief
+        return nil unless @veto.active?
+
+        "holding #{@veto.remaining.ceil}s: settling"
+      end
+
       # Drops the veto, so the next tick may lower memory at once. Called when the user
       # changes the ballooning setting by hand — they want to see the effect now.
       #

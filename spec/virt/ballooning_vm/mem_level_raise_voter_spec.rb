@@ -31,12 +31,14 @@ describe Virt::BallooningVM::MemLevelRaiseVoter do
     v = voter
     v.observe sample(65)
     assert_equal 'usage is at or over the 65% trigger', v.vote_reason
+    assert_equal '65% used', v.brief
   end
 
   it 'stays silent one point below it' do
     v = voter
     v.observe sample(64)
     assert_nil v.vote_reason
+    assert_nil v.brief
   end
 
   it 'votes for a guest that is full' do

@@ -38,7 +38,9 @@ describe Virt::BallooningVM::SwapOutShrinkVetoer do
     v.observe sample(20.0 * 1.MiB)
     assert_equal 'the guest swapped recently; holding its memory for 60.0s', v.veto_reason
     Uptime.travel(59) { assert_equal 'the guest swapped recently; holding its memory for 1.0s', v.veto_reason }
+    Uptime.travel(59.5) { assert_equal 'holding 1s: the guest swapped', v.brief, 'rounded up, never "0s"' }
     Uptime.travel(60) { assert_nil v.veto_reason }
+    Uptime.travel(60) { assert_nil v.brief }
   end
 
   it 'objects at exactly the noise floor, not below it' do

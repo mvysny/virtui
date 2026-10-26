@@ -94,6 +94,23 @@ module UI
     # would pull that row's VM name a column left and cost the list its name column.
     GUEST_OS_WIDTH = 2
 
+    # The character after 🎈 and the {Theme} reader that colors it and the words after it,
+    # keyed by {Virt::BallooningVM::Status#kind}; a kind with no entry draws a plain `-` and
+    # no words. The color is the severity: grey for routine, warn for a lower that is held,
+    # error for a guest short of memory that virtui cannot give it.
+    #
+    # In the header, not the focused VM's status bar: a capped guest must be seen at a glance,
+    # without the cursor on it. `‖` rather than ⏸ for holding: ⏸ renders emoji-wide in some
+    # fonts and shifts the rest of the line, and the screen promises to need no special font.
+    BALLOON_GLYPHS = {
+      raised: ['↑', :hint],
+      lowered: ['↓', :hint],
+      at_floor: ['_', :hint],
+      holding: ['‖', :warn],     # the guest vetoed a lower
+      backing_off: ['‖', :warn], # our own back-off did
+      at_max: ['▲', :error]
+    }.freeze
+
     # @param virt_cache [Virt::Cache] the runtime cache to read VM data from and act through
     # @param ballooning [Virt::Ballooning] the ballooning controller toggled from the memory menu
     def initialize(virt_cache, ballooning)
@@ -578,11 +595,12 @@ module UI
     end
 
     # Builds a VM's overview row: state glyph, guest-OS marker, name, and (when running) a
-    # balloon emoji with a ballooning-direction indicator, a "stale data" turtle and the VM's
-    # address at the rule's right end.
+    # balloon emoji with what the ballooning is doing ({BALLOON_GLYPHS}) and why, a "stale
+    # data" turtle and the VM's address at the rule's right end.
     #
-    #     ▶ 🐧 Ubuntu 🎈↑───────── 192.168.122.84 ─
-    #     ⏹ ?  BASE──────────────────────────────
+    #     ▶ 🐧 Ubuntu 🎈↑ raised to 2.6G: 70% used ───── 192.168.122.84 ─
+    #     ▶ 🐧 Ubuntu 🎈-─────────────────────────────── 192.168.122.84 ─
+    #     ⏹ ?  BASE────────────────────────────────────────────────────
     #
     # What sits on which side of the name is the rule to keep: left of it goes what the VM
     # *is* — facts that hold still while the user reads — and right of it what it is *doing*
@@ -594,27 +612,25 @@ module UI
     def overview_row(cache)
       line = "#{format_domain_state(cache.data.state)} #{format_guest_os(cache.guest_os)} " \
              "#{screen.theme.vm_name(cache.info.name)}"
+      words = tone = nil
       if cache.data.running?
         if cache.data.balloon?
           line += " \u{1F388}"
-          balloon_status = @ballooning.status(cache.info.name)
-          unless balloon_status.nil?
-            sc = if !@ballooning.enabled?(cache.info.name)
-                   'x'
-                 elsif balloon_status.memory_delta.negative?
-                   "\u{2193}"
-                 elsif balloon_status.memory_delta.positive?
-                   "\u{2191}"
-                 else
-                   '-'
-                 end
-            line += sc
+          standing = @ballooning.standing(cache.info.name)
+          if standing.nil?
+            # No ballooner until the first ballooning tick: nothing to say yet.
+          elsif !@ballooning.enabled?(cache.info.name)
+            line += 'x'
+          else
+            glyph, tone = BALLOON_GLYPHS[standing.kind]
+            line += glyph.nil? ? '-' : screen.theme.public_send(tone, glyph)
+            words = standing.brief unless standing.brief.empty?
           end
         end
         line += " \u{1F422}" if cache.stale?
       end
       address = cache.ip_address
-      Row.new(cache.info.name, ->(width) { header(width, line, address) })
+      Row.new(cache.info.name, ->(width) { header(width, line, address, words:, tone:) })
     end
 
     # A guest │ host row: `caption` then the two cells, each as wide as {#column_width}.
@@ -748,20 +764,36 @@ module UI
       "#{caption}#{bar.to_ansi} #{traffic}"
     end
 
-    # Draws a row header: `left` caption followed by a frame rule filling the rest of
-    # `width`, with `right` inset near the rule's end (see {#overview_row}). `right` is
-    # dropped whole, never truncated, when the rule has no room for it: a clipped address is
-    # a wrong address.
+    # Draws a row header: `left` caption, then `words`, then a frame rule filling the rest of
+    # `width`, with `right` inset near the rule's end (see {#overview_row}):
+    #
+    #     ▶ 🐧 vt-ubuntu 🎈↑ raised to 2.6G: 70% used ─────────── 192.168.123.239 ─
+    #     ▶ 🐧 vt-ubuntu 🎈↑ raised to 2.6G… ─── 192.168.123.239 ─
+    #
+    # The room goes to `right` first: it is dropped whole, never truncated, when the rule has
+    # no room for it, because a clipped address is a wrong address. `words` get what is left,
+    # cut with `…`, and stay at least `───` clear of `right` so the two don't read as one.
     #
     # @param width [Integer] the list's text width
     # @param left [String] the caption (may contain styling)
     # @param right [String, nil] unstyled text to inset, or `nil` for a plain rule
+    # @param words [String, nil] unstyled text after the caption; dropped when not even one
+    #   character and the `…` fit
+    # @param tone [Symbol, nil] the {Theme} reader that colors `words`
     # @return [String] the rendered header line
-    def header(width, left, right = nil)
+    def header(width, left, right = nil, words: nil, tone: nil)
       theme = screen.theme
       rule = width - StyledString.parse(left).display_width
       # Room for `─ right ─`: a space either side and at least one '─' before and after.
-      return left + theme.frame('─' * rule.clamp(0, nil)) if right.nil? || rule < right.length + 4
+      right = nil if !right.nil? && rule < right.length + 4
+      # ` words ───`, and then whatever `right` takes.
+      room = rule - 5 - (right.nil? ? 0 : right.length + 3)
+      if !words.nil? && room >= 2
+        words = StyledString.plain(words).ellipsize(room)
+        left = "#{left} #{theme.public_send(tone, words.to_s)} "
+        rule -= words.display_width + 2
+      end
+      return left + theme.frame('─' * rule.clamp(0, nil)) if right.nil?
 
       "#{left}#{theme.frame('─' * (rule - right.length - 3))} #{right} #{theme.frame('─')}"
     end

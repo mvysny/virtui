@@ -73,6 +73,11 @@ module Virt
       # We don't know what state the VM is in — it could have been started seconds ago.
       @back_off.arm @boot_back_off_seconds
 
+      # How long {#standing} keeps a raise or a lower up, in seconds. The tick of the change
+      # alone is one 2s frame, too short to see; past ~10s "fine" is the truth again. Not
+      # shorter than @back_off_seconds, or the back-off every change arms would show next.
+      @acted_seconds = 10
+
       # {Boolean} if the VM was running during the last ballooning update
       @was_running = false
 
@@ -83,8 +88,12 @@ module Virt
       # {Boolean} the user can manually disable ballooning for a VM.
       @enabled = true
 
-      # {Status}
-      @status = Status.new('', 0)
+      # {Status} this tick's; the latest one not `:no_new_data`; the latest raise or lower,
+      # `nil` before the first; and how long {#standing} keeps that one up.
+      @status = Status.new(kind: :fine, text: '')
+      @decided = @status
+      @action = nil
+      @acted = Cooldown::ELAPSED
     end
 
     # @return [Integer] floor for the `actual` memory of a VM configured with at least twice
@@ -99,21 +108,58 @@ module Virt
     # @return [Integer] the floor, in bytes
     def floor(max_memory) = [@min_actual, max_memory / 2].min
 
-    # The outcome of one ballooning {#update} for a VM: a human-readable explanation and
-    # the percentage change applied.
+    # The outcome of one ballooning {#update} for a VM, in three lengths:
     #
+    #   status.kind    # => :raised
+    #   status.brief   # => "raised to 2.6G: 65% used"
+    #   status.text    # => "VM reports 1.2G (65%), raising memory by 30% to 2.6G: usage is at or over the 65% trigger"
+    #
+    # @!attribute [r] kind
+    #   @return [Symbol] one of {KINDS}
     # @!attribute [r] text
-    #   @return [String] human-readable description of the decision, for debug logging
+    #   @return [String] the full decision and every reason behind it, for the log
+    # @!attribute [r] brief
+    #   @return [String] the VM pane header's words; `''` for a kind the pane already shows
+    #     another way, or that needs no words
     # @!attribute [r] memory_delta
     #   @return [Integer] percentage change applied: `0` for no change, positive for an
     #     increase, negative for a decrease
-    class Status < Data.define(:text, :memory_delta)
+    class Status < Data.define(:kind, :text, :brief, :memory_delta)
+      # @return [Array<Symbol>] every {#kind}: `:fine` has nothing to do, `:no_new_data`
+      #   already acted on this guest sample, `:holding` is a lower the guest vetoed and
+      #   `:backing_off` one our own back-off did; the rest say what they are
+      KINDS = %i[fine no_new_data raised lowered holding backing_off at_floor at_max
+                 unsupported stale disabled stopped].freeze
+
+      # @raise [RuntimeError] if `kind` is not one of {KINDS}
+      def initialize(kind:, text:, brief: '', memory_delta: 0)
+        raise "unknown kind #{kind.inspect}" unless KINDS.include?(kind)
+
+        super
+      end
+
       # @return [String] `text; d=memory_delta`
       def to_s = "#{text}; d=#{memory_delta}"
     end
 
-    # @return [Status] the status of this ballooner.
+    # @return [Status] this tick's decision, as it happened
     attr_reader :status
+
+    # The decision that stands for this VM, which is what the VM pane shows: the latest one
+    # on fresh guest data, except that a raise or a lower stays up for 10s.
+    #
+    # A change outranks `:fine` and `:backing_off` but nothing else. The back-off is the
+    # change's own aftermath: let it in and "lowered to 1.8G" gives way to "holding 9s"
+    # on the very next sample. A guest veto, a cap or the VM stopping is news, and wins.
+    #
+    # @return [Status]
+    def standing
+      return @action if @acted.active? && %i[fine raised lowered backing_off].include?(@decided.kind)
+      # A change whose 10s ran out before the next guest sample came in.
+      return Status.new(kind: :fine, text: @decided.text) if %i[raised lowered].include?(@decided.kind)
+
+      @decided
+    end
 
     # @return [Boolean] true if automatic ballooning is enabled.
     def enabled? = @enabled
@@ -131,13 +177,36 @@ module Virt
     end
 
     # Runs one control step: feeds every input this tick's data, applies the rules above,
-    # and records what happened in {#status}.
+    # and records what happened in {#status} and {#standing}. Info-logs every raise and
+    # lower, and every turn into `:holding`, `:at_floor` or `:at_max`, with the full
+    # {Status#text}; the rest of the ticks only reach the debug log, through {Ballooning}.
     #
     # @return [void]
     # @raise [RuntimeError] if the VM is running but its {DomainInfo} can't be found
     def update
+      step
+      return if @status.kind == :no_new_data
+
+      acted = %i[raised lowered].include?(@status.kind)
+      if acted || (%i[holding at_floor at_max].include?(@status.kind) && @status.kind != @decided.kind)
+        $log.info "#{@vmid}: #{@status.text}"
+      end
+      @decided = @status
+      return unless acted
+
+      @action = @status
+      @acted = Cooldown.of(@acted_seconds)
+    end
+
+    private
+
+    # {#update} short of the bookkeeping {#standing} reads.
+    #
+    # @return [void]
+    # @raise [RuntimeError] if the VM is running but its {DomainInfo} can't be found
+    def step
       unless @enabled
-        @status = Status.new('ballooning disabled by user', 0)
+        @status = Status.new(kind: :disabled, text: 'ballooning disabled by user')
         reset
         return
       end
@@ -145,7 +214,7 @@ module Virt
       mem_stat = @virt_cache.memstat(@vmid)
       if mem_stat.nil? || !@virt_cache.running?(@vmid)
         # VM is shut off. Don't fiddle with the memory. Back off until it boots up.
-        @status = Status.new('vm stopped, doing nothing', 0)
+        @status = Status.new(kind: :stopped, text: 'vm stopped, doing nothing')
         reset
         @back_off.arm @boot_back_off_seconds
         return
@@ -155,7 +224,7 @@ module Virt
 
       # If the VM has no support for ballooning, do nothing
       unless mem_stat.guest_data_available?
-        @status = Status.new('ballooning unsupported by the VM', 0)
+        @status = Status.new(kind: :unsupported, text: 'ballooning unsupported by the VM')
         return
       end
 
@@ -164,7 +233,7 @@ module Virt
       # guest. Resizing on those would wrongly shrink a VM that's actually busy.
       vm_cache = @virt_cache.cache(@vmid)
       if vm_cache&.stale?
-        @status = Status.new('guest memory data is stale, doing nothing', 0)
+        @status = Status.new(kind: :stale, text: 'guest memory data is stale, doing nothing')
         return
       end
 
@@ -174,14 +243,12 @@ module Virt
 
       # Check whether we already did some action (mem increase/decrease) on this VM data.
       if @last_update_at == mem_stat.last_updated
-        @status = Status.new('no new data', 0)
+        @status = Status.new(kind: :no_new_data, text: 'no new data')
         return
       end
 
       decide mem_stat
     end
-
-    private
 
     # Polls the inputs, applies the three rules and carries out whatever they call for.
     #
@@ -191,20 +258,21 @@ module Virt
     def decide(mem_stat)
       report = "VM reports #{format_byte_size(mem_stat.guest_mem.used)} (#{mem_stat.guest_mem.percent_used}%)"
 
-      raises = @raise_voters.filter_map(&:vote_reason)
+      raisers = @raise_voters.select(&:vote_reason)
       # Only asked when nothing wants a raise, and the vetoers only when something wants a
       # lower: a reason nobody acts on has no business in the status line.
-      lowers = raises.empty? ? @shrink_voters.filter_map(&:vote_reason) : []
-      veto = lowers.empty? ? nil : @shrink_vetoers.filter_map(&:veto_reason).first
+      lowerers = raisers.empty? ? @shrink_voters.select(&:vote_reason) : []
+      vetoer = lowerers.empty? ? nil : @shrink_vetoers.find(&:veto_reason)
 
-      if !raises.empty?
-        resize mem_stat, @increase_memory_by, report, raises
-      elsif !veto.nil?
-        @status = Status.new("#{report}, not lowering memory: #{veto}", 0)
-      elsif !lowers.empty?
-        resize mem_stat, -@decrease_memory_by, report, lowers
+      if !raisers.empty?
+        resize mem_stat, @increase_memory_by, report, raisers
+      elsif !vetoer.nil?
+        @status = Status.new(kind: vetoer.equal?(@back_off) ? :backing_off : :holding,
+                             text: "#{report}, not lowering memory: #{vetoer.veto_reason}", brief: vetoer.brief)
+      elsif !lowerers.empty?
+        resize mem_stat, -@decrease_memory_by, report, lowerers
       else
-        @status = Status.new("#{report}, nothing to do", 0)
+        @status = Status.new(kind: :fine, text: "#{report}, nothing to do")
       end
     end
 
@@ -213,32 +281,40 @@ module Virt
     # @param mem_stat [MemoryStat] this tick's guest memory stats
     # @param memory_delta [Integer] percentage change: positive raises, negative lowers
     # @param report [String] what the guest reported, for the status line
-    # @param because [Array<String>] the reasons the voters gave
+    # @param voters [Array<#vote_reason, #brief>] the voters asking for the change
     # @return [void]
     # @raise [RuntimeError] if the VM's {DomainInfo} can't be found
-    def resize(mem_stat, memory_delta, report, because)
+    def resize(mem_stat, memory_delta, report, voters)
+      because = voters.map(&:vote_reason).join(', ')
+      brief = voters.map(&:brief).join(', ')
       info = @virt_cache.info(@vmid)
       raise 'unexpected: info is nil' if info.nil?
 
       max_memory = info.max_memory
-      new_actual = (mem_stat.actual * (memory_delta + 100) / 100).clamp(floor(max_memory)..max_memory)
+      lowest = floor(max_memory)
+      new_actual = (mem_stat.actual * (memory_delta + 100) / 100).clamp(lowest..max_memory)
       # A VM booted below its floor stays there: the floor stops a lower, never turns it into a raise.
       new_actual = mem_stat.actual if memory_delta.negative? && new_actual > mem_stat.actual
       if new_actual == mem_stat.actual
         @status = if memory_delta.positive?
-                    Status.new("#{report}, want to raise memory (#{because.join(', ')}) but can't go over " \
-                               "configured max mem #{format_byte_size(new_actual)}", 0)
+                    Status.new(kind: :at_max,
+                               text: "#{report}, want to raise memory (#{because}) but can't go over " \
+                                     "configured max mem #{format_byte_size(new_actual)}",
+                               brief: "at its #{format_byte_size(max_memory)} max: #{brief}")
                   else
-                    Status.new("New actual #{format_byte_size(new_actual)} is the same as current one " \
-                               "#{format_byte_size(mem_stat.actual)}, doing nothing", 0)
+                    where = "#{mem_stat.actual < lowest ? 'below' : 'at'} its #{format_byte_size(lowest)} floor"
+                    Status.new(kind: :at_floor, text: "#{report}, not lowering memory: #{where}", brief: where)
                   end
         return
       end
 
       @back_off.arm @back_off_seconds
+      raised = memory_delta.positive?
       @status = Status.new(
-        "#{report}, #{memory_delta.positive? ? 'raising' : 'lowering'} memory by #{memory_delta.abs}% to " \
-        "#{format_byte_size(new_actual)}: #{because.join(', ')}", memory_delta
+        kind: raised ? :raised : :lowered,
+        text: "#{report}, #{raised ? 'raising' : 'lowering'} memory by #{memory_delta.abs}% to " \
+              "#{format_byte_size(new_actual)}: #{because}",
+        brief: "#{raised ? 'raised' : 'lowered'} to #{format_byte_size(new_actual)}: #{brief}", memory_delta:
       )
       @last_update_at = mem_stat.last_updated
       @virt_cache.set_actual(@vmid, new_actual)
@@ -253,6 +329,7 @@ module Virt
       @inputs.each(&:forget)
       @last_update_at = nil
       @was_running = false
+      @acted = Cooldown::ELAPSED
     end
   end
 end

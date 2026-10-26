@@ -126,8 +126,26 @@ balloon device or guest tools — see the bullet list above.
 
 When ballooning is enabled properly in a VM, 🎈 is shown next to the VM name in virtui. If the balloon data is stale (not being refreshed), 🐢 is shown.
 
-When virtui controls the app memory, an arrow is shown next to 🎈: up arrow indicates a memory increase,
-down arrow indicates memory decrease, and a flat dash `-` indicates no change.
+What the ballooning is doing, and why, follows 🎈 in the VM's header:
+
+```
+ ▶ 🐧 vt-ubuntu 🎈↑ raised to 2.6G: 70% used ──────────────────────── 192.168.123.239 ─
+ ▶ 🐧 vt-ubuntu 🎈↓ lowered to 1.8G: 41% used ─────────────────────── 192.168.123.239 ─
+ ▶ 🐧 vt-ubuntu 🎈‖ holding 58s: the guest swapped ────────────────── 192.168.123.239 ─
+ ▶ 🐧 vt-ubuntu 🎈▲ at its 4G max: 92% used ───────────────────────── 192.168.123.239 ─
+ ▶ 🐧 vt-ubuntu 🎈_ at its 2G floor ───────────────────────────────── 192.168.123.239 ─
+ ▶ 🐧 vt-ubuntu 🎈- ───────────────────────────────────────────────── 192.168.123.239 ─
+```
+
+- `↑` / `↓` — virtui just grew or shrank the guest; shown for 10 s.
+- `‖` (yellow) — the guest has memory to spare, but virtui is holding it: the guest swapped
+  recently, or it just booted or was just resized and its figures are still settling.
+- `▲` (red) — the guest wants more memory and is already at the maximum its definition allows.
+  virtui can't help here, but you can: the memory menu's max-memory item, or a bigger `<memory>`.
+- `_` — the guest is idle and as small as virtui will make it.
+- `-` — nothing to do. `x` — you switched ballooning off for this VM (memory menu).
+
+On a narrow terminal the words are cut short; the log pane gets each change in full.
 
 A running VM whose balloon reports swap counters has a `SWAP` row under its RAM bar. It reads
 in two halves, like the CPU and RAM rows above it:

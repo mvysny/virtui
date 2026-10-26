@@ -383,7 +383,8 @@ and says *why*; the framework decides *how much*. So each threshold lives on the
 reads it, both rates live on the framework, and the reasons compose straight into the status
 line — the call that makes the decision produces the sentence explaining it,
 `VM reports 1.2G (65%), raising memory by 30% to 2.6G: usage is at or over the 65% trigger, the
-guest is swapping out 20M/s`. The controller began as two thresholds and a back-off timer —
+guest is swapping out 20M/s` for the log, and each input's `brief` the VM header's
+`raised to 2.6G: 65% used, swapping out 20M/s`. The controller began as two thresholds and a back-off timer —
 three `if`s, four ivars, a size at which a branch chain is right — but `D_swap_shrink_veto`
 and `D_swap_raise_vote` each arrived as another clause spliced into `update` plus more ivars in
 a constructor where nothing said which served which rule, and the queue in

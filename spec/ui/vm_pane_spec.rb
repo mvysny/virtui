@@ -137,6 +137,40 @@ module Tuile
       end
     end
 
+    context('balloon words') do
+      def header(width, address = '192.168.122.84')
+        window.send(:header, width, 'Ubuntu 🎈↑', address, words: 'raised to 2.6G: 70% used', tone: :hint)
+              .gsub(/\e\[[\d;:]*m/, '')
+      end
+
+      it 'sit between the caption and the address' do
+        assert_equal 'Ubuntu 🎈↑ raised to 2.6G: 70% used ─────── 192.168.122.84 ─', header(60)
+        assert_equal 'Ubuntu 🎈↑ raised to 2.6G: 70% used ───────', header(43, nil)
+      end
+
+      it 'are cut before the address is, and kept ─── clear of it' do
+        assert_equal 'Ubuntu 🎈↑ raised to 2.6… ─── 192.168.122.84 ─', header(46)
+      end
+
+      it 'are dropped when not even a letter and the ellipsis fit beside the address' do
+        assert_equal 'Ubuntu 🎈↑────── 192.168.122.84 ─', header(33)
+      end
+
+      it 'get the whole rule once the address no longer fits' do
+        assert_equal 'Ubuntu 🎈↑ raised to… ───', header(25)
+      end
+    end
+
+    it 'puts what the ballooning is doing in the header, colored by severity' do
+      ballooning.update
+      window.update
+      list = window.list
+      # the demo Ubuntu at 25% wants a lower, and just booted: held by the boot back-off
+      line = list.renderer.call(list.items[ubuntu], 60).to_s
+      assert_includes line, Screen.instance.theme.warn('‖')
+      assert_includes line, Screen.instance.theme.warn('holding 20s: settling')
+    end
+
     it 'show_power_popup opens picker' do
       window.handle_key?('p')
       assert(Screen.instance.popups.any? { |it| it.content.is_a?(Component::PickerWindow) })
@@ -453,11 +487,12 @@ module Tuile
     end
 
     context('rendering details') do
-      it 'shows the ballooning direction indicator once ballooners exist' do
+      it 'shows what the ballooning is doing once ballooners exist' do
         ballooning.update
         window.update
         line = list_rows(window.list)[ubuntu]
-        assert line.include?("\u{1F388}-"), line # balloon + "steady" (delta 0)
+        # the demo Ubuntu at 25% wants a lower, and just booted: held by the boot back-off
+        assert line.include?("\u{1F388}\u2016"), line
       end
 
       it "marks a VM whose ballooning the user disabled with 'x'" do

@@ -16,7 +16,9 @@ describe Virt::BallooningVM::BackOffShrinkVetoer do
     v.arm 10
     assert_equal 'backing off for 10.0s', v.veto_reason
     Uptime.travel(9) { assert_equal 'backing off for 1.0s', v.veto_reason }
+    Uptime.travel(9.5) { assert_equal 'holding 1s: settling', v.brief }
     Uptime.travel(10) { assert_nil v.veto_reason }
+    Uptime.travel(10) { assert_nil v.brief }
   end
 
   it 'extends an active back-off but never cuts one short' do
