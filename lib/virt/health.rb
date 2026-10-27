@@ -36,8 +36,9 @@ module Virt
     #   @return [String, nil] what to do about it: a command, or a Maintenance item
     # @!attribute [r] remedy
     #   @return [Symbol, nil] the fix as one virtui can run, for {UI::HealthDialog}'s button:
-    #     `:grow_root` (Maintenance → Grow root filesystem) or `:free_page_reporting`
-    #     ({Virsh#enable_free_page_reporting}); `nil` when the fix is the user's to make.
+    #     `:grow_root` (Maintenance → Grow root filesystem), `:free_page_reporting`
+    #     ({Virsh#enable_free_page_reporting}) or `:discard` ({Virsh#enable_discard} on the
+    #     disk {#subject} names); `nil` when the fix is the user's to make.
     #     A Symbol, not a block: see design/decisions.md D_health_check
     Finding = Data.define(:severity, :subject, :text, :fix, :remedy) do
       def initialize(severity:, subject:, text:, fix:, remedy: nil) = super
@@ -141,9 +142,10 @@ module Virt
       elsif next_boot&.discard == 'unmap'
         Finding.new(:note, target, 'discard=unmap is set, and takes effect once the VM is powered off and on', nil)
       elsif disk.shareable
-        Finding.new(:note, target, 'shared with other VMs, and the host drops its discards', fix)
+        Finding.new(:note, target, 'shared with other VMs, and the host drops its discards', fix, :discard)
       else
-        Finding.new(:warning, target, 'the host drops this disk\'s discards: space the guest frees stays taken', fix)
+        Finding.new(:warning, target, 'the host drops this disk\'s discards: space the guest frees stays taken', fix,
+                    :discard)
       end
     end
 

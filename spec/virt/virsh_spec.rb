@@ -208,6 +208,18 @@ describe Virt::Virsh do
       ENV['LIBVIRT_DEFAULT_URI'] = uri
     end
 
+    it 'sets discard=unmap on one disk through virt-xml' do
+      virsh = Virt::Virsh.new
+      skip 'virt-xml not installed' unless virsh.virt_xml_available?
+
+      uri = ENV.fetch('LIBVIRT_DEFAULT_URI', nil)
+      ENV['LIBVIRT_DEFAULT_URI'] = 'test:///default'
+      virsh.enable_discard('test', 'vda')
+      assert_raises(RuntimeError) { virsh.enable_discard('test', 'vdz') }
+    ensure
+      ENV['LIBVIRT_DEFAULT_URI'] = uri
+    end
+
     it 'finds virt-xml on the PATH only' do
       Dir.mktmpdir do |dir|
         path = ENV.fetch('PATH')

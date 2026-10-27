@@ -215,6 +215,20 @@ module Virt
       (@vms[name] || raise("failed to get domain '#{name}'")).free_page_reporting = true
     end
 
+    # Mirrors {Virsh#enable_discard}, which a simulated VM takes at once, as
+    # {#enable_free_page_reporting} does.
+    #
+    # @param name [String] VM name
+    # @param target [String] the disk's target; a simulated VM has only `vda`
+    # @return [void]
+    # @raise [RuntimeError] for an unknown VM or target
+    def enable_discard(name, target)
+      vm = @vms[name] || raise("failed to get domain '#{name}'")
+      raise "#{name}: no disk #{target}" unless target == 'vda'
+
+      vm.discard = 'unmap'
+    end
+
     # Mirrors {Virsh#virt_xml_available?}: the demo needs no `virt-xml`.
     # @return [Boolean] `true`
     def virt_xml_available? = true

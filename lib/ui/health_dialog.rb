@@ -38,11 +38,12 @@ module UI
     # button.
     # @return [Hash{Symbol => String}]
     FIXES = { grow_root: 'Fix: grow root filesystem…',
-              free_page_reporting: 'Fix: turn on free page reporting…' }.freeze
+              free_page_reporting: 'Fix: turn on free page reporting…',
+              discard: 'Fix: pass discards to the image…' }.freeze
 
-    # The free-page-reporting button's caption while `virt-xml`, which it runs, is missing.
-    # @return [String]
-    NO_VIRT_XML = 'Fix: turn on free page reporting (please install virt-xml for this to work)'
+    # The remedies that run `virt-xml`; their buttons say so while it is missing.
+    # @return [Array<Symbol>]
+    VIRT_XML_FIXES = %i[free_page_reporting discard].freeze
 
     # One finding's components.
     # @!attribute [r] finding
@@ -106,8 +107,10 @@ module UI
       body = Component::Layout::Vertical.new
       body.add(text, Component::Layout::Auto[])
       caption = FIXES[finding.remedy]
-      caption = NO_VIRT_XML if finding.remedy == :free_page_reporting && !@virt.virt_xml_available?
-      button = caption && Component::Button.new(caption) { fix(finding.remedy) }
+      if VIRT_XML_FIXES.include?(finding.remedy) && !@virt.virt_xml_available?
+        caption = "#{caption.delete_suffix('…')} (please install virt-xml for this to work)"
+      end
+      button = caption && Component::Button.new(caption) { fix(finding) }
       body.add(button, Component::Layout::Fixed[1]) if button
       row = Component::Layout::Horizontal.new
       row.add(head, Component::Layout::Fixed[head_width])
@@ -134,40 +137,55 @@ module UI
     end
 
     # Closes the dialog, which the fix would leave stale, then starts the fix's flow.
-    # @param remedy [Symbol] one of {FIXES}' keys
+    # @param finding [Virt::Health::Finding] one whose remedy is in {FIXES}
     # @return [void]
-    def fix(remedy)
+    def fix(finding)
       close
-      case remedy
-      when :grow_root then VMPane::RootGrower.new(@virt, @vm).start
-      when :free_page_reporting then turn_on_free_page_reporting
+      virt = @virt
+      vm = @vm
+      case finding.remedy
+      when :grow_root then VMPane::RootGrower.new(virt, vm).start
+      when :free_page_reporting
+        edit_definition('free page reporting', '--memballoon freePageReporting=on',
+                        confirm: "Turn on free page reporting for '#{vm}'?", confirm_button: 'Turn on',
+                        progress: "Turning on free page reporting for '#{vm}'",
+                        done: "Free page reporting is on for '#{vm}'") { virt.enable_free_page_reporting(vm) }
+      when :discard
+        target = finding.subject
+        edit_definition("#{target}'s discards", "target=#{target} --disk discard=unmap",
+                        confirm: "Pass #{target}'s discards to its image for '#{vm}'?", confirm_button: 'Pass',
+                        progress: "Setting discard=unmap on #{target} of '#{vm}'",
+                        done: "#{target} of '#{vm}' passes discards to its image") { virt.enable_discard(vm, target) }
       end
     end
 
-    # Asks the user to confirm the definition edit, then makes it behind a progress dialog.
+    # Asks the user to confirm a `virt-xml` edit of the definition, then makes it behind a
+    # progress dialog; says to install `virt-xml` instead while it is missing.
+    # @param what [String] what the edit turns on, for the missing-`virt-xml` alert
+    # @param args [String] `virt-xml`'s arguments after the VM name, as the confirmation shows them
+    # @param confirm [String] the confirmation's caption
+    # @param confirm_button [String]
+    # @param progress [String] the progress dialog's caption
+    # @param done [String] the closing alert's caption
+    # @yield on a {BackgroundTask}'s thread: the edit, through the backend
     # @return [void]
-    def turn_on_free_page_reporting
-      virt = @virt
+    def edit_definition(what, args, confirm:, confirm_button:, progress:, done:, &edit)
       vm = @vm
-      unless virt.virt_xml_available?
+      unless @virt.virt_xml_available?
         return Component::ConfirmDialog.alert('Please install virt-xml',
-                                              'virtui turns free page reporting on through virt-xml, which is not ' \
-                                              'on the PATH: sudo apt install virt-install')
+                                              "virtui sets #{what} through virt-xml, which is not on the PATH: " \
+                                              'sudo apt install virt-install')
       end
 
       Component::ConfirmDialog.confirm(
-        "Turn on free page reporting for '#{vm}'?",
-        "This runs virt-xml '#{vm}' --edit --memballoon freePageReporting=on, which changes the definition " \
-        "'#{vm}' reads at its next start. It takes effect once '#{vm}' is powered off and on: a reboot from inside " \
-        'the guest keeps the old device.',
-        confirm: 'Turn on'
+        confirm,
+        "This runs virt-xml '#{vm}' --edit #{args}, which changes the definition '#{vm}' reads at its next " \
+        "start. It takes effect once '#{vm}' is powered off and on: a reboot from inside the guest keeps the old " \
+        'device.',
+        confirm: confirm_button
       ) do
-        task = BackgroundTask.new("Turning on free page reporting for '#{vm}'", cancelable: false) do
-          virt.enable_free_page_reporting(vm)
-        end
-        task.run do
-          Component::ConfirmDialog.alert("Free page reporting is on for '#{vm}'",
-                                         'From its next power-on. Pick Health check again to see it.')
+        BackgroundTask.new(progress, cancelable: false, &edit).run do
+          Component::ConfirmDialog.alert(done, 'From its next power-on. Pick Health check again to see it.')
         end
       end
     end

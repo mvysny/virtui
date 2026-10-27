@@ -20,7 +20,7 @@ the decision of how much memory to move. Requires Ruby 3.3+; tested on Linux onl
   ```
 - Install the `virsh` binary via `sudo apt install libvirt-clients` — virtui shells out to `virsh` to talk to the libvirt daemon.
 - Optionally `sudo apt install virt-install`: the health check (`M` → Health check) turns on
-  a VM's free page reporting through its `virt-xml`.
+  a VM's free page reporting and a disk's `discard=unmap` through its `virt-xml`.
 - To give your user control over virtual machines, add your user to `libvirt` group:
   `sudo usermod -aG libvirt $USER` and log out/log in.
 - virtui manages the VMs plain `virsh` sees: it passes no `-c`. Check with `virsh uri`, which

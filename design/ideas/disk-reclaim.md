@@ -68,10 +68,6 @@ chain or internal snapshots rather than handle them.
   guest (`D_guest_root_grow`).
 - `Q_trim_refusal`: when `discard='unmap'` is missing, `domfstrim` "succeeds" and changes
   nothing. Refuse with the reason (and the fix), or run it anyway?
-- `Q_fix_discard`: should virtui offer to set `discard='unmap'` itself (`dumpxml --inactive`,
-  edit, `define`), or only name the fix? It is a persistent config write that takes effect
-  only after a power-off, and `virt-xml <vm> --edit target=vda --disk discard=unmap` does it
-  in one line.
 - `Q_convert_tool`: if offline compaction ever comes: `vol-create-from` (no sudo, flattens),
   `qemu-img convert -B` by hand, or libguestfs' `virt-sparsify --in-place`, which trims inside
   an appliance and so works even where the guest never discarded? Which is in Ubuntu's repo?

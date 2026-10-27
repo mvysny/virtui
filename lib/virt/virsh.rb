@@ -249,8 +249,22 @@ module Virt
       $log.info "#{domain_name}: free page reporting on, from its next power-on"
     end
 
-    # Whether {#enable_free_page_reporting} can run: `virt-xml` is on the `PATH`. Looked up
-    # in Ruby, so the UI thread may ask.
+    # Sets `discard='unmap'` on one disk in the VM's persistent definition, the fix {Health}
+    # offers when the host drops that disk's discards: the `virt-xml` line that finding
+    # prints. Takes effect once the VM is powered off and on, like
+    # {#enable_free_page_reporting}, and goes through `virt-xml` for the same reason.
+    #
+    # @param domain_name [String] VM name, running or not
+    # @param target [String] the disk's target, e.g. `vda`
+    # @return [void]
+    # @raise [RuntimeError] if `virt-xml` is missing or fails, e.g. on a target the VM lacks
+    def enable_discard(domain_name, target)
+      Run.sync('virt-xml', domain_name, '--edit', "target=#{target}", '--disk', 'discard=unmap')
+      $log.info "#{domain_name}: #{target} passes discards to its image, from its next power-on"
+    end
+
+    # Whether {#enable_free_page_reporting} and {#enable_discard} can run: `virt-xml` is on
+    # the `PATH`. Looked up in Ruby, so the UI thread may ask.
     # @return [Boolean]
     def virt_xml_available?
       ENV.fetch('PATH', '').split(File::PATH_SEPARATOR).any? { File.executable?(File.join(_1, 'virt-xml')) }

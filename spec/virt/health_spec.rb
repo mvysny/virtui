@@ -38,6 +38,7 @@ describe Virt::Health do
       vdb = finding(health, 'vdb')
       assert_includes vdb.text, 'shared'
       assert_equal 'virt-xml vt-ubuntu --edit target=vdb --disk discard=unmap, then power it off and on', vdb.fix
+      assert_equal :discard, vdb.remedy
     end
 
     # Both layers read 0, but the LV only inherits it from the LUKS mapping beneath.
@@ -97,6 +98,7 @@ describe Virt::Health do
       assert_includes finding(health, 'agent').fix, '--add-device --channel unix,target.type=virtio'
       assert_includes finding(health, 'balloon').fix, 'freePageReporting=on'
       assert_equal :free_page_reporting, finding(health, 'balloon').remedy
+      assert_equal :discard, finding(health, 'sda').remedy
       assert_nil finding(health, 'agent').remedy
     end
 

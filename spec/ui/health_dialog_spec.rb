@@ -87,6 +87,19 @@ module Tuile
       assert_nil overlay_of(UI::HealthDialog)
     end
 
+    it "sets discard=unmap on the finding's disk from its Fix button, once confirmed" do
+      health = Virt::Health.new(findings: [finding.new(:warning, 'vda', 'the host drops its discards', 'virt-xml …',
+                                                       :discard)])
+      UI::HealthDialog.new(virt, 'win11', health).open
+      Testing.click(Testing.get(Component::Button))
+      confirm = overlay_of(Component::ConfirmDialog)
+      assert_includes confirm.message, "virt-xml 'win11' --edit target=vda --disk discard=unmap"
+      Screen.instance.key(Keys::ENTER) # the focused Pass button
+      done = wait_for('the result') { overlay_of(Component::ConfirmDialog) { _1 != confirm } }
+      assert_equal "vda of 'win11' passes discards to its image", done.caption.to_s
+      assert_equal 'unmap', virt.vm('win11').discard
+    end
+
     it 'says to install virt-xml when it is missing, on the button and when pressed' do
       virt.define_singleton_method(:virt_xml_available?) { false }
       health = Virt::Health.new(findings: [finding.new(:note, 'balloon', 'no free page reporting', 'virt-xml …',

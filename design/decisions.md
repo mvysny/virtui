@@ -716,18 +716,18 @@ it is set up, and a configured VM rarely drifts — not worth a guest read per t
 mapper's 0 is blamed on the lowest layer: an LVM volume inherits it from the LUKS mapping.
 
 `Finding#fix` is words for every finding: a command, or the `M` item to pick. A fix virtui runs
-itself also names a `remedy`, which the window shows as a Fix button: Grow root filesystem, and
-free page reporting. Why a Symbol and not a block on `Finding`: the fixes are UI flows (a
+itself also names a `remedy`, which the window shows as a Fix button: Grow root filesystem, free
+page reporting, and a disk's `discard=unmap`. Why a Symbol and not a block on `Finding`: the fixes are UI flows (a
 confirmation, a progress dialog) that `lib/virt/` may not reach, a backend block would still
 need a `BackgroundTask` from the UI, and a Proc breaks the `Data`'s equality in specs.
 
-Why free page reporting goes through `virt-xml` rather than `dumpxml --inactive`, an edit and
-`define`: a plain `dumpxml` leaves out the VNC/SPICE `passwd=`, and defining it back wipes the
-password; `virt-xml` reads the definition with its secrets (`VIR_DOMAIN_XML_SECURE`), and a
-dedicated tool beats virtui's own XML surgery on whatever else the XML holds. The price is
-`virt-install`, which a host may lack, so the button stays and says to install it: the fix
-remains discoverable. Why `discard=unmap` is still words only: not yet built — the same
-`virt-xml` line would do it. Why a Fix button closes the window rather than re-running the check
+Why free page reporting and `discard=unmap` go through `virt-xml` rather than `dumpxml
+--inactive`, an edit and `define`: a plain `dumpxml` leaves out the VNC/SPICE `passwd=`, and
+defining it back wipes the password; `virt-xml` reads the definition with its secrets
+(`VIR_DOMAIN_XML_SECURE`), and a dedicated tool beats virtui's own XML surgery on whatever else
+the XML holds. The price is `virt-install`, which a host may lack, so the button stays and says
+to install it: the fix remains discoverable. Why a shared disk gets the button too: the edit
+touches only this VM's definition, and each VM sharing the disk has its own. Why a Fix button closes the window rather than re-running the check
 after the fix: a definition edit shows only as a pending note until the power cycle, picking
 Health check again is one keypress, and a window left open would show the fixed finding as
 still wrong.
