@@ -12,8 +12,9 @@ gem 'tty-logger'
 # BackgroundTask specs need, PickerDialog's disabled options (tuile#71), which the power and
 # maintenance menus use, the `@_`-prefixed framework ivars (tuile#69), which let
 # DiskResizeDialog keep its own `@caption`, Dialog's `close_on_key:` (tuile#66), which
-# ProgressDialog's uncancelable dialog uses, and Popup/Window becoming Dialog/Panel, which
-# every dialog here extends, land after 0.17.0 and have no gem yet, so this rides master until
+# ProgressDialog's uncancelable dialog uses, Popup/Window becoming Dialog/Panel, which
+# every dialog here extends, and the wrapping Label with Layout::Auto (tuile#73), which lays out
+# HealthDialog, land after 0.17.0 and have no gem yet, so this rides master until
 # they do — a git source rather than `path: '../tuile'` so CI can resolve it too. To work against
 # the sibling checkout: `bundle config set --local local.tuile ../tuile`.
 gem 'tuile', git: 'https://github.com/mvysny/tuile.git', branch: 'master'

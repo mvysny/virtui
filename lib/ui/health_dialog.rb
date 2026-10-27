@@ -26,11 +26,6 @@ module UI
   #
   # Tab moves between the buttons; PgUp/PgDn, the arrows and the wheel scroll.
   #
-  # == Implementation details
-  # Tuile wraps no text it does not also scroll, so each finding is wrapped here, at the text
-  # column's width, and its row count handed to the layout and the {Tuile::Component::Scroller}
-  # (tuile#73). The bar stays `:visible`, so the width never depends on the row count.
-  #
   # UI-thread-confined.
   class HealthDialog < Tuile::Component::Dialog
     include Tuile
@@ -49,24 +44,14 @@ module UI
     # @return [String]
     NO_VIRT_XML = 'Fix: turn on free page reporting (please install virt-xml for this to work)'
 
-    # The columns a {Tuile::Component::Scroller} keeps for its bar and the gap beside it.
-    # @return [Integer]
-    SCROLLBAR_COLUMNS = 2
-
     # One finding's components.
     # @!attribute [r] finding
     #   @return [Virt::Health::Finding]
-    # @!attribute [r] row
-    #   @return [Tuile::Component::Layout::Horizontal] the head, then the body
     # @!attribute [r] head
     #   @return [Tuile::Component::Label] the mark and the subject
-    # @!attribute [r] body
-    #   @return [Tuile::Component::Layout::Vertical] the text, then the button
     # @!attribute [r] text
     #   @return [Tuile::Component::Label] the finding and its fix, wrapped
-    # @!attribute [r] button
-    #   @return [Tuile::Component::Button, nil]
-    Entry = Data.define(:finding, :row, :head, :body, :text, :button)
+    Entry = Data.define(:finding, :head, :text)
     private_constant :Entry
 
     # @param virt [Virt::Virsh, Virt::VMEmulator] the backend a Fix button runs through
@@ -82,8 +67,7 @@ module UI
       self.content = @scroller
       self.scrollbar = true
       @entries = health.findings.map { add_entry(_1) }
-      @wrapped_at = nil
-      paint_heads
+      paint
     end
 
     # PgUp/PgDn scroll half a page, the arrows a row: the {Tuile::Component::Scroller} claims
@@ -106,16 +90,7 @@ module UI
     # @return [void]
     def handle_theme_changed
       super
-      paint_heads
-      @wrapped_at = nil
-      invalidate_layout
-    end
-
-    # @return [void]
-    def relayout
-      super
-      width = content_rect.width - SCROLLBAR_COLUMNS - head_width
-      wrap(width) unless width == @wrapped_at
+      paint
     end
 
     private
@@ -127,49 +102,35 @@ module UI
     # @return [Entry]
     def add_entry(finding)
       head = Component::Label.new
-      text = Component::Label.new
+      text = Component::Label.new(wrap: true)
       body = Component::Layout::Vertical.new
-      body.add(text)
+      body.add(text, Component::Layout::Auto[])
       caption = FIXES[finding.remedy]
       caption = NO_VIRT_XML if finding.remedy == :free_page_reporting && !@virt.virt_xml_available?
       button = caption && Component::Button.new(caption) { fix(finding.remedy) }
-      body.add(button) if button
+      body.add(button, Component::Layout::Fixed[1]) if button
       row = Component::Layout::Horizontal.new
       row.add(head, Component::Layout::Fixed[head_width])
-      row.add(body, Component::Layout::Expand[1])
-      @rows.add(row)
-      Entry.new(finding, row, head, body, text, button)
+      row.add(body, Component::Layout::Expand[1], cross: Component::Layout::Auto[])
+      @rows.add(row, Component::Layout::Auto[])
+      Entry.new(finding, head, text)
     end
 
+    # Writes the heads and the texts in the current theme's colors.
     # @return [void]
-    def paint_heads
+    def paint
       theme = screen.theme
-      @entries.each { _1.head.text = " #{mark(theme, _1.finding.severity)} #{_1.finding.subject}" }
-    end
-
-    # Wraps every finding at `width` and sizes the rows to it.
-    # @param width [Integer] the text column's; at most 0 leaves the lines unwrapped
-    # @return [void]
-    def wrap(width)
-      @wrapped_at = width
-      theme = screen.theme
-      @scroller.content_rows = @entries.sum do |entry|
+      @entries.each do |entry|
         finding = entry.finding
-        lines = StyledString.parse(finding.text).wrap(width)
-        lines += StyledString.parse(theme.hint(finding.fix)).wrap(width) if finding.fix
-        entry.text.text = lines.map(&:to_ansi).join("\n")
-        entry.body.constrain(entry.text, Component::Layout::Fixed[lines.size])
-        rows = lines.size + (entry.button ? 1 : 0)
-        @rows.constrain(entry.row, Component::Layout::Fixed[rows])
-        rows
+        entry.head.text = " #{mark(theme, finding.severity)} #{finding.subject}"
+        entry.text.text = [finding.text, finding.fix && theme.hint(finding.fix)].compact.join("\n")
       end
     end
 
-    # @param delta [Integer] rows; negative scrolls up
+    # @param delta [Integer] rows; negative scrolls up, and the scroller clamps the bottom
     # @return [void]
     def scroll_by(delta)
-      bottom = [@scroller.content_rows - @scroller.viewport_rows, 0].max
-      @scroller.scroll_top_row = (@scroller.scroll_top_row + delta).clamp(0, bottom)
+      @scroller.scroll_top_row = [@scroller.scroll_top_row + delta, 0].max
     end
 
     # Closes the dialog, which the fix would leave stale, then starts the fix's flow.
