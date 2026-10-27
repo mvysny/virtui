@@ -41,7 +41,7 @@ module Virt
     def initialize(runner: VirshSpawn.new, guest_sampler: nil)
       @runner = runner
       @guest_sampler = guest_sampler
-      # Spawned, for the reason {#domain_config} is: {#guest_storage} runs behind a progress popup.
+      # Spawned, for the reason {#domain_config} is: {#guest_storage} runs behind a progress dialog.
       @spawned_agent = GuestAgent.new(runner: VirshSpawn.new)
       @root_grow = GuestRootGrow.new(runner: VirshSpawn.new, agent: @spawned_agent)
       @sysrq = MagicSysRq.new(runner: @runner)
@@ -143,7 +143,7 @@ module Virt
     #   virsh.domain_config('vt-ubuntu').firmware   # => :uefi
     #
     # A read, yet spawned through {VirshSession#sync}: on the session it would queue behind the
-    # tick's guest-agent calls while the user waits on a progress popup.
+    # tick's guest-agent calls while the user waits on a progress dialog.
     #
     # Never pass `--security-info`: without it libvirt leaves the VNC/SPICE `passwd=` out.
     #

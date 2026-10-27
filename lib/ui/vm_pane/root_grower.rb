@@ -8,7 +8,7 @@ module UI
     #   RootGrower.new(virt_cache.virt, 'vt-ubuntu').start
     #
     # Checks how the root would grow, asks the user to confirm the commands it runs in the
-    # guest, then runs them behind a popup that cannot be canceled and reports the new size.
+    # guest, then runs them behind a progress dialog that cannot be canceled and reports the new size.
     # A guest whose layout or agent will not do gets the reason instead.
     #
     # UI-thread-confined.
@@ -20,7 +20,7 @@ module UI
         @vm = vm
       end
 
-      # Opens the first popup of the flow and returns; the rest follows on the user's answers.
+      # Opens the first dialog of the flow and returns; the rest follows on the user's answers.
       # @return [void]
       def start
         virt = @virt

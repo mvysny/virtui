@@ -82,8 +82,8 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
     attr_reader :volume
 
     # The whole `M` → Resize disk image flow for a stopped VM: reads its disks behind a
-    # progress popup, lets the user pick one when there are several, opens the dialog, then
-    # resizes behind a popup that cannot be canceled and says what is left to do.
+    # progress dialog, lets the user pick one when there are several, opens the dialog, then
+    # resizes behind a progress dialog that cannot be canceled and says what is left to do.
     #
     #   DiskResizeDialog.start(virt_cache.virt, 'vt-ubuntu')
     #

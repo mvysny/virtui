@@ -84,7 +84,7 @@ module UI
       end
 
       # Syncs, remounts read-only and powers off or reboots the VM through magic SysRq, behind
-      # a popup that cannot be canceled: a guest left after U has every filesystem read-only.
+      # a progress dialog that cannot be canceled: a guest left after U has every filesystem read-only.
       #
       # @param reboot [Boolean] B rather than O as the last key
       # @return [void]

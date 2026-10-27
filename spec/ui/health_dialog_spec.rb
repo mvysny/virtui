@@ -68,9 +68,9 @@ module Tuile
                                                        :grow_root)])
       UI::HealthDialog.new(virt, 'Ubuntu', health).open
       Testing.click(Testing.get(Component::Button))
-      confirm = wait_for('the confirmation') { popup_window(Component::ConfirmDialog) }
+      confirm = wait_for('the confirmation') { overlay_of(Component::ConfirmDialog) }
       assert_equal "Grow the root filesystem of 'Ubuntu'?", confirm.caption.to_s
-      assert_nil popup_window(UI::HealthDialog)
+      assert_nil overlay_of(UI::HealthDialog)
     end
 
     it 'turns on free page reporting from its Fix button, once confirmed' do
@@ -78,13 +78,13 @@ module Tuile
                                                        :free_page_reporting)])
       UI::HealthDialog.new(virt, 'BASE', health).open
       Testing.click(Testing.get(Component::Button))
-      confirm = popup_window(Component::ConfirmDialog)
+      confirm = overlay_of(Component::ConfirmDialog)
       assert_includes confirm.message, "virt-xml 'BASE' --edit --memballoon freePageReporting=on"
       Screen.instance.key(Keys::ENTER) # the focused Turn on button
-      done = wait_for('the result') { popup_window(Component::ConfirmDialog) { _1 != confirm } }
+      done = wait_for('the result') { overlay_of(Component::ConfirmDialog) { _1 != confirm } }
       assert_equal "Free page reporting is on for 'BASE'", done.caption.to_s
       assert virt.vm('BASE').free_page_reporting
-      assert_nil popup_window(UI::HealthDialog)
+      assert_nil overlay_of(UI::HealthDialog)
     end
 
     it 'says to install virt-xml when it is missing, on the button and when pressed' do
@@ -95,14 +95,14 @@ module Tuile
       button = Testing.get(Component::Button)
       assert_includes button.caption.to_s, 'please install virt-xml for this to work'
       Testing.click(button)
-      assert_includes popup_window(Component::ConfirmDialog).message, 'sudo apt install virt-install'
+      assert_includes overlay_of(Component::ConfirmDialog).message, 'sudo apt install virt-install'
       refute virt.vm('BASE').free_page_reporting
     end
 
     # @param klass [Class]
     # @yield [window] an extra filter
-    # @return [Component, nil] the topmost open popup that is a `klass`
-    def popup_window(klass, &filter)
+    # @return [Component, nil] the topmost open overlay that is a `klass`
+    def overlay_of(klass, &filter)
       Testing.loop
       Screen.instance.overlays.reverse.find { _1.is_a?(klass) && (filter.nil? || filter.call(_1)) }
     end

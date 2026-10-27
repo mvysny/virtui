@@ -27,7 +27,7 @@ module Virt
   #
   # Never on the UI thread: three RPCs against a sick guest is exactly the stall that must
   # never reach it. The tick polls through the session; a one-off read behind a progress
-  # popup goes through a {VirshSpawn} of its own ({Virsh#guest_storage}).
+  # dialog goes through a {VirshSpawn} of its own ({Virsh#guest_storage}).
   class GuestAgent
     # The guest file the swap level is read from.
     MEMINFO_PATH = '/proc/meminfo'

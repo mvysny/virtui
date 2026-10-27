@@ -183,7 +183,7 @@ module UI
       end
     end
 
-    # Asks the user to confirm the definition edit, then makes it behind a popup.
+    # Asks the user to confirm the definition edit, then makes it behind a progress dialog.
     # @return [void]
     def turn_on_free_page_reporting
       virt = @virt

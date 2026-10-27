@@ -8,8 +8,8 @@ module UI
   #                 .run { |ip| Tuile::Component::ConfirmDialog.alert(vm, ip.to_s) }
   #
   # The constructor's block runs on a fresh thread; {#run}'s block runs on the UI thread once
-  # the popup has closed, so it may open a popup of its own. When the work raises a
-  # `StandardError`, the popup gives way to a "… failed" alert instead, and {#run}'s block
+  # the progress dialog has closed, so it may open a dialog of its own. When the work raises a
+  # `StandardError`, the progress dialog gives way to a "… failed" alert instead, and {#run}'s block
   # never runs.
   #
   # ESC cancels: the result is dropped, and a later error is only logged. Work that takes a
@@ -18,7 +18,7 @@ module UI
   #   BackgroundTask.new('Reading the VMs') { |cancel| vms.map { cancel.check_canceled; virt.guest_os(_1) } }
   #
   # Work that must not be abandoned halfway — what the user would read as "canceled" while it
-  # runs on — opts out; the popup then ignores ESC and `q`, and the work's {Cancellation} is
+  # runs on — opts out; the progress dialog then ignores ESC and `q`, and the work's {Cancellation} is
   # never canceled:
   #
   #   BackgroundTask.new('Resizing vda', cancelable: false) { virt.resize_volume(path, size) }
@@ -33,10 +33,10 @@ module UI
   # UI-thread-confined.
   class BackgroundTask
     # @param caption [String] what the work does, e.g. "Reading web01's definition"; shown
-    #   in the progress popup and in the failure alert's title
+    #   in the progress dialog and in the failure alert's title
     # @param cancelable [Boolean] whether ESC and `q` cancel the work
     # @yield [cancel] the work, run on a fresh thread
-    # @yieldparam cancel [Cancellation] canceled once the user dismisses the popup
+    # @yieldparam cancel [Cancellation] canceled once the user dismisses the progress dialog
     # @yieldreturn [Object] the result handed to {#run}'s block
     # @raise [ArgumentError] without a block
     def initialize(caption, cancelable: true, &work)
@@ -46,11 +46,11 @@ module UI
       @cancelable = cancelable
       @work = work
       @cancellation = Cancellation.new
-      @popup = nil
+      @dialog = nil
     end
 
-    # Opens the progress popup and starts the work. Runs once per task.
-    # @yield [result] on the UI thread, after the popup has closed, unless the work failed
+    # Opens the progress dialog and starts the work. Runs once per task.
+    # @yield [result] on the UI thread, after the progress dialog has closed, unless the work failed
     #   or was canceled
     # @yieldparam result [Object] what the work returned
     # @return [Thread] the worker; nothing but a spec needs it
@@ -62,12 +62,12 @@ module UI
 
       screen = Tuile::Screen.instance
       screen.check_locked
-      raise "#{@caption}: a BackgroundTask runs once" unless @popup.nil?
+      raise "#{@caption}: a BackgroundTask runs once" unless @dialog.nil?
 
-      @popup = ProgressDialog.new(@caption, cancelable: @cancelable).open
+      @dialog = ProgressDialog.new(@caption, cancelable: @cancelable).open
       # Fires on every close, finish's and report_failure's own included, so both read
       # canceled? before closing.
-      @popup.on_close { @cancellation.cancel }
+      @dialog.on_close { @cancellation.cancel }
       Thread.new { run_work(screen.event_queue, on_done) }
     end
 
@@ -97,7 +97,7 @@ module UI
     def finish(result, on_done)
       return if @cancellation.canceled?
 
-      @popup.close
+      @dialog.close
       on_done.call(result)
     end
 
@@ -109,7 +109,7 @@ module UI
         return
       end
 
-      @popup.close
+      @dialog.close
       $log.error("#{@caption} failed", error)
       Tuile::Component::ConfirmDialog.alert("#{@caption} failed", error.message)
     end

@@ -549,7 +549,7 @@ a `Window#frame = false` mode. Why not that frameless `Window` upstream: once th
 keeps the class for its name — and against tuile 0.13 everything the frame seemed to carry was
 already elsewhere: `List`/`TextView` own their scrollbars, `Screen#focused=` sets `active` on
 every ancestor so a `Layout` pane reads focus-within for free, and `List` paints its whole rect
-so click-to-focus lands. Why not the search field as a popup or overlay, the design's first pick
+so click-to-focus lands. Why not the search field as an overlay, the design's first pick
 for the screen's own focus repair: a `Dialog` is modal — anchoring one under the pane is only an
 `Overlay::At` placement now, but the list behind it stops taking keys — while tuile explicitly
 forbids the lighter shape, a focusable non-modal `Overlay` — every keystroke goes dead until
@@ -592,7 +592,7 @@ terminals; HSL ΔL is not perceptually uniform, and OKLab is the upgrade if the 
 reads weaker than the light one. Symbolic ANSI tokens can never be guarded — only the terminal
 knows their RGB.
 
-## D_background_task — Why does a key that needs a fresh read run it in a worker thread behind a modal popup rather than on the UI thread or the next tick?
+## D_background_task — Why does a key that needs a fresh read run it in a worker thread behind a modal dialog rather than on the UI thread or the next tick?
 
 Some keys need a backend read nobody polls — the `i` info window wants `virsh dumpxml` as of
 the keypress. On the UI thread the read freezes the screen, and through the session it can wait
@@ -610,7 +610,7 @@ in one state (in virt-manager, with the VM shut off) would go unseen until the n
 The window's OS line comes from that same fresh XML, so it can disagree with the row's glyph,
 whose memo never expires (`D_guest_os_from_xml`).
 
-Cancel is cooperative. ESC closes the popup, whose `on_close` cancels the task's `Cancellation`;
+Cancel is cooperative. ESC closes the progress dialog, whose `on_close` cancels the task's `Cancellation`;
 the work checks it between steps, waits on it (`#sleep`, `#join`), or hands it to `Run.sync`,
 which then stops and reaps its child. Why not `Thread#kill` or `Thread#raise`: either lands
 mid-`Open3` — the child is orphaned, or `popen_run`'s `ensure` waits for it anyway. Why not a
@@ -626,7 +626,7 @@ The flag is a `Concurrent::Event` rather than an atomic boolean because a wait c
 
 Specs join the worker, then play the loop turn with Tuile's `Testing.loop`. Why not an injected
 executor, inline in specs: a knob only tests use, and the hand-off between threads — the point
-of the class — would go untested. What we carry: on a 50 ms read the popup shows for a frame
+of the class — would go untested. What we carry: on a 50 ms read the dialog shows for a frame
 before the result replaces it, accepted until it bites; the task has no timeout, since the work
 owns its own; and it reaches nothing of virtui but `$log`, because once a caller has shaped it,
 `BackgroundTask` moves to Tuile with `Cancellation`.
@@ -655,9 +655,9 @@ which works on a running VM and needs no pool: it shrinks without a word, where 
 refuses a shrink unless given `--shrink`, which virtui never passes, and one path is half the
 code — a running VM is turned away before anything is read. Why not check the state again
 just before the resize: QEMU's image lock already fails it for a VM started meanwhile. Why no
-cancel: nothing kills libvirtd's `qemu-img` once `virsh` has asked, so ESC would close the popup
-on a resize still running — `UI::BackgroundTask`'s `cancelable: false` makes the popup ignore
-ESC and `q`, and the modal popup keeps virtui's own quit key from reaching the app.
+cancel: nothing kills libvirtd's `qemu-img` once `virsh` has asked, so ESC would close the progress dialog
+on a resize still running — `UI::BackgroundTask`'s `cancelable: false` makes the dialog ignore
+ESC and `q`, and the modal dialog keeps virtui's own quit key from reaching the app.
 
 ## D_guest_root_grow — Why may virtui run commands in a guest to grow its root filesystem, when the agent is otherwise read-only?
 
@@ -718,7 +718,7 @@ mapper's 0 is blamed on the lowest layer: an LVM volume inherits it from the LUK
 `Finding#fix` is words for every finding: a command, or the `M` item to pick. A fix virtui runs
 itself also names a `remedy`, which the window shows as a Fix button: Grow root filesystem, and
 free page reporting. Why a Symbol and not a block on `Finding`: the fixes are UI flows (a
-confirmation, a progress popup) that `lib/virt/` may not reach, a backend block would still
+confirmation, a progress dialog) that `lib/virt/` may not reach, a backend block would still
 need a `BackgroundTask` from the UI, and a Proc breaks the `Data`'s equality in specs.
 
 Why free page reporting goes through `virt-xml` rather than `dumpxml --inactive`, an edit and

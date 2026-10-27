@@ -20,9 +20,9 @@ module Tuile
     def type(text) = text.each_char { Screen.instance.key(_1) }
 
     # @return [Array<String>] the window's painted rows
-    def painted(popup)
+    def painted(dialog)
       Screen.instance.repaint
-      Screen.instance.buffer.region_text(popup.absolute_rect)
+      Screen.instance.buffer.region_text(dialog.absolute_rect)
     end
 
     # Runs the event loop until the block answers something truthy.
@@ -36,7 +36,7 @@ module Tuile
       found
     end
 
-    def popup_of(klass) = Screen.instance.overlays.find { _1.is_a?(klass) }
+    def overlay_of(klass) = Screen.instance.overlays.find { _1.is_a?(klass) }
 
     context 'parse_size' do
       def parse(text, current = 14.GiB) = UI::DiskResizeDialog.parse_size(text, current)
@@ -65,7 +65,7 @@ module Tuile
     end
 
     it 'shows the image and says what the typed size comes to' do
-      popup = UI::DiskResizeDialog.new('vt-ubuntu', 'vda', volume) { flunk 'resized' }.open
+      dialog = UI::DiskResizeDialog.new('vt-ubuntu', 'vda', volume) { flunk 'resized' }.open
       type('+10G')
       assert_equal ["┌Resize vt-ubuntu's vda────────────────────────────┐",
                     '│Image     /var/lib/libvirt/images/vt-ubuntu.qcow2 │',
@@ -75,42 +75,42 @@ module Tuile
                     '│New size  +10G                                    │',
                     '│          → 24G                                   │',
                     '└Enter to resize · ESC to cancel───────────────────┘'],
-                   painted(popup)
+                   painted(dialog)
     end
 
     it 'warns when the growth is more than the pool holds, and says why a size will not do' do
-      popup = UI::DiskResizeDialog.new('vt-ubuntu', 'vda', volume) { flunk 'resized' }.open
+      dialog = UI::DiskResizeDialog.new('vt-ubuntu', 'vda', volume) { flunk 'resized' }.open
       type('+100G')
-      assert_includes painted(popup)[6], "→ 114G — more than the pool's 89G free"
-      Screen.instance.key(Keys::BACKSPACE) until popup.field.text.empty?
+      assert_includes painted(dialog)[6], "→ 114G — more than the pool's 89G free"
+      Screen.instance.key(Keys::BACKSPACE) until dialog.field.text.empty?
       type('10G')
-      assert_includes painted(popup)[6], 'grows only: 14G is its size now'
+      assert_includes painted(dialog)[6], 'grows only: 14G is its size now'
     end
 
     it 'hands the size on Enter and closes; refuses Enter on a bad size; ESC closes' do
       got = nil
-      popup = UI::DiskResizeDialog.new('vt-ubuntu', 'vda', volume) { got = _1 }.open
+      dialog = UI::DiskResizeDialog.new('vt-ubuntu', 'vda', volume) { got = _1 }.open
       type('10G')
       Screen.instance.key(Keys::ENTER)
-      assert popup.open?
-      Screen.instance.key(Keys::BACKSPACE) until popup.field.text.empty?
+      assert dialog.open?
+      Screen.instance.key(Keys::BACKSPACE) until dialog.field.text.empty?
       type('+1G')
       Screen.instance.key(Keys::ENTER)
-      refute popup.open?
+      refute dialog.open?
       assert_equal 15.GiB, got
 
-      popup = UI::DiskResizeDialog.new('vt-ubuntu', 'vda', volume) { flunk 'resized' }.open
+      dialog = UI::DiskResizeDialog.new('vt-ubuntu', 'vda', volume) { flunk 'resized' }.open
       Screen.instance.key(Keys::ESC)
-      refute popup.open?
+      refute dialog.open?
     end
 
     it 'start resizes a stopped VM end to end, then says the guest is still to do' do
       virt = Virt::VMEmulator.demo
       UI::DiskResizeDialog.start(virt, 'Fedora')
-      wait_for('the resize dialog') { popup_of(UI::DiskResizeDialog) }
+      wait_for('the resize dialog') { overlay_of(UI::DiskResizeDialog) }
       type('+10G')
       Screen.instance.key(Keys::ENTER)
-      alert = wait_for('the done alert') { popup_of(Component::ConfirmDialog) }
+      alert = wait_for('the done alert') { overlay_of(Component::ConfirmDialog) }
       assert_equal "Fedora's vda is now 138G", alert.caption.to_s
       assert_equal 138.GiB, virt.vm('Fedora').disk_capacity
     end
@@ -118,10 +118,10 @@ module Tuile
     it 'start shows what libvirt refused, and resizes nothing' do
       virt = Virt::VMEmulator.demo
       UI::DiskResizeDialog.start(virt, 'Ubuntu') # running: QEMU holds the image's lock
-      wait_for('the resize dialog') { popup_of(UI::DiskResizeDialog) }
+      wait_for('the resize dialog') { overlay_of(UI::DiskResizeDialog) }
       type('+10G')
       Screen.instance.key(Keys::ENTER)
-      alert = wait_for('the failure alert') { popup_of(Component::ConfirmDialog) }
+      alert = wait_for('the failure alert') { overlay_of(Component::ConfirmDialog) }
       assert_equal "Resizing Ubuntu's vda to 138G failed", alert.caption.to_s
       assert_includes alert.message, 'Failed to get "write" lock'
       assert_equal 128.GiB, virt.vm('Ubuntu').disk_capacity

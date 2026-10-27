@@ -102,11 +102,11 @@ module Tuile
       assert_includes text, '  The guest did not say how its disks are laid out: Guest agent is not responding'
     end
 
-    it 'opens as a popup titled with the VM' do
+    it 'opens as an overlay titled with the VM' do
       Screen.instance.content = Component::Label.new
-      popup = UI::VMInfoDialog.new(config('vt-bios')).open
-      assert_equal [popup], Screen.instance.overlays
-      assert_equal 'vt-bios', popup.caption.to_s
+      dialog = UI::VMInfoDialog.new(config('vt-bios')).open
+      assert_equal [dialog], Screen.instance.overlays
+      assert_equal 'vt-bios', dialog.caption.to_s
     end
   end
 end

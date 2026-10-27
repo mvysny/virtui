@@ -14,8 +14,8 @@ module Tuile
     # Holds the work back until the spec has done what it needs while the task runs.
     let(:gate) { Queue.new }
 
-    # @return [Tuile::Component::Overlay, nil] the open progress popup
-    def progress_popup = Screen.instance.overlays.find { _1.is_a?(UI::ProgressDialog) }
+    # @return [Tuile::Component::Overlay, nil] the open progress dialog
+    def progress_dialog = Screen.instance.overlays.find { _1.is_a?(UI::ProgressDialog) }
 
     # @return [Tuile::Component::ConfirmDialog, nil] the open failure alert
     def alert = Screen.instance.overlays.find { _1.is_a?(Component::ConfirmDialog) }
@@ -37,22 +37,22 @@ module Tuile
       Testing.loop
     end
 
-    it 'shows the progress popup while the work runs, then hands the result to the UI thread' do
+    it 'shows the progress dialog while the work runs, then hands the result to the UI thread' do
       got = nil
       task = UI::BackgroundTask.new('Reading web01') do
         gate.pop
         'xml'
       end
       thread = task.run { |r| got = [r, Thread.current, Screen.instance.overlays.dup] }
-      assert progress_popup
+      assert progress_dialog
       release(thread)
-      assert_equal ['xml', Thread.current, []], got, 'the popup closes before the result block runs'
+      assert_equal ['xml', Thread.current, []], got, 'the progress dialog closes before the result block runs'
     end
 
     it 'turns a failure into an alert and logs it, and never calls the result block' do
       thread = failing_task.run { flunk 'the result block ran after a failure' }
       release(thread)
-      assert_nil progress_popup
+      assert_nil progress_dialog
       assert_equal 'Reading web01 failed', alert.caption.to_s
       assert_equal 'no domain web01', alert.message
       assert_includes @log.string, 'Reading web01 failed'
@@ -62,7 +62,7 @@ module Tuile
       thread = UI::BackgroundTask.new('Reading web01') { gate.pop }
                                  .run { flunk 'the result of a canceled task was delivered' }
       Screen.instance.key(Keys::ESC)
-      assert_nil progress_popup
+      assert_nil progress_dialog
       release(thread)
     end
 
@@ -72,7 +72,7 @@ module Tuile
                                  .run { got = _1 }
       Screen.instance.key(Keys::ESC)
       Screen.instance.key('q')
-      assert progress_popup
+      assert progress_dialog
       release(thread)
       assert_equal [:go, false], got
     end

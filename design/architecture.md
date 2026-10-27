@@ -52,7 +52,7 @@ and memory commands, but only through `sync` / `async`, which spawn their own pr
 on the UI thread calls `query`. That is the reason for the split: `Virt::VirshSession`
 serialises reads behind one mutex and one child, so a read from the UI thread would block the
 screen on a slow guest. A key that needs a *read* hands it to a **background task**
-(`UI::BackgroundTask`): a worker thread behind a modal progress popup, reading through a
+(`UI::BackgroundTask`): a worker thread behind a modal progress dialog, reading through a
 spawned process — never the session, whose mutex would queue it behind the tick's guest-agent
 RPCs — and submitting its result to the UI thread the same way. ESC cancels the task's
 `Cancellation`, which the worker checks between steps and `Run.sync` honours by stopping its
@@ -93,7 +93,7 @@ deadline; all others are UI-thread-confined).
 **An info key** (UI thread, then a worker):
 
 1. `UI::VMPane#handle_key?` sees `i`; `UI::VMInfoDialog.start` starts a `UI::BackgroundTask` and
-   the progress popup opens.
+   the progress dialog opens.
 2. On the worker, `Virsh#domain_config` → `runner.sync('dumpxml', name)`, a process of its own
    even though it is a read → `Virt::DomainConfig.from_xml`.
 3. Back on the UI thread, `UI::VMInfoDialog.new(config, disk_stats).open` with the disk capacities

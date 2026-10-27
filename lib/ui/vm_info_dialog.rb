@@ -57,7 +57,7 @@ module UI
       rebuild
     end
 
-    # The whole `i` flow: reads the VM's definition behind a progress popup, fresh on every
+    # The whole `i` flow: reads the VM's definition behind a progress dialog, fresh on every
     # press so the dialog never shows a definition older than the keypress
     # (design/decisions.md D_background_task), then opens the dialog.
     #
