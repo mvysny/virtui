@@ -14,11 +14,11 @@ module Tuile
     # Holds the work back until the spec has done what it needs while the task runs.
     let(:gate) { Queue.new }
 
-    # @return [Tuile::Component::Popup, nil] the open progress popup
-    def progress_popup = Screen.instance.popups.find { _1.is_a?(UI::ProgressDialog) }
+    # @return [Tuile::Component::Overlay, nil] the open progress popup
+    def progress_popup = Screen.instance.overlays.find { _1.is_a?(UI::ProgressDialog) }
 
     # @return [Tuile::Component::ConfirmDialog, nil] the open failure alert
-    def alert = Screen.instance.popups.find { _1.is_a?(Component::ConfirmDialog) }
+    def alert = Screen.instance.overlays.find { _1.is_a?(Component::ConfirmDialog) }
 
     # @return [UI::BackgroundTask] a task whose work raises once the gate opens
     def failing_task
@@ -43,7 +43,7 @@ module Tuile
         gate.pop
         'xml'
       end
-      thread = task.run { |r| got = [r, Thread.current, Screen.instance.popups.dup] }
+      thread = task.run { |r| got = [r, Thread.current, Screen.instance.overlays.dup] }
       assert progress_popup
       release(thread)
       assert_equal ['xml', Thread.current, []], got, 'the popup closes before the result block runs'
@@ -88,7 +88,7 @@ module Tuile
       Screen.instance.key(Keys::ESC)
       release(thread)
       refute reached, 'the work went on past its check'
-      assert_empty Screen.instance.popups
+      assert_empty Screen.instance.overlays
       assert_includes @log.string, 'Reading web01: canceled'
     end
 
@@ -96,7 +96,7 @@ module Tuile
       thread = failing_task.run { nil }
       Screen.instance.key(Keys::ESC)
       release(thread)
-      assert_empty Screen.instance.popups
+      assert_empty Screen.instance.overlays
       assert_includes @log.string, 'Reading web01 failed after it was canceled'
     end
 

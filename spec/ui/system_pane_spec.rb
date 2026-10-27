@@ -31,7 +31,7 @@ module Tuile
 
     # The plain (unstyled) text of the currently-open {UI::CpuFlagsDialog} popup.
     def help_text
-      Screen.instance.popups[0].content.text.to_s
+      Screen.instance.overlays[0].content.text.to_s
     end
 
     it 'smokes' do
@@ -61,7 +61,7 @@ module Tuile
       it 'opens on h and explains the present flags' do
         w = window_for(cpu_flags: %w[vmx ept tsc_deadline_timer pcid vpid invpcid pdpe1gb xsaveopt])
         w.handle_key?('h')
-        popups = Screen.instance.popups
+        popups = Screen.instance.overlays
         assert_equal 1, popups.length
         assert_equal UI::CpuFlagsDialog, popups[0].class
         %w[vmx ept tsc_deadline_timer pcid vpid invpcid pdpe1gb xsave].each { |f| assert help_text.include?(f), help_text }

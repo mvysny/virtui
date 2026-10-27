@@ -104,7 +104,7 @@ module Tuile
     # @return [Component, nil] the topmost open popup that is a `klass`
     def popup_window(klass, &filter)
       Testing.loop
-      Screen.instance.popups.reverse.find { _1.is_a?(klass) && (filter.nil? || filter.call(_1)) }
+      Screen.instance.overlays.reverse.find { _1.is_a?(klass) && (filter.nil? || filter.call(_1)) }
     end
 
     # Runs the event loop until the block answers, for a result a {UI::BackgroundTask} hands

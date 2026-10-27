@@ -58,7 +58,7 @@ module Tuile
     it 'opens sized SIZE' do
       Screen.instance.content = Component::Label.new
       popup = UI::CpuFlagsDialog.new(%w[svm npt].to_set).open
-      assert_equal [popup], Screen.instance.popups
+      assert_equal [popup], Screen.instance.overlays
       assert_equal UI::CpuFlagsDialog::SIZE, popup.declared_size
     end
   end

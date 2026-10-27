@@ -36,7 +36,7 @@ module Tuile
       found
     end
 
-    def popup_of(klass) = Screen.instance.popups.find { _1.is_a?(klass) }
+    def popup_of(klass) = Screen.instance.overlays.find { _1.is_a?(klass) }
 
     context 'parse_size' do
       def parse(text, current = 14.GiB) = UI::DiskResizeDialog.parse_size(text, current)

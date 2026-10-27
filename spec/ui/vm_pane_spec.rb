@@ -37,7 +37,7 @@ module Tuile
     end
 
     # @return [Array<Tuile::Component>] what the open popups hold
-    def popup_contents = Screen.instance.popups
+    def popup_contents = Screen.instance.overlays
 
     # @param health [UI::HealthDialog]
     # @return [String] its labels' text, a label per line, unwrapped back into one
@@ -46,7 +46,7 @@ module Tuile
     end
 
     # The PickerDialog of whatever popup is currently open, or nil.
-    def picker = Screen.instance.popups.find { |c| c.is_a?(Component::PickerDialog) }
+    def picker = Screen.instance.overlays.find { |c| c.is_a?(Component::PickerDialog) }
 
     # Moves the cursor to `pos`, opens the `menu` popup (p/m), picks `option`, and returns
     # everything logged while doing so.
@@ -179,13 +179,13 @@ module Tuile
 
     it 'show_power_popup opens picker' do
       window.handle_key?('p')
-      assert(Screen.instance.popups.any?(Component::PickerDialog))
+      assert(Screen.instance.overlays.any?(Component::PickerDialog))
     end
 
     it 'show_memory_popup opens picker for running VM' do
       window.list.cursor.go(4) # Ubuntu is running
       window.handle_key?('m')
-      assert(Screen.instance.popups.any?(Component::PickerDialog))
+      assert(Screen.instance.overlays.any?(Component::PickerDialog))
     end
 
     context('cursor movement') do
@@ -306,7 +306,7 @@ module Tuile
           flunk 'the info window never opened' if Time.now > deadline
           Thread.pass
           Testing.loop
-          info = Screen.instance.popups.find { _1.is_a?(UI::VMInfoDialog) }
+          info = Screen.instance.overlays.find { _1.is_a?(UI::VMInfoDialog) }
         end
         text = info.instance_variable_get(:@view).text.to_s
         assert_includes text, 'UEFI, Secure Boot'

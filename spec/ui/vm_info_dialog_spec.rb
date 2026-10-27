@@ -105,7 +105,7 @@ module Tuile
     it 'opens as a popup titled with the VM' do
       Screen.instance.content = Component::Label.new
       popup = UI::VMInfoDialog.new(config('vt-bios')).open
-      assert_equal [popup], Screen.instance.popups
+      assert_equal [popup], Screen.instance.overlays
       assert_equal 'vt-bios', popup.caption.to_s
     end
   end
