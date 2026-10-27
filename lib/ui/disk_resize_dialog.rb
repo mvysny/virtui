@@ -4,7 +4,7 @@ module UI
   # The `M` → Resize disk image dialog: asks for one stopped VM's disk's new size, and hands
   # it to a block on Enter.
   #
-  #   DiskResizeWindow.open('vt-ubuntu', 'vda', volume) { |capacity| resize(capacity) }
+  #   DiskResizeDialog.new('vt-ubuntu', 'vda', volume) { |capacity| resize(capacity) }.open
   #
   #   ┌Resize vt-ubuntu's vda─────────────────────────────────┐
   #   │Image     /var/lib/libvirt/images/vt-ubuntu.qcow2      │
@@ -21,21 +21,8 @@ module UI
   # until the guest writes.
   #
   # UI-thread-confined.
-  class DiskResizeWindow < Tuile::Component::Window
+  class DiskResizeDialog < Tuile::Component::Dialog
     include Tuile
-
-    # What {#on_submit} fires.
-    #
-    # @!attribute [r] source
-    #   @return [DiskResizeWindow] the dialog submitted.
-    SubmitEvent = Data.define(:source) { include Tuile::Event }
-
-    # @!method on_submit
-    #   Fired with a {SubmitEvent} on Enter with a valid size, before the block runs. The
-    #   {Tuile::Component::Popup} returned by {.open} registers its own `close`; the dialog
-    #   never closes what it is mounted in (tuile#68).
-    #   @return [Tuile::Listeners]
-    listener :on_submit
 
     # The caption column, `New size` plus two spaces.
     CAPTION_WIDTH = 10
@@ -56,17 +43,20 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
     # @param vm [String] the VM's name
     # @param target [String] the disk's target, e.g. `vda`
     # @param volume [Virt::Volume] the disk's image
-    # @yield [capacity] on Enter with a valid size, after {#on_submit}
+    # @yield [capacity] on Enter with a valid size, once the dialog has closed
     # @yieldparam capacity [Integer] the new size, in bytes
     # @raise [ArgumentError] without a block
     def initialize(vm, target, volume, &on_resize)
       raise ArgumentError, 'block required' unless on_resize
 
-      super("Resize #{vm}'s #{target}")
+      # The border, plus a spare column so the path does not touch it.
+      width = (volume.path.length + CAPTION_WIDTH + 3).clamp(MIN_WIDTH..)
+      super("Resize #{vm}'s #{target}", declared_size: Size.new(width, HEIGHT),
+                                        footer_text: 'Enter to resize · ESC to cancel')
       @volume = volume
       @on_resize = on_resize
       @field = Component::TextField.new
-      # ESC goes on to the popup, which closes, rather than merely blurring the field.
+      # ESC goes on to the dialog, which closes, rather than merely blurring the field.
       @field.escape_clears_focus = false
       @field.value_change_mode = :eager
       @field.on_value_change { show_outcome }
@@ -82,7 +72,6 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
       box.add(row, Component::Layout::Fixed[1])
       box.add(@outcome, Component::Layout::Fixed[1])
       self.content = box
-      self.footer_text = 'Enter to resize · ESC to cancel'
       rebuild
     end
 
@@ -92,29 +81,11 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
     # @return [Virt::Volume] the image being resized
     attr_reader :volume
 
-    # Opens the dialog as a modal popup, the size field focused.
-    #
-    # @param vm [String] see {#initialize}
-    # @param target [String] see {#initialize}
-    # @param volume [Virt::Volume] see {#initialize}
-    # @yield [capacity] see {#initialize}; the popup has closed by then
-    # @return [Tuile::Component::Popup] the opened popup
-    def self.open(vm, target, volume, &)
-      window = new(vm, target, volume, &)
-      # The border, plus a spare column so the path does not touch it.
-      width = (window.volume.path.length + CAPTION_WIDTH + 3).clamp(MIN_WIDTH..)
-      popup = Component::Popup.new(content: window, declared_size: Size.new(width, HEIGHT))
-      window.on_submit { popup.close }
-      popup.open
-      window.field.focus
-      popup
-    end
-
     # The whole `M` → Resize disk image flow for a stopped VM: reads its disks behind a
     # progress popup, lets the user pick one when there are several, opens the dialog, then
     # resizes behind a popup that cannot be canceled and says what is left to do.
     #
-    #   DiskResizeWindow.start(virt_cache.virt, 'vt-ubuntu')
+    #   DiskResizeDialog.start(virt_cache.virt, 'vt-ubuntu')
     #
     # Offers the file-backed disks in a storage pool; a disk in none gets the command to run by
     # hand instead, since virtui does not escalate.
@@ -139,18 +110,18 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
       pooled = disks.reject { _1[1].nil? }
       if pooled.empty?
         message = disks.map { "#{_1[0].target} is in no storage pool: with #{vm} stopped, sudo qemu-img resize #{_1[0].source} <size>" }
-        Component::ConfirmWindow.alert("#{vm}: nothing to resize",
+        Component::ConfirmDialog.alert("#{vm}: nothing to resize",
                                        message.empty? ? "#{vm} has no disk image file." : message.join("\n"))
         return
       end
 
-      open_for = ->((disk, volume)) { self.open(vm, disk.target, volume) { resize(virt, vm, disk.target, volume, _1) } }
+      open_for = ->((disk, volume)) { new(vm, disk.target, volume) { resize(virt, vm, disk.target, volume, _1) }.open }
       return open_for.call(pooled.first) if pooled.size == 1
 
       options = pooled.each_with_index.map do |(disk, volume), i|
         [(i + 1).to_s, "#{disk.target}  #{format_byte_size(volume.capacity)}  #{volume.path}"]
       end
-      Component::PickerWindow.new('Which disk?', options) { open_for.call(pooled[_1.to_i - 1]) }.open_in_popup
+      Component::PickerDialog.new('Which disk?', options) { open_for.call(pooled[_1.to_i - 1]) }.open
     end
 
     # @param virt [Virt::Virsh, Virt::VMEmulator]
@@ -165,14 +136,14 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
       task = BackgroundTask.new("Resizing #{vm}'s #{target} to #{size}", cancelable: false) do
         virt.resize_volume(volume.path, capacity)
       end
-      task.run { Component::ConfirmWindow.alert("#{vm}'s #{target} is now #{size}", GUEST_HINT) }
+      task.run { Component::ConfirmDialog.alert("#{vm}'s #{target} is now #{size}", GUEST_HINT) }
     end
 
     # Reads a typed size: `+10G` grows by 10 GiB, `20G` asks for 20 GiB.
     #
-    #   DiskResizeWindow.parse_size('+10G', 14.GiB)   # => 24 GiB
-    #   DiskResizeWindow.parse_size('1.5T', 14.GiB)   # => 1.5 TiB
-    #   DiskResizeWindow.parse_size('10G', 14.GiB)    # raises: grows only
+    #   DiskResizeDialog.parse_size('+10G', 14.GiB)   # => 24 GiB
+    #   DiskResizeDialog.parse_size('1.5T', 14.GiB)   # => 1.5 TiB
+    #   DiskResizeDialog.parse_size('10G', 14.GiB)    # raises: grows only
     #
     # Units are binary, as everywhere on screen: `K`, `M`, `G`, `T`, optionally `iB`, any case.
     # A bare number is refused rather than read as bytes, which is what `virsh` would make of
@@ -235,7 +206,7 @@ filesystem at the next boot; otherwise start the VM and grow it with M, Grow roo
       end
       return if capacity.nil?
 
-      on_submit.fire(SubmitEvent.new(source: self))
+      close
       @on_resize.call(capacity)
     end
 

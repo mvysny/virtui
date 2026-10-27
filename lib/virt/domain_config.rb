@@ -11,7 +11,7 @@ module Virt
   #   config.balloon.free_page_reporting   # => true
   #
   # Values (bytes, symbols, paths, libvirt's own model names), never display strings; how
-  # they look is {UI::VMInfoWindow}'s business.
+  # they look is {UI::VMInfoDialog}'s business.
   #
   # A running domain's XML is the *live* one, with assigned ports and the agent channel's
   # state; a shut-off domain's is the persistent one, with neither. What libvirt prints in

@@ -18,7 +18,7 @@ module Virt
   # reads happen only for `/dev/…` partitions, so a guest without Linux device names is asked
   # for no Linux file.
   #
-  # Values in bytes, never display strings; how they look is {UI::VMInfoWindow}'s business.
+  # Values in bytes, never display strings; how they look is {UI::VMInfoDialog}'s business.
   #
   # @!attribute [r] disks
   #   @return [Array<Disk>] the guest's whole disks that map to a host target, in guestinfo's order

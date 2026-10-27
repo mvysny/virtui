@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 module UI
-  # The `M` → Health check popup of {VMPane}: one row per {Virt::Health::Finding}, its fix in
+  # The `M` → Health check dialog of {VMPane}: one row per {Virt::Health::Finding}, its fix in
   # hint color beneath, and a Fix button under a finding whose fix virtui can run itself:
   #
-  #   HealthWindow.open(virt, 'vt-ubuntu', virt.health('vt-ubuntu'))
+  #   HealthDialog.new(virt, 'vt-ubuntu', virt.health('vt-ubuntu')).open
   #
   #   ┌vt-ubuntu health────────────────────────────────────────────────┐
   #   │ · balloon  virtio, no free page reporting: memory the guest    █
@@ -32,10 +32,10 @@ module UI
   # (tuile#73). The bar stays `:visible`, so the width never depends on the row count.
   #
   # UI-thread-confined.
-  class HealthWindow < Tuile::Component::Window
+  class HealthDialog < Tuile::Component::Dialog
     include Tuile
 
-    # Like {VMInfoWindow::SIZE}, shorter: a VM with a handful of disks runs to ~15 rows.
+    # Like {VMInfoDialog::SIZE}, shorter: a VM with a handful of disks runs to ~15 rows.
     # @return [Fraction]
     SIZE = Fraction.new(0.7, 0.6)
 
@@ -73,7 +73,7 @@ module UI
     # @param vm [String] VM name
     # @param health [Virt::Health]
     def initialize(virt, vm, health)
-      super("#{vm} health")
+      super("#{vm} health", declared_size: SIZE, footer_text: 'q/ESC to close')
       @virt = virt
       @vm = vm
       @subject_width = health.findings.map { _1.subject.length }.max.to_i
@@ -81,20 +81,9 @@ module UI
       @scroller = Component::Scroller.new(@rows)
       self.content = @scroller
       self.scrollbar = true
-      self.footer_text = 'q/ESC to close'
       @entries = health.findings.map { add_entry(_1) }
       @wrapped_at = nil
       paint_heads
-    end
-
-    # Opens the window as a modal popup, sized {SIZE}.
-    #
-    # @param virt [Virt::Virsh, Virt::VMEmulator] the backend
-    # @param vm [String] VM name
-    # @param health [Virt::Health]
-    # @return [Tuile::Component::Popup] the opened popup
-    def self.open(virt, vm, health)
-      Tuile::Component::Popup.new(content: new(virt, vm, health), declared_size: SIZE).open
     end
 
     # PgUp/PgDn scroll half a page, the arrows a row: the {Tuile::Component::Scroller} claims
@@ -183,11 +172,11 @@ module UI
       @scroller.scroll_top_row = (@scroller.scroll_top_row + delta).clamp(0, bottom)
     end
 
-    # Closes the window, which the fix would leave stale, then starts the fix's flow.
+    # Closes the dialog, which the fix would leave stale, then starts the fix's flow.
     # @param remedy [Symbol] one of {FIXES}' keys
     # @return [void]
     def fix(remedy)
-      parent.close if parent.is_a?(Component::Popup)
+      close
       case remedy
       when :grow_root then VMPane::RootGrower.new(@virt, @vm).start
       when :free_page_reporting then turn_on_free_page_reporting
@@ -200,12 +189,12 @@ module UI
       virt = @virt
       vm = @vm
       unless virt.virt_xml_available?
-        return Component::ConfirmWindow.alert('Please install virt-xml',
+        return Component::ConfirmDialog.alert('Please install virt-xml',
                                               'virtui turns free page reporting on through virt-xml, which is not ' \
                                               'on the PATH: sudo apt install virt-install')
       end
 
-      Component::ConfirmWindow.confirm(
+      Component::ConfirmDialog.confirm(
         "Turn on free page reporting for '#{vm}'?",
         "This runs virt-xml '#{vm}' --edit --memballoon freePageReporting=on, which changes the definition " \
         "'#{vm}' reads at its next start. It takes effect once '#{vm}' is powered off and on: a reboot from inside " \
@@ -216,7 +205,7 @@ module UI
           virt.enable_free_page_reporting(vm)
         end
         task.run do
-          Component::ConfirmWindow.alert("Free page reporting is on for '#{vm}'",
+          Component::ConfirmDialog.alert("Free page reporting is on for '#{vm}'",
                                          'From its next power-on. Pick Health check again to see it.')
         end
       end

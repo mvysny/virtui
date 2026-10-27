@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 module UI
-  # Runs a slow backend read off the UI thread behind a modal {ProgressWindow}, then hands
+  # Runs a slow backend read off the UI thread behind a modal {ProgressDialog}, then hands
   # the result to a block back on the UI thread:
   #
   #   BackgroundTask.new("Looking up #{vm}'s address") { virt.ip_address(vm) }
-  #                 .run { |ip| Tuile::Component::ConfirmWindow.alert(vm, ip.to_s) }
+  #                 .run { |ip| Tuile::Component::ConfirmDialog.alert(vm, ip.to_s) }
   #
   # The constructor's block runs on a fresh thread; {#run}'s block runs on the UI thread once
   # the popup has closed, so it may open a popup of its own. When the work raises a
@@ -64,7 +64,7 @@ module UI
       screen.check_locked
       raise "#{@caption}: a BackgroundTask runs once" unless @popup.nil?
 
-      @popup = ProgressWindow.open(@caption, cancelable: @cancelable)
+      @popup = ProgressDialog.new(@caption, cancelable: @cancelable).open
       # Fires on every close, finish's and report_failure's own included, so both read
       # canceled? before closing.
       @popup.on_close { @cancellation.cancel }
@@ -111,7 +111,7 @@ module UI
 
       @popup.close
       $log.error("#{@caption} failed", error)
-      Tuile::Component::ConfirmWindow.alert("#{@caption} failed", error.message)
+      Tuile::Component::ConfirmDialog.alert("#{@caption} failed", error.message)
     end
   end
 end

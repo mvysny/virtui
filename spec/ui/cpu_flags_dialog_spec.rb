@@ -3,15 +3,15 @@
 require_relative '../spec_helper'
 
 module Tuile
-  describe UI::CpuFlagsWindow do
+  describe UI::CpuFlagsDialog do
     before { Screen.fake }
     after { Screen.close }
 
     # A window narrow enough that every description has to wrap, painted onto the
     # fake screen so the assertions read the actual glyphs.
     def window_for(*flags)
-      w = UI::CpuFlagsWindow.new(flags.to_set)
-      mount_at(w, Rect.new(0, 0, 40, 30))
+      w = UI::CpuFlagsDialog.new(flags.to_set).open
+      Testing.place(w, Rect.new(0, 0, 40, 30))
       Screen.instance.repaint
       w
     end
@@ -55,11 +55,11 @@ module Tuile
       assert painted_text.include?(description_of('vmx')), painted_text
     end
 
-    it 'opens as a popup' do
+    it 'opens sized SIZE' do
       Screen.instance.content = Component::Label.new
-      popup = UI::CpuFlagsWindow.open(%w[svm npt].to_set)
+      popup = UI::CpuFlagsDialog.new(%w[svm npt].to_set).open
       assert_equal [popup], Screen.instance.popups
-      assert_equal UI::CpuFlagsWindow::SIZE, popup.declared_size
+      assert_equal UI::CpuFlagsDialog::SIZE, popup.declared_size
     end
   end
 end

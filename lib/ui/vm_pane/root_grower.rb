@@ -32,10 +32,10 @@ module UI
           e.message[/error: ([^\n]*)/, 1] || e.message
         end
         check.run do |plan|
-          next Tuile::Component::ConfirmWindow.alert("Cannot grow the root filesystem of '#{vm}'", plan) if plan.is_a?(String)
+          next Tuile::Component::ConfirmDialog.alert("Cannot grow the root filesystem of '#{vm}'", plan) if plan.is_a?(String)
 
           fs = plan.filesystem
-          Tuile::Component::ConfirmWindow.confirm(
+          Tuile::Component::ConfirmDialog.confirm(
             "Grow the root filesystem of '#{vm}'?",
             "/ (#{fs.fstype} on #{plan.partition.name}, #{format_byte_size(plan.partition.size)}) grows by " \
             "#{format_byte_size(plan.growth)}, into the free space at the end of #{plan.disk.target}. This runs " \
@@ -61,7 +61,7 @@ module UI
         task.run do |partition|
           # The partition's size, as `df` shows it; the filesystem's own total leaves out ext4's reserve.
           root = partition.filesystems.first
-          Tuile::Component::ConfirmWindow.alert("/ of '#{vm}' is now #{format_byte_size(partition.size)}",
+          Tuile::Component::ConfirmDialog.alert("/ of '#{vm}' is now #{format_byte_size(partition.size)}",
                                                 "#{format_byte_size(root.total - root.used)} of it free.")
         end
       end

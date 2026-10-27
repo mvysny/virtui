@@ -7,11 +7,11 @@ module UI
   # stats (`d`), the VM's definition (`i`), maintenance (`M`) and search (`/`). Each menu is a
   # component of its own under `lib/ui/vm_pane/`, handed the VM's name.
   #
-  # A borderless `Layout::Vertical`, not a `Window` (see design/decisions.md D_panes_are_layouts):
+  # A borderless `Layout::Vertical`, not a `Panel` (see design/decisions.md D_panes_are_layouts):
   # a one-row header — the focus chip plus the Guest/Host column captions — over the
   # {Tuile::Component::List}, with the incremental-search {Tuile::Component::TextField}
   # appearing as a third row while open (a row in the pane's own layout, not an overlay:
-  # a `Popup` is modal, and a focusable non-modal `Overlay` is
+  # a `Dialog` is modal, and a focusable non-modal `Overlay` is
   # forbidden upstream — the row plus one explicit {#close_search} re-focus is strictly
   # simpler).
   #
@@ -231,10 +231,10 @@ module UI
       return false if vm.nil?
 
       case key
-      when 'p' then PowerPickerWindow.new(@virt_cache, vm).open_in_popup
-      when 'm' then MemoryPickerWindow.new(@virt_cache, @ballooning, vm).open_in_popup
-      when 'M' then MaintenancePickerWindow.new(@virt_cache, vm).open_in_popup
-      when 'i' then VMInfoWindow.start(@virt_cache, vm)
+      when 'p' then PowerPickerDialog.new(@virt_cache, vm).open
+      when 'm' then MemoryPickerDialog.new(@virt_cache, @ballooning, vm).open
+      when 'M' then MaintenancePickerDialog.new(@virt_cache, vm).open
+      when 'i' then VMInfoDialog.start(@virt_cache, vm)
       when 'd' then self.show_disk_stat = !show_disk_stat
       when 'v'
         $log.info "Launching viewer for '#{vm}'"
@@ -357,7 +357,7 @@ module UI
       field.focus
     end
 
-    # Closes the search row, handing focus back to the list (a Layout has no `Window#footer=`
+    # Closes the search row, handing focus back to the list (a Layout has no
     # focus repair; this explicit re-focus is the whole cost of the row-not-overlay choice).
     # @return [void]
     def close_search

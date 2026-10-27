@@ -37,16 +37,16 @@ module Tuile
     end
 
     # @return [Array<Tuile::Component>] what the open popups hold
-    def popup_contents = Screen.instance.popups.map(&:content)
+    def popup_contents = Screen.instance.popups
 
-    # @param health [UI::HealthWindow]
+    # @param health [UI::HealthDialog]
     # @return [String] its labels' text, a label per line, unwrapped back into one
     def health_text(health)
       Testing.find(Component::Label, in: health).map { _1.text.to_s.lines.map(&:strip).join(' ') }.join("\n")
     end
 
-    # The PickerWindow of whatever popup is currently open, or nil.
-    def picker = Screen.instance.popups.map(&:content).find { |c| c.is_a?(Component::PickerWindow) }
+    # The PickerDialog of whatever popup is currently open, or nil.
+    def picker = Screen.instance.popups.find { |c| c.is_a?(Component::PickerDialog) }
 
     # Moves the cursor to `pos`, opens the `menu` popup (p/m), picks `option`, and returns
     # everything logged while doing so.
@@ -179,13 +179,13 @@ module Tuile
 
     it 'show_power_popup opens picker' do
       window.handle_key?('p')
-      assert(Screen.instance.popups.any? { |it| it.content.is_a?(Component::PickerWindow) })
+      assert(Screen.instance.popups.any?(Component::PickerDialog))
     end
 
     it 'show_memory_popup opens picker for running VM' do
       window.list.cursor.go(4) # Ubuntu is running
       window.handle_key?('m')
-      assert(Screen.instance.popups.any? { |it| it.content.is_a?(Component::PickerWindow) })
+      assert(Screen.instance.popups.any?(Component::PickerDialog))
     end
 
     context('cursor movement') do
@@ -306,7 +306,7 @@ module Tuile
           flunk 'the info window never opened' if Time.now > deadline
           Thread.pass
           Testing.loop
-          info = Screen.instance.popups.map(&:content).find { _1.is_a?(UI::VMInfoWindow) }
+          info = Screen.instance.popups.find { _1.is_a?(UI::VMInfoDialog) }
         end
         text = info.instance_variable_get(:@view).text.to_s
         assert_includes text, 'UEFI, Secure Boot'
@@ -323,7 +323,7 @@ module Tuile
       it "'M' → a disabled item does nothing and keeps the menu open" do
         pick(ubuntu, 'M', 'r')
         assert picker
-        refute popup_contents.any?(Component::ConfirmWindow)
+        refute popup_contents.any?(Component::ConfirmDialog)
       end
 
       it "'M' → resize on a VM started since the menu opened says to shut it down" do
@@ -332,30 +332,30 @@ module Tuile
         cache.virt.start('BASE')
         Timecop.freeze(now + 15) { cache.update }
         picker.handle_key?('r')
-        alert = popup_contents.find { _1.is_a?(Component::ConfirmWindow) }
+        alert = popup_contents.find { _1.is_a?(Component::ConfirmDialog) }
         assert_includes alert.message, 'Shut BASE down first'
       end
 
       it "'M' → resize on a stopped VM opens the resize dialog once its disks are read" do
         pick(base, 'M', 'r')
-        wait_for('the resize dialog') { popup_contents.find { _1.is_a?(UI::DiskResizeWindow) } }
+        wait_for('the resize dialog') { popup_contents.find { _1.is_a?(UI::DiskResizeDialog) } }
       end
 
       it "'M' → grow on a running VM confirms the commands, grows, and reports the new size" do
         pick(ubuntu, 'M', 'g')
-        confirm = wait_for('the confirmation') { popup_contents.find { _1.is_a?(Component::ConfirmWindow) } }
+        confirm = wait_for('the confirmation') { popup_contents.find { _1.is_a?(Component::ConfirmDialog) } }
         assert_equal "Grow the root filesystem of 'Ubuntu'?", confirm.caption.to_s
         assert_includes confirm.message, 'grows by 28G, into the free space at the end of vda'
         assert_includes confirm.message, 'runs sfdisk, partx, resize2fs as root inside the guest'
         Screen.instance.key(Keys::ENTER) # the focused Grow button
-        done = wait_for('the result') { popup_contents.find { _1.is_a?(Component::ConfirmWindow) && _1 != confirm } }
+        done = wait_for('the result') { popup_contents.find { _1.is_a?(Component::ConfirmDialog) && _1 != confirm } }
         assert_equal "/ of 'Ubuntu' is now 128G", done.caption.to_s
         assert_equal 128.GiB - 107.MiB, cache.virt.vm('Ubuntu').root_size
       end
 
       it "'M' → health on a running VM lists its findings, the guest's included" do
         pick(win11, 'M', 'h')
-        health = wait_for('the health window') { popup_contents.find { _1.is_a?(UI::HealthWindow) } }
+        health = wait_for('the health window') { popup_contents.find { _1.is_a?(UI::HealthDialog) } }
         text = health_text(health)
         assert_includes text, "the host drops this disk's discards"
         assert_includes text, 'virt-xml win11 --edit target=vda --disk discard=unmap'
@@ -363,7 +363,7 @@ module Tuile
 
       it "'M' → health on a stopped VM judges its definition, and skips the guest" do
         pick(base, 'M', 'h')
-        health = wait_for('the health window') { popup_contents.find { _1.is_a?(UI::HealthWindow) } }
+        health = wait_for('the health window') { popup_contents.find { _1.is_a?(UI::HealthDialog) } }
         assert_includes health_text(health), 'not running: start the VM for the guest checks'
       end
 

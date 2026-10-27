@@ -1,6 +1,6 @@
 # VM info window: "changed, takes effect on next boot"
 
-The `i` window (`UI::VMInfoWindow`) shows the live XML of a running domain. A marker for a
+The `i` window (`UI::VMInfoDialog`) shows the live XML of a running domain. A marker for a
 definition edited since the VM started would need `dumpxml --inactive` too, and a comparison.
 
 - `Q_live_or_inactive`: compare the two XMLs char-by-char? Never equal for a running domain:

@@ -5,7 +5,7 @@ module UI
     # The `m` menu of {VMPane}: toggle one VM's automatic ballooning, or give it its maximum
     # memory and switch the ballooning off.
     #
-    #   MemoryPickerWindow.new(virt_cache, ballooning, 'vt-ubuntu').open_in_popup
+    #   MemoryPickerDialog.new(virt_cache, ballooning, 'vt-ubuntu').open
     #
     #   ┌Memory──────────────────────────────────┐
     #   │b toggle autoBallooning                 │
@@ -16,7 +16,7 @@ module UI
     # checks again and logs an error if the VM stopped since.
     #
     # UI-thread-confined.
-    class MemoryPickerWindow < Tuile::Component::PickerWindow
+    class MemoryPickerDialog < Tuile::Component::PickerDialog
       # @param virt_cache [Virt::Cache] the runtime cache to read the VM's state from and act through
       # @param ballooning [Virt::Ballooning] the ballooning controller to toggle
       # @param vm [String] the VM's name

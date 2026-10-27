@@ -3,7 +3,7 @@
 module UI
   # The host pane: shows CPU model/flags and usage, RAM and swap usage, and per-disk
   # usage — each as a labelled progress bar built from {Virt::Cache} data. Pressing `h`
-  # opens {CpuFlagsWindow}, explaining the host's virtualization CPU flags.
+  # opens {CpuFlagsDialog}, explaining the host's virtualization CPU flags.
   #
   # A borderless `Layout::Vertical` (see design/decisions.md D_panes_are_layouts): a one-row
   # header carrying the focus chip, over the {Tuile::Component::List}. The list carries a
@@ -106,7 +106,7 @@ module UI
       "#{screen.theme.key('h')} #{screen.theme.hint('Help')}"
     end
 
-    # Handles a key press: `h` opens {CpuFlagsWindow}.
+    # Handles a key press: `h` opens {CpuFlagsDialog}.
     #
     # @param key [String] the pressed key
     # @return [Boolean] true if the key was handled
@@ -114,7 +114,7 @@ module UI
       return true if super
 
       if key == 'h'
-        CpuFlagsWindow.open(@virt_cache.cpu_flags)
+        CpuFlagsDialog.new(@virt_cache.cpu_flags).open
         true
       else
         false
@@ -153,7 +153,7 @@ module UI
     #
     #   x86_64, svm npt tsc_deadline_timer pcid invpcid pdpe1gb xsave
     #
-    # The flag list and its order come from {CpuFlag::ALL}; {CpuFlagsWindow} explains
+    # The flag list and its order come from {CpuFlag::ALL}; {CpuFlagsDialog} explains
     # each entry.
     #
     # @return [String] the CPU info line

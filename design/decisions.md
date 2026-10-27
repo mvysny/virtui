@@ -536,21 +536,21 @@ and `Timecop.freeze` now both exist and mean different things — a cooldown ver
 `Interpolator` ramp, which follows the wall clock by design because animation follows the clock
 a human watches; `spec/virt/ballooning_vm_spec.rb` uses both a few lines apart and says so.
 
-## D_panes_are_layouts — Why are the borderless panes `Layout::Vertical`s rather than frameless `Window`s?
+## D_panes_are_layouts — Why are the borderless panes `Layout::Vertical`s rather than frameless `Panel`s?
 
 Each of `UI::VMPane`, `UI::SystemPane` and `UI::LogPane` is a
 `Tuile::Component::Layout::Vertical`: a one-row header (`Fixed[1]` — the focus chip, plus the
 VM pane's column captions) over the content widget (`Expand[1]`), with the VM pane's search
 field appearing as a third row while open; the log pane composes tuile's `LogTextView`
-directly. The redesign that removed the window frames needed a home for what the `Window`
-chrome carried — caption, footer, scrollbar, focus repair — and the first draft asked tuile for
+directly. The redesign that removed the window frames needed a home for what the `Window` (now
+tuile's `Panel`) chrome carried — caption, footer, scrollbar, focus repair — and the first draft asked tuile for
 a `Window#frame = false` mode. Why not that frameless `Window` upstream: once the border goes,
 `Window` earns nothing — bending a class whose job is painting the border into not painting it
 keeps the class for its name — and against tuile 0.13 everything the frame seemed to carry was
 already elsewhere: `List`/`TextView` own their scrollbars, `Screen#focused=` sets `active` on
 every ancestor so a `Layout` pane reads focus-within for free, and `List` paints its whole rect
 so click-to-focus lands. Why not the search field as a popup or overlay, the design's first pick
-for the screen's own focus repair: a `Popup` is modal — anchoring one under the pane is only an
+for the screen's own focus repair: a `Dialog` is modal — anchoring one under the pane is only an
 `Overlay::At` placement now, but the list behind it stops taking keys — while tuile explicitly
 forbids the lighter shape, a focusable non-modal `Overlay` — every keystroke goes dead until
 Tab recovers. The embedded row costs one explicit `list.focus` in `VMPane#close_search`,
@@ -598,7 +598,7 @@ Some keys need a backend read nobody polls — the `i` info window wants `virsh 
 the keypress. On the UI thread the read freezes the screen, and through the session it can wait
 behind a sick guest's agent RPCs for the whole read timeout; a "wanted" flag picked up by the
 next tick costs up to 2 s and a path from `AppLayout#update_data` into whatever waits. So
-`UI::BackgroundTask` runs the read on a thread of its own behind a `UI::ProgressWindow` that is
+`UI::BackgroundTask` runs the read on a thread of its own behind a `UI::ProgressDialog` that is
 modal from the first frame, so a second keypress cannot start a second read, and submits the
 result to the UI thread as the timer thread does; a failure becomes an alert. The read spawns
 its own process — through the session the user would watch a spinner because *another* guest is

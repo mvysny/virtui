@@ -3,18 +3,19 @@
 require_relative '../spec_helper'
 
 module Tuile
-  describe UI::HealthWindow do
+  describe UI::HealthDialog do
     before { Screen.fake }
     after { Screen.close }
 
     let(:finding) { Virt::Health::Finding }
     let(:virt) { Virt::VMEmulator.demo }
 
-    # @param window [UI::HealthWindow]
+    # @param window [UI::HealthDialog]
     # @param width [Integer]
     # @param height [Integer]
     # @return [Array<String>] the painted rows, the border and bar included
     def painted(window, width, height)
+      window.open unless window.open?
       Testing.place(window, Rect.new(0, 0, width, height))
       Testing.paint(window).text.map(&:rstrip)
     end
@@ -25,7 +26,7 @@ module Tuile
                                   finding.new(:warning, '/mnt/hc', 'hccrypt (dm-0) blocks discard', 'add `discard`'),
                                   finding.new(:skipped, 'guest', 'not running', nil)
                                 ])
-      window = UI::HealthWindow.new(virt, 'vt-ubuntu', health)
+      window = UI::HealthDialog.new(virt, 'vt-ubuntu', health)
       assert_equal ['┌vt-ubuntu health────────────────────────┐',
                     '│ ✓ balloon  virtio, free page reporting ░',
                     '│ ! /mnt/hc  hccrypt (dm-0) blocks       ░',
@@ -40,7 +41,7 @@ module Tuile
                                   finding.new(:note, 'vda', 'unused space after the last partition', 'grow it'),
                                   finding.new(:ok, 'agent', 'connected', nil)
                                 ])
-      window = UI::HealthWindow.new(virt, 'vt-ubuntu', health)
+      window = UI::HealthDialog.new(virt, 'vt-ubuntu', health)
       assert_equal ['┌vt-ubuntu health──────────┐',
                     '│ · vda    unused space    █',
                     '│          after the last  █',
@@ -56,7 +57,7 @@ module Tuile
                                               :grow_root),
                                   finding.new(:warning, 'sda', 'the host drops its discards', 'virt-xml …')
                                 ])
-      window = UI::HealthWindow.new(virt, 'Ubuntu', health)
+      window = UI::HealthDialog.new(virt, 'Ubuntu', health)
       rows = painted(window, 50, 8)
       assert_equal '│        [ Fix: grow root filesystem… ]          ░', rows[3]
       assert_equal 1, Testing.find(Component::Button, in: window).size
@@ -65,45 +66,45 @@ module Tuile
     it "runs the grow-root flow from the finding's Fix button, closing the window" do
       health = Virt::Health.new(findings: [finding.new(:note, 'vda', '28G unused after vda1', 'M → Grow root',
                                                        :grow_root)])
-      UI::HealthWindow.open(virt, 'Ubuntu', health)
+      UI::HealthDialog.new(virt, 'Ubuntu', health).open
       Testing.click(Testing.get(Component::Button))
-      confirm = wait_for('the confirmation') { popup_window(Component::ConfirmWindow) }
+      confirm = wait_for('the confirmation') { popup_window(Component::ConfirmDialog) }
       assert_equal "Grow the root filesystem of 'Ubuntu'?", confirm.caption.to_s
-      assert_nil popup_window(UI::HealthWindow)
+      assert_nil popup_window(UI::HealthDialog)
     end
 
     it 'turns on free page reporting from its Fix button, once confirmed' do
       health = Virt::Health.new(findings: [finding.new(:note, 'balloon', 'no free page reporting', 'virt-xml …',
                                                        :free_page_reporting)])
-      UI::HealthWindow.open(virt, 'BASE', health)
+      UI::HealthDialog.new(virt, 'BASE', health).open
       Testing.click(Testing.get(Component::Button))
-      confirm = popup_window(Component::ConfirmWindow)
+      confirm = popup_window(Component::ConfirmDialog)
       assert_includes confirm.message, "virt-xml 'BASE' --edit --memballoon freePageReporting=on"
       Screen.instance.key(Keys::ENTER) # the focused Turn on button
-      done = wait_for('the result') { popup_window(Component::ConfirmWindow) { _1 != confirm } }
+      done = wait_for('the result') { popup_window(Component::ConfirmDialog) { _1 != confirm } }
       assert_equal "Free page reporting is on for 'BASE'", done.caption.to_s
       assert virt.vm('BASE').free_page_reporting
-      assert_nil popup_window(UI::HealthWindow)
+      assert_nil popup_window(UI::HealthDialog)
     end
 
     it 'says to install virt-xml when it is missing, on the button and when pressed' do
       virt.define_singleton_method(:virt_xml_available?) { false }
       health = Virt::Health.new(findings: [finding.new(:note, 'balloon', 'no free page reporting', 'virt-xml …',
                                                        :free_page_reporting)])
-      UI::HealthWindow.open(virt, 'BASE', health)
+      UI::HealthDialog.new(virt, 'BASE', health).open
       button = Testing.get(Component::Button)
       assert_includes button.caption.to_s, 'please install virt-xml for this to work'
       Testing.click(button)
-      assert_includes popup_window(Component::ConfirmWindow).message, 'sudo apt install virt-install'
+      assert_includes popup_window(Component::ConfirmDialog).message, 'sudo apt install virt-install'
       refute virt.vm('BASE').free_page_reporting
     end
 
     # @param klass [Class]
     # @yield [window] an extra filter
-    # @return [Component, nil] the content of the topmost open popup that is a `klass`
+    # @return [Component, nil] the topmost open popup that is a `klass`
     def popup_window(klass, &filter)
       Testing.loop
-      Screen.instance.popups.map(&:content).reverse.find { _1.is_a?(klass) && (filter.nil? || filter.call(_1)) }
+      Screen.instance.popups.reverse.find { _1.is_a?(klass) && (filter.nil? || filter.call(_1)) }
     end
 
     # Runs the event loop until the block answers, for a result a {UI::BackgroundTask} hands

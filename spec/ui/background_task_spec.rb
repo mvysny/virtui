@@ -15,10 +15,10 @@ module Tuile
     let(:gate) { Queue.new }
 
     # @return [Tuile::Component::Popup, nil] the open progress popup
-    def progress_popup = Screen.instance.popups.find { _1.content.is_a?(UI::ProgressWindow) }
+    def progress_popup = Screen.instance.popups.find { _1.is_a?(UI::ProgressDialog) }
 
-    # @return [Tuile::Component::ConfirmWindow, nil] the open failure alert
-    def alert = Screen.instance.popups.map(&:content).find { _1.is_a?(Component::ConfirmWindow) }
+    # @return [Tuile::Component::ConfirmDialog, nil] the open failure alert
+    def alert = Screen.instance.popups.find { _1.is_a?(Component::ConfirmDialog) }
 
     # @return [UI::BackgroundTask] a task whose work raises once the gate opens
     def failing_task

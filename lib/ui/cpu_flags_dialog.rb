@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
 module UI
-  # The `h` help popup of {SystemPane}: one paragraph per virtualization CPU flag
+  # The `h` help dialog of {SystemPane}: one paragraph per virtualization CPU flag
   # this host has, taken from the {CpuFlag} glossary — the glossary for the flag list
   # the CPU summary line shows.
   #
   # Content is a {Tuile::Component::TextView}, not a {Tuile::Component::List}: the
   # explanations are prose, and a `List` row that overflows is *ellipsized*, which
   # silently ate the end of every description. A `TextView` word-wraps instead, so
-  # the popup's width only decides how tall the text gets.
+  # the dialog's width only decides how tall the text gets.
   #
   # UI-thread-confined.
-  class CpuFlagsWindow < Tuile::Component::Window
+  class CpuFlagsDialog < Tuile::Component::Dialog
     include Tuile
 
     # Wider than the default {Fraction::HALF}: this is prose, and a wider box means
@@ -21,11 +21,10 @@ module UI
 
     # @param flags [Set<String>] the host's CPU flags, from {System::Info#cpu_flags}
     def initialize(flags = Set.new)
-      super('CPU virtualization flags')
+      super('CPU virtualization flags', declared_size: SIZE, footer_text: 'q/ESC to close')
       @flags = flags
       @view = Component::TextView.new
       self.content = @view
-      self.footer_text = 'q/ESC to close'
       rebuild
     end
 
@@ -38,14 +37,6 @@ module UI
     def flags=(flags)
       @flags = flags
       rebuild
-    end
-
-    # Opens the window as a modal popup, sized {SIZE}.
-    #
-    # @param flags [Set<String>] the host's CPU flags, from {System::Info#cpu_flags}
-    # @return [Tuile::Component::Popup] the opened popup
-    def self.open(flags)
-      Tuile::Component::Popup.new(content: new(flags), declared_size: SIZE).open
     end
 
     protected

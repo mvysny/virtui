@@ -29,9 +29,9 @@ module Tuile
       w
     end
 
-    # The plain (unstyled) text of the currently-open {UI::CpuFlagsWindow} popup.
+    # The plain (unstyled) text of the currently-open {UI::CpuFlagsDialog} popup.
     def help_text
-      Screen.instance.popups[0].content.content.text.to_s
+      Screen.instance.popups[0].content.text.to_s
     end
 
     it 'smokes' do
@@ -63,7 +63,7 @@ module Tuile
         w.handle_key?('h')
         popups = Screen.instance.popups
         assert_equal 1, popups.length
-        assert_equal UI::CpuFlagsWindow, popups[0].content.class
+        assert_equal UI::CpuFlagsDialog, popups[0].class
         %w[vmx ept tsc_deadline_timer pcid vpid invpcid pdpe1gb xsave].each { |f| assert help_text.include?(f), help_text }
       end
 

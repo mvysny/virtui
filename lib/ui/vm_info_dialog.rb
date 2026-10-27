@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module UI
-  # The `i` popup of {VMPane}: what a VM is *defined* as, read-only.
+  # The `i` dialog of {VMPane}: what a VM is *defined* as, read-only.
   #
   #   ┌─ vt-ubuntu ──────────────────────────────────────────┐
   #   │ OS        linux — http://ubuntu.com/ubuntu/24.04     │
@@ -30,10 +30,10 @@ module UI
   # A snapshot of the moment `i` was pressed: it does not follow later ticks.
   #
   # UI-thread-confined.
-  class VMInfoWindow < Tuile::Component::Window
+  class VMInfoDialog < Tuile::Component::Dialog
     include Tuile
 
-    # Like {CpuFlagsWindow::SIZE}, a touch taller: a VM with many devices runs to 30 rows.
+    # Like {CpuFlagsDialog::SIZE}, a touch taller: a VM with many devices runs to 30 rows.
     # @return [Fraction]
     SIZE = Fraction.new(0.7, 0.8)
 
@@ -47,36 +47,24 @@ module UI
     #   says why the guest could not tell, `nil` means it was not asked
     # @param autostart [Boolean] whether libvirt starts the VM with the host
     def initialize(config, disk_stats = [], guest = nil, autostart: false)
-      super(config.name)
+      super(config.name, declared_size: SIZE, footer_text: 'q/ESC to close')
       @config = config
       @autostart = autostart
       @disk_stats = disk_stats
       @guest = guest
       @view = Component::TextView.new
       self.content = @view
-      self.footer_text = 'q/ESC to close'
       rebuild
     end
 
-    # Opens the window as a modal popup, sized {SIZE}.
-    #
-    # @param config [Virt::DomainConfig] what the VM is defined as
-    # @param disk_stats [Array<Virt::DiskStat>] see {#initialize}
-    # @param guest [Virt::GuestStorage, String, nil] see {#initialize}
-    # @param autostart [Boolean] see {#initialize}
-    # @return [Tuile::Component::Popup] the opened popup
-    def self.open(config, disk_stats = [], guest = nil, autostart: false)
-      Tuile::Component::Popup.new(content: new(config, disk_stats, guest, autostart:), declared_size: SIZE).open
-    end
-
     # The whole `i` flow: reads the VM's definition behind a progress popup, fresh on every
-    # press so the window never shows a definition older than the keypress
-    # (design/decisions.md D_background_task), then opens the window.
+    # press so the dialog never shows a definition older than the keypress
+    # (design/decisions.md D_background_task), then opens the dialog.
     #
-    #   VMInfoWindow.start(virt_cache, 'vt-ubuntu')
+    #   VMInfoDialog.start(virt_cache, 'vt-ubuntu')
     #
     # The guest is asked for its disk layout only when the live definition says its agent is
-    # connected; one that still cannot answer gets the reason in the window rather than
+    # connected; one that still cannot answer gets the reason in the dialog rather than
     # failing the whole read.
     #
     # @param virt_cache [Virt::Cache] the runtime cache, for the backend and the disks' capacities
@@ -95,7 +83,7 @@ module UI
         [config, guest, virt.autostart?(vm)]
       end
       task.run do |config, guest, autostart|
-        VMInfoWindow.open(config, virt_cache.data(vm)&.disk_stat || [], guest, autostart:)
+        VMInfoDialog.new(config, virt_cache.data(vm)&.disk_stat || [], guest, autostart:).open
       end
     end
 

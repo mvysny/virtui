@@ -3,7 +3,7 @@
 require_relative '../spec_helper'
 
 module Tuile
-  describe UI::VMInfoWindow do
+  describe UI::VMInfoDialog do
     before { Screen.fake }
     after { Screen.close }
 
@@ -14,7 +14,7 @@ module Tuile
 
     it 'shows a fully featured guest' do
       disks = [Virt::DiskStat.new('vda', 40.GiB, 3.GiB, nil), Virt::DiskStat.new('vdb', 1.GiB, 0, nil)]
-      assert_equal <<~TEXT.lines.map(&:rstrip), text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), disks))
+      assert_equal <<~TEXT.lines.map(&:rstrip), text_of(UI::VMInfoDialog.new(config('vt-ubuntu'), disks))
         OS        linux — http://ubuntu.com/ubuntu/24.04
         Machine   x86_64, pc-q35-10.2, KVM
         Starts    by hand — no autostart
@@ -51,12 +51,12 @@ module Tuile
     end
 
     it 'says when the VM starts with the host' do
-      text = text_of(UI::VMInfoWindow.new(config('vt-bios'), autostart: true))
+      text = text_of(UI::VMInfoDialog.new(config('vt-bios'), autostart: true))
       assert_includes text, 'Starts    with the host (autostart)'
     end
 
     it 'says what a missing balloon and agent cost, and leaves empty sections out' do
-      text = text_of(UI::VMInfoWindow.new(config('vt-fixture')))
+      text = text_of(UI::VMInfoDialog.new(config('vt-fixture')))
       assert_includes text, 'Memory    2G max, hugepages'
       assert_includes text, 'Balloon   none — virtui cannot resize this VM'
       assert_includes text, 'Agent     no channel — no swap level for this VM'
@@ -66,7 +66,7 @@ module Tuile
     end
 
     it 'shows pool volumes, empty drives, unassigned ports and passthrough' do
-      text = text_of(UI::VMInfoWindow.new(config('vt-fixture')))
+      text = text_of(UI::VMInfoDialog.new(config('vt-fixture')))
       assert_includes text, '       volume default/vt-fixture.qcow2'
       assert_includes text, '  sda  sata    cdrom    read-only'
       assert_includes text, '       (no media)'
@@ -78,7 +78,7 @@ module Tuile
 
     it "shows the guest's partitions in disk order under their disk, with what is mounted from each" do
       disks = [Virt::DiskStat.new('vda', 14.GiB, 0, nil)]
-      text = text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), disks, Helpers.vt_ubuntu_storage))
+      text = text_of(UI::VMInfoDialog.new(config('vt-ubuntu'), disks, Helpers.vt_ubuntu_storage))
       at = text.index('       /var/lib/libvirt/images/vt-ubuntu.qcow2')
       assert_equal <<~TEXT.lines.map { "       #{_1.rstrip}" }, text[at, 5]
         /var/lib/libvirt/images/vt-ubuntu.qcow2
@@ -93,20 +93,20 @@ module Tuile
 
     it 'shows the space left after the last partition' do
       vda = Virt::VMEmulator.demo.guest_storage('Ubuntu')
-      text = text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), [], vda))
+      text = text_of(UI::VMInfoDialog.new(config('vt-ubuntu'), [], vda))
       assert_includes text, '       free    28G'
     end
 
     it 'says why the guest could not describe its disks' do
-      text = text_of(UI::VMInfoWindow.new(config('vt-ubuntu'), [], 'Guest agent is not responding'))
+      text = text_of(UI::VMInfoDialog.new(config('vt-ubuntu'), [], 'Guest agent is not responding'))
       assert_includes text, '  The guest did not say how its disks are laid out: Guest agent is not responding'
     end
 
     it 'opens as a popup titled with the VM' do
       Screen.instance.content = Component::Label.new
-      popup = UI::VMInfoWindow.open(config('vt-bios'))
+      popup = UI::VMInfoDialog.new(config('vt-bios')).open
       assert_equal [popup], Screen.instance.popups
-      assert_equal 'vt-bios', popup.content.caption.to_s
+      assert_equal 'vt-bios', popup.caption.to_s
     end
   end
 end

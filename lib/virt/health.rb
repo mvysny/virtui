@@ -35,7 +35,7 @@ module Virt
     # @!attribute [r] fix
     #   @return [String, nil] what to do about it: a command, or a Maintenance item
     # @!attribute [r] remedy
-    #   @return [Symbol, nil] the fix as one virtui can run, for {UI::HealthWindow}'s button:
+    #   @return [Symbol, nil] the fix as one virtui can run, for {UI::HealthDialog}'s button:
     #     `:grow_root` (Maintenance → Grow root filesystem) or `:free_page_reporting`
     #     ({Virsh#enable_free_page_reporting}); `nil` when the fix is the user's to make.
     #     A Symbol, not a block: see design/decisions.md D_health_check

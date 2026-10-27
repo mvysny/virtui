@@ -47,7 +47,7 @@ Every fact lives in exactly one of these; the others link to it.
 - `lib/virt/ballooning_vm/` — the ballooning inputs, one voter or vetoer per class.
 - `lib/system/` → `System::` — host CPU, RAM and disk from `/proc` and `df`, with an emulator double.
 - `lib/ui/` → `UI::` — the tuile panes, theme and tint; reads only `Virt::Cache`.
-- `lib/ui/vm_pane/` — the VM pane's menus, one `PickerWindow` per key, each handed the VM's name.
+- `lib/ui/vm_pane/` — the VM pane's menus, one `PickerDialog` per key, each handed the VM's name.
 - `lib/*.rb` — shared top-level value objects and helpers, deliberately namespace-free.
 - `lib/core_ext/` — the byte-unit monkey-patches; required by hand, ignored by Zeitwerk.
 - `spec/` — rspec; parser specs feed the recorded `/proc`, `domstats` and `df` fixtures beside them.

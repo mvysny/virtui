@@ -5,7 +5,7 @@ module UI
   # detect it, and what having it buys a KVM guest.
   #
   # {ALL} is the whole glossary and the single source of truth for both readers —
-  # {SystemPane}'s one-line CPU summary renders the {#name}s, {CpuFlagsWindow}
+  # {SystemPane}'s one-line CPU summary renders the {#name}s, {CpuFlagsDialog}
   # renders the {#description}s — so the two can no longer drift apart (they had:
   # the summary and the help each carried their own copy of the flag list).
   #
@@ -16,7 +16,7 @@ module UI
     # @param name [String] the flag as `/proc/cpuinfo` spells it, and as the CPU
     #   summary line shows it
     # @param description [String] what the flag buys a guest, in prose — word-wrapped
-    #   by {CpuFlagsWindow}, so it may be a sentence or three
+    #   by {CpuFlagsDialog}, so it may be a sentence or three
     # @param matcher [Proc, nil] `(Set<String>) -> Boolean` deciding whether the host
     #   has this flag; defaults to a plain membership test on {#name}
     def initialize(name:, description:, matcher: nil)

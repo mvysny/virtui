@@ -6,7 +6,7 @@ module UI
     # reset of one VM, and the magic-SysRq power-off and reboot between them (see
     # {Virt::MagicSysRq}).
     #
-    #   PowerPickerWindow.new(virt_cache, 'vt-ubuntu').open_in_popup
+    #   PowerPickerDialog.new(virt_cache, 'vt-ubuntu').open
     #
     #   ┌Power─────────────────────────────────────────┐
     #   │s Start (VM not stopped)                      │
@@ -19,7 +19,7 @@ module UI
     # action checks again and logs an error if the VM changed state since.
     #
     # UI-thread-confined.
-    class PowerPickerWindow < Tuile::Component::PickerWindow
+    class PowerPickerDialog < Tuile::Component::PickerDialog
       # @param virt_cache [Virt::Cache] the runtime cache to read the VM's state from and act through
       # @param vm [String] the VM's name
       def initialize(virt_cache, vm)
@@ -30,7 +30,7 @@ module UI
 
       private
 
-      # @return [Array<Array(String, String, Hash)>] the {Tuile::Component::PickerWindow} options
+      # @return [Array<Array(String, String, Hash)>] the {Tuile::Component::PickerDialog} options
       def options
         state = @virt_cache.state(@vm)
         stopped = state == :shut_off ? {} : { disabled: 'VM not stopped' }
