@@ -4,11 +4,11 @@ module UI
   # The top-level screen layout, orchestrating the three borderless panes: {VMPane} (VM
   # list/controls), {SystemPane} (host CPU/RAM/disk) and {LogPane}, over a one-row status
   # line. Also redirects `$log`'s console output into the log pane and owns the `1`/`2`/`3`
-  # focus keys and the {HIDE_KEY} (see {#handle_key?}).
+  # focus keys (see {#handle_key?}).
   #
-  # The System and log panes can be hidden: {HIDE_KEY} hides the focused one, and its digit
-  # brings it back. A hidden pane's chip moves to the right end of the status line, so the
-  # way back stays on screen:
+  # The System and log panes can be hidden: a pane's digit pressed while it is focused hides
+  # it, as IntelliJ's Alt+1 does its tool window, and the digit brings it back. A hidden pane's
+  # chip moves to the right end of the status line, so the way back stays on screen:
   #
   #   q quit  p Power  v run Viewer  …                            [2]-System  [3]-Log
   #
@@ -38,10 +38,6 @@ module UI
     # The System pane's share of the width, capped: its bars read fine at 60 columns, and
     # on a wide terminal every column past that is one taken from the log beside it.
     SYSTEM_WIDTH = Percent[50].clamp(..60)
-
-    # Hides the focused System or log pane. `x`, not a Shift+digit: a terminal sends the
-    # character typed, and on a Czech or Slovak layout Shift+2 *is* `2`.
-    HIDE_KEY = 'x'
 
     # @param virt_cache [Virt::Cache] the runtime cache the panes read from
     # @param ballooning [Virt::Ballooning] the ballooning controller for {VMPane}
@@ -78,7 +74,7 @@ module UI
       # {Hash<String, Tuile::Component>}: the focus keys {#handle_key?} dispatches. Each
       # pane's chip advertises its own key; keep the two in sync.
       @focus_keys = { '1' => @vms, '2' => @system, '3' => @log }
-      # The panes {HIDE_KEY} can hide; the VM pane is where all interaction lives, so it stays.
+      # The panes their digit can hide; the VM pane is where all interaction lives, so it stays.
       @hideable = [@system, @log]
     end
 
@@ -94,7 +90,7 @@ module UI
     attr_reader :hidden_chips
 
     # Focuses the pane bound to `key` — `1` the VMs, `2` the host metrics, `3` the log —
-    # showing it first if it was hidden; {HIDE_KEY} hides the focused System or log pane.
+    # showing it first if it was hidden; the digit of the focused System or log pane hides it.
     # As the scope root, this is the last rung of the key bubble — the focused component
     # and its ancestors get the key first, so typing `1` into the VM search field isn't
     # hijacked.
@@ -102,10 +98,13 @@ module UI
     # @param key [String] the pressed key
     # @return [Boolean] true if the key was handled
     def handle_key?(key)
-      return hide_focused_pane? if key == HIDE_KEY
-
       pane = @focus_keys[key]
       return false if pane.nil?
+
+      if @hideable.include?(pane) && pane.active?
+        hide(pane)
+        return true
+      end
 
       unless pane.visible?
         pane.visible = true
@@ -116,7 +115,7 @@ module UI
     end
 
     # Rebuilds the status line: the global quit key, then the focused pane's hint, then
-    # {HIDE_KEY} for a hideable pane; the hidden panes' chips go right-aligned after. Keys
+    # its digit as the hide key for a hideable pane; the hidden panes' chips go right-aligned after. Keys
     # only on the left — the row does not repeat the focused pane's chip, which its own header
     # already carries; don't re-add it here to attribute the hints — two inverted blocks answer
     # one question twice. Walking *up* from the focused component
@@ -132,7 +131,7 @@ module UI
       theme = screen.theme
       cursor = screen.focused
       cursor = cursor.parent until cursor.nil? || cursor.respond_to?(:keyboard_hint)
-      hide = "#{theme.key(HIDE_KEY)} #{theme.hint('hide')}" if @hideable.include?(cursor)
+      hide = "#{theme.key(@focus_keys.key(cursor))} #{theme.hint('hide')}" if @hideable.include?(cursor)
       @status.text = ["#{theme.key('q')} #{theme.hint('quit')}", cursor&.keyboard_hint, hide]
                      .compact.reject(&:empty?).join('  ')
       chips = @hideable.reject(&:visible?).map(&:chip)
@@ -163,18 +162,15 @@ module UI
 
     private
 
-    # Hides the System or log pane holding focus, handing focus to the VMs.
-    # @return [Boolean] false when the focus is in neither, so the key goes unhandled
-    def hide_focused_pane?
-      pane = @hideable.find(&:active?)
-      return false if pane.nil?
-
+    # Hides the System or log pane, handing focus to the VMs.
+    # @param pane [SystemPane, LogPane] the pane to hide
+    # @return [void]
+    def hide(pane)
       # Ahead of the hide: tuile's own focus repair parks focus on the bottom strip, a layout
       # that takes no keys.
       @vms.focus
       pane.visible = false
       rearrange_bottom
-      true
     end
 
     # Fits the bottom strip to whichever of the System and log panes are visible: the

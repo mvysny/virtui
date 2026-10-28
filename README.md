@@ -76,9 +76,9 @@ Press `1` to focus the VM list. Select a VM using up/down arrows, then press:
   `partx` and `resize2fs` as root in the guest through `qemu-guest-agent`'s `guest-exec`, which
   RHEL-family guests disable; anything else is refused with the reason.
 
-`2` and `3` focus the System and Log panes. Press `x` in one to hide it: the other pane takes
-its width, or with both hidden the VM list takes their rows. A hidden pane's `[2]`/`[3]` stays
-at the right end of the bottom line; press the digit to bring the pane back.
+`2` and `3` focus the System and Log panes; press the digit again to hide the pane: the other
+pane takes its width, or with both hidden the VM list takes their rows. A hidden pane's
+`[2]`/`[3]` stays at the right end of the bottom line; press the digit to bring the pane back.
 
 ### Integrating Into Your Linux Desktop
 

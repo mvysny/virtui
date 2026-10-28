@@ -78,7 +78,7 @@ module Tuile
     it 'refresh_status falls back to quit and hide for a pane that advertises no keys' do
       layout.log.focus
       layout.refresh_status
-      assert_equal 'q quit  x hide', layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
+      assert_equal 'q quit  3 hide', layout.status.text.to_s.gsub(/\e\[[0-9;]*m/, '')
     end
 
     context('hiding panes') do
@@ -87,9 +87,9 @@ module Tuile
         layout.hidden_chips.text.to_s.gsub(/\e\[[0-9;]*m/, '')
       end
 
-      it 'x hides the focused system pane: the log takes the whole strip, the chip moves to the status line' do
+      it '2 2 hides the system pane: the log takes the whole strip, the chip moves to the status line' do
         layout.handle_key?('2')
-        assert layout.handle_key?('x')
+        assert layout.handle_key?('2')
         refute layout.system.visible?
         assert layout.vms.active?
         layout.flush_layout
@@ -98,19 +98,19 @@ module Tuile
         assert_equal [88, 39, 12, 1], rect_of(layout.hidden_chips)
       end
 
-      it 'x hides the focused log pane: the system pane takes the whole strip, past its cap' do
+      it '3 3 hides the log pane: the system pane takes the whole strip, past its cap' do
         resize(layout, 200, 40)
         layout.handle_key?('3')
-        layout.handle_key?('x')
+        layout.handle_key?('3')
         layout.flush_layout
         assert_equal [0, 26, 200, 13], rect_of(layout.system)
       end
 
       it 'with both hidden, the VMs take the strip\'s rows' do
         layout.handle_key?('2')
-        layout.handle_key?('x')
+        layout.handle_key?('2')
         layout.handle_key?('3')
-        layout.handle_key?('x')
+        layout.handle_key?('3')
         layout.flush_layout
         assert_equal [0, 0, 100, 39], rect_of(layout.vms)
         assert_equal ' [2]-System   [3]-Log ', hidden_chips
@@ -118,7 +118,7 @@ module Tuile
 
       it 'the digit shows a hidden pane again and focuses it' do
         layout.handle_key?('2')
-        layout.handle_key?('x')
+        layout.handle_key?('2')
         assert layout.handle_key?('2')
         assert layout.system.visible?
         assert layout.system.active?
@@ -128,9 +128,18 @@ module Tuile
         assert_equal '', hidden_chips
       end
 
-      it 'x is not handled while the VMs hold focus' do
-        layout.vms.focus
-        refute layout.handle_key?('x')
+      it 'the digit of an unfocused pane focuses it rather than hiding it' do
+        layout.handle_key?('2')
+        layout.handle_key?('3')
+        assert layout.system.visible?
+        assert layout.log.active?
+      end
+
+      it '1 1 leaves the VM pane shown and focused' do
+        layout.handle_key?('1')
+        assert layout.handle_key?('1')
+        assert layout.vms.visible?
+        assert layout.vms.active?
       end
     end
 
