@@ -70,46 +70,90 @@ class State
 end
 ```
 
-## Types: three sources, first found wins
+## Types: declared once, or read off the default
 
-1. **RBS**, when the class has it.
-2. **A `constrain` annotation** on the field (*Annotations* below).
-3. **The default's class**: `65` → `Integer`, `true`/`false` → `bool`, an instance of a
-   mappable class → that class. It cannot tell the type of `nil`, `[]` or `{}`; such a field
-   needs 1 or 2. If it has neither, the mapper raises when it first reads the class, not when
-   the key first shows up in a file: otherwise the gap hides until some user sets that field.
+A field's type is **declared in exactly one place**:
 
-### RBS
+1. **RBS**, from the project's `sig/*.rbs`; or
+2. **`constrain type:`** on the field (*Annotations* below).
+
+Only when neither declares it is it **read off the default**: `65` → `Integer`, `true`/`false` →
+`bool`, an instance of a mappable class → that class. That cannot tell the type of `nil`, `[]`
+or `{}`, so such a field needs a declaration.
+
+Beyond `type:`, `constrain` only narrows a type (`in:`, `format:`); it never restates it. So the
+mapper never has to judge whether `Integer` is "compatible" with `Integer?`. All of these raise
+when the mapper first reads the class, not when the key first shows up in a file, since
+otherwise the gap hides until some user sets that field:
+
+- **no type**: neither RBS nor `type:`, and a default of `nil`, `[]` or `{}`;
+- **declared twice**: RBS has the field and `constrain` passes `type:` too, even when the two
+  match, since a duplicate drifts sooner or later;
+- **a default the type rejects**: `String` with default `65`, or `Integer` with default `nil`;
+- **a limit the type cannot take**: `in: 1..100` on a `String`.
+
+These can be relaxed once a real use case runs into them, and not before.
+
+**Nil is spelled out, as in RBS.** `type: 'Integer'` does not allow `nil`; `type: 'Integer?'`
+does. The type is always an RBS string, never a Ruby class: `type: Integer` would leave a reader
+asking whether nil is allowed, and `T.nilable`-style wrappers would be a second type language.
+A wrongly non-nil type with a `nil` default raises (*a default the type rejects*), so the slip
+shows up at once.
+
+**No `not_nil:` or `required:` yet.** TOML has no null, so a TOML file can only leave a key out,
+which means the default. In JSON, `not_nil:` would forbid an explicit `null` on a field whose
+type and default both allow it — no known use case. "The file must give this key" is
+`required:`, but a `Data` class already does it: a keyword with no default is required, so a
+missing key raises. Only a setter class whose ivar starts as `nil` would need it; nothing in
+virtui is shaped like that yet.
+
+### RBS: a `sig/*.rbs` file, not inline
 
 RBS is Ruby's own type-signature language; the `rbs` gem ships with Ruby (3.4.0 bundled with
 Ruby 3.3; 4.2.0 is current, released 2026-08, 98M downloads, depends on prism, tsort, logger).
-Since 4.0 it has **inline** declarations in `.rb` comments — still marked experimental:
+The mapper reads only signature files: a project either keeps `sig/*.rbs` or gives its types
+through `constrain`. RBS 4.0's **inline** declarations (`attr_accessor :last_vm #: String?`)
+are left out. They are still marked experimental, and they are awkward for a `Data` class:
+`Ballooning = Data.define(…)` is a constant to the inline parser, not a class with attributes.
+
+**Where the file comes from is the project's business.** tuile writes its `sig/tuile.rbs`
+with **sord** (7.1.0), which turns YARD tags into RBS; a project that already has YARD on every
+public symbol, as virtui does, gets the file almost for free. tuile's machinery:
+
+- `rake sig:generate` runs `sord gen sig/tuile.rbs --rbs --regenerate` and fails on any
+  `[OMIT|INFER|WARN|ERROR]` line, so a missing YARD type breaks the build instead of becoming
+  `untyped`;
+- `rake sig:validate` runs `rbs validate`;
+- CI fails on `git diff --exit-code sig/`, so a stale file cannot be merged.
+
+A `Data` class is typed with YARD's `@!attribute` directive; sord turns tuile's
 
 ```ruby
-class State
-  attr_accessor :system_pane_visible, :log_pane_visible #: bool
-  attr_accessor :last_vm #: String?             -- nil until the user picks one
-
-  # @rbs @window: State::Window
-end
+# @!attribute [r] width
+#   @return [Integer] width.
+class Size < Data.define(:width, :height)
 ```
+
+into `attr_reader width: Integer`. sord and YARD are dev dependencies of the project, never of
+the mapper.
+
+**Where the mapper looks**: `sig/*.rbs` by default, the standard place, which a gem also ships
+(tuile's gemspec includes `sig/tuile.rbs`). It can be overridden on the mapper. A project with
+no `sig/` declares its types through `constrain type:` or its defaults.
 
 What the mapper needs from it, read in `rbs-4.2.0`'s source:
 
-- **The types, without loading the RBS environment.** `RBS::Parser.parse_type("Integer?")`
-  and `RBS::Parser.parse_signature(source)` parse on their own. `RBS::InlineParser.parse(buffer,
-  prism)` reads inline annotations from a Ruby file; `Module.const_source_location` finds the
-  class's file.
+- **The types, without loading the RBS environment.** `RBS::Parser.parse_signature(source)`
+  parses on its own, and `RBS::Parser.parse_type("Integer?")` parses a `constrain` type string.
+  Measured: tuile's 870 KB `sig/tuile.rbs` parses in about 58 ms, and `Size`'s attribute types
+  read back as `[[:width, "Integer"], [:height, "Integer"]]`. Whether Ruby 3.3's bundled rbs 3.4
+  has the same API is unverified — `Q_rbs_optional`.
 - **Not RBS's own runtime checker.** `RBS::Test::TypeCheck#value(val, type)` exists, but its
   constructor wants a `DefinitionBuilder`, i.e. the whole environment, core signatures
   included. The mapper interprets a small subset of the type AST itself instead:
   `Integer`, `Float`, `String`, `bool`, `T?` (nil allowed), `Array[T]`, `Hash[String, T]`,
   literal unions (`"short" | "verbose"`, which give enums for free), and mappable classes.
   Anything else raises "unsupported type".
-- **Data classes are awkward inline**: `Ballooning = Data.define(…)` is a constant to the
-  inline parser, not a class with attributes. The type then rides the constructor:
-  `# @rbs (?raise_at_percent: Integer, ?min_actual_gib: Integer) -> void` above
-  `def initialize(…) = super`. Or a `sig/*.rbs` file declares it — `Q_rbs_source`.
 
 ### Annotations
 
@@ -136,14 +180,14 @@ Ballooning = Data.define(:raise_at_percent, :shrink_at_percent, :min_actual_gib,
 
   constrain :raise_at_percent, :shrink_at_percent, in: 1..100
   constrain :min_actual_gib, in: 1..
-  constrain :pinned_vms, 'Array[String]'      # a type, because the default [] says nothing
+  constrain :pinned_vms, type: 'Array[String]' # a type, because the default [] says nothing
 
   def initialize(raise_at_percent: 65, shrink_at_percent: 55, min_actual_gib: 8, pinned_vms: []) = super
 end
 ```
 
-- **The type is an RBS type string** (or a Ruby class as shorthand), so the mapper speaks one
-  type language whether the type came from RBS or from an annotation.
+- **`type:` is an RBS type string**, so the mapper speaks one type language whether the type
+  came from RBS or from an annotation.
 - **Constraints, a deliberately small set**: `in:` (a Range — `0..` is "0 or greater" — or an
   Array of allowed values) and `format:` (a Regexp, for strings). Everything else is
   `validate`.
@@ -172,7 +216,7 @@ give the same types and limits; it is not the first one built.
 A JSON Schema file beside the `Data` classes, checked with **json_schemer** before the mapper
 runs. The classes stay as they are, with their YARD and `validate`. The mapper still turns the
 Hash into objects, nested ones included. It only stops reading types, because the schema has
-already checked them: the class of a nested object comes from the default's class (source 3).
+already checked them: the class of a nested object comes from the default's class.
 A nested object whose default is `nil` has no such class, so the schema must name it: a custom
 keyword (`"x-ruby-class": "Ballooning"`) or a convention mapping `$defs/Ballooning` to
 `Ballooning`. The schema ships with the app, not with the user's file, so this keeps *the file
@@ -221,17 +265,12 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
 
 ## Open questions
 
-- `Q_rbs_source` — inline RBS in the class's file, a `sig/*.rbs` file, or both? Inline keeps
-  the type on the field but is experimental and awkward for `Data`; `sig/` is stable but a
-  second file to keep in step (and a new practice for this project — Steep could then check
-  it).
 - `Q_rbs_optional` — is the `rbs` gem a hard dependency, or does the mapper use RBS only when
-  it is loaded? virtui would need `gem 'rbs', '~> 4.2'` in the Gemfile either way (inline
-  needs 4.x; Ruby 3.3 bundles 3.4), like `racc` today. It has a native extension.
+  it is loaded? virtui would need a `gem 'rbs'` line in the Gemfile either way, like `racc`
+  today; it has a native extension. With inline RBS dropped, Ruby 3.3's bundled rbs 3.4 may be
+  enough, if its `parse_signature` matches 4.2's.
 - `Q_annotation_shape` — the `constrain` macro (`extend Mapper::Annotations`, Rails-like) or a
   plain `CONSTRAINTS` constant (no reference to the mapper)?
-- `Q_type_conflict` — RBS says `Integer?`, the annotation says `Integer`: an error, or the
-  first source wins silently?
 - `Q_custom_types` — a protocol class (`.load` / `#dump`), or a registry
   (`Mapper.type('Size') { … }`) that RBS type names resolve through?
 - `Q_mutable_fields` — for a setter class, fields from the ivars a bare `new` sets, or from its
