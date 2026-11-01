@@ -12,7 +12,8 @@ loader has no rival; `conf` in it says what it is without explanation. Passed ov
 (not about config), `mogok` (the valley the finest rubies come from — poetic, but needs
 explaining), `confcierge` (long, easy to misspell), `confirmed` (an everyday word, hard to
 search). Taken: `confit`, `conferred`, `confection`, `confiture`, `bedrock`, `lapidary`.
-The examples below still say `Mapper`, a placeholder until the gem's API takes shape.
+The mapper is **`Confect::Mapper`**, which names what it does; the top-level `Confect` stays
+free for the higher-level config loading (*Scope*'s locations layer).
 
 Why not an existing gem: none fits (see *Compared*). The Ruby config gems target Rails-style
 ENV + YAML, and the schema libraries (dry-*) bring 3–6 gems and their own class shapes. Python
@@ -64,7 +65,7 @@ app asks for it.
   locations layer's job (*Scope*).
 
 ```ruby
-mapper = Mapper.new                                                   # the type strategy: see Types
+mapper = Confect::Mapper.new                                          # the type strategy: see Types
 config = mapper.load(Config, Tomlrb.load_file(path))                  # unknown keys raise
 state  = mapper.load(State, JSON.load_file(path), unknown: :ignore)   # a newer virtui's keys are dropped
 mapper.dump(state)                                                    # => plain Hash
@@ -118,13 +119,13 @@ type that `constrain` does not give:
 
 | strategy | `constrain type:` given | no `constrain type:` |
 |---|---|---|
-| **no RBS** (`Mapper::BasicTypes`, the default) | the mapper's own small parser | raises |
-| **RBS** (`Mapper::RBSTypes`, opted into) | `RBS::Parser.parse_type`, translated to the subset | looked up in `sig/*.rbs` |
+| **no RBS** (`Confect::Mapper::BasicTypes`, the default) | the mapper's own small parser | raises |
+| **RBS** (`Confect::Mapper::RBSTypes`, opted into) | `RBS::Parser.parse_type`, translated to the subset | looked up in `sig/*.rbs` |
 
 ```ruby
-Mapper.new                                     # no RBS: every field carries constrain type:
-Mapper.new(types: Mapper::RBSTypes.new)        # sig/*.rbs found from the class's own file
-Mapper.new(types: Mapper::RBSTypes.new(sig: ['sig/virtui.rbs']))
+Confect::Mapper.new                                             # no RBS: every field carries constrain type:
+Confect::Mapper.new(types: Confect::Mapper::RBSTypes.new)       # sig/*.rbs found from the class's own file
+Confect::Mapper.new(types: Confect::Mapper::RBSTypes.new(sig: ['sig/virtui.rbs']))
 ```
 
 - **The `rbs` gem is optional.** Only `RBSTypes` requires it; choosing it without the gem raises
@@ -293,7 +294,7 @@ Proposal — a macro that records metadata only, defining no accessor:
 
 ```ruby
 Ballooning = Data.define(:raise_at_percent, :shrink_at_percent, :min_actual_gib, :pinned_vms) do
-  extend Mapper::Annotations
+  extend Confect::Mapper::Annotations
 
   # without RBS; under RBSTypes the type: arguments move to sig/ and only the limits stay
   constrain :raise_at_percent, :shrink_at_percent, type: 'Integer', in: 1..100

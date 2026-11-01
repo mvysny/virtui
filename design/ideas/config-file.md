@@ -190,7 +190,7 @@ classes would live in a shared gem, and its sibling-tables-are-shape-only rule s
   parsing units)? The first needs no parser and cannot be misread; the second reads better
   and allows `512 MiB`. The second also needs custom types in `settings-mapper.md`, a
   conversion from the file's String to `Size` and back: a class with `.load(raw)` and `#dump`,
-  or a registry (`Mapper.type('Size') { … }`) that type names resolve through. Parked there
+  or a registry (`Confect::Mapper.type('Size') { … }`) that type names resolve through. Parked there
   until this is decided.
 - `Q_error_quality` — spike: what does `Dry::Struct::Error` actually say for a wrong type, a
   nested one, and an unknown key under `schema schema.strict`? Decides A vs C.
