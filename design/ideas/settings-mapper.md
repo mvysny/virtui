@@ -73,15 +73,33 @@ mapper.dump(state)                                                    # => plain
 
 ## How the mapper reads a class
 
-- **Defaults: the class's own constructor.** `Klass.new` with no arguments is the default
-  instance; each field's default is read back through its getter. Ruby's keyword defaults *are*
-  the declaration — nothing is repeated for the mapper.
-- **Fields:** a `Data` class's `members`; otherwise the constructor's keyword parameters; and
-  for a class whose `initialize` takes none, the instance variables a bare `new` sets (the rule
-  `keeping-state.md` already uses: every ivar set in `initialize` is a setting).
-- **Building the result**, by what the class offers:
-  - keyword constructor (`Data`, or an immutable plain class): `new(**defaults.merge(loaded))`;
-  - setters (a mutable class): `new`, then `field=` for each loaded key.
+- **Defaults: the class's own constructor, with no arguments.** `Klass.new` must work bare —
+  an empty `initialize`, or a default for every parameter — and that instance is the default;
+  each field's default is read back through its getter. Ruby's keyword defaults *are* the
+  declaration — nothing is repeated for the mapper.
+- **Two class shapes**, as Java's zero-argument bean:
+  - **`Data`** (immutable): the fields are its `members`; built with
+    `new(**defaults.merge(loaded))`.
+  - **A bean** (mutable): the fields are its **public reader + writer pairs**, built with a bare
+    `new`, then `field=` for each loaded key. Only methods are read, never ivars or what
+    `initialize` does: a hand-written `def foo` / `def foo=(v)` counts like an `attr_accessor`,
+    inherited and mixed-in pairs count, a reader or writer alone does not (`attr_reader :path`
+    stays out), and only names matching `/\A[a-z_]\w*=\z/` are writers (not `==`, `[]=`,
+    `<=`). The rule ActiveModel's `assign_attributes` already assumes: it `public_send`s
+    `"#{key}="`.
+
+  An immutable plain class with a keyword constructor has readers and no writers, so no
+  fields: immutable means `Data`.
+- **An accessor that is not a setting goes `private` or `protected`** — Ruby's own visibility
+  is the way out. Left public, it has no declared type (or, from `sig/`, an unsupported one such
+  as a proc), so the mapper raises when it first reads the class: loud, never serialized
+  quietly.
+- **No required keys.** A bare `new` means every field has a default, so a missing key is never
+  an error — right for state and for an optional config file. (So a `Data` keyword without a
+  default is not a way to make a key required: that class cannot be built bare.)
+- **Dump order is declaration order**, by each reader's `instance_method(…).source_location`:
+  Ruby promises no order for `public_instance_methods`, and `state.json` should come out stable
+  for diffs. A `Data` class dumps in `members` order.
 - **Nested objects** are mapped recursively when a field's type is itself a mappable class;
   `validate` runs bottom-up, nested objects first.
 - **Dump** walks the same fields through the getters; a nested object dumps to a Hash.
@@ -162,10 +180,9 @@ shows up at once.
 
 **No `not_nil:` or `required:` yet.** TOML has no null, so a TOML file can only leave a key out,
 which means the default. In JSON, `not_nil:` would forbid an explicit `null` on a field whose
-type and default both allow it — no known use case. "The file must give this key" is
-`required:`, but a `Data` class already does it: a keyword with no default is required, so a
-missing key raises. Only a setter class whose ivar starts as `nil` would need it; nothing in
-virtui is shaped like that yet.
+type and default both allow it — no known use case. "The file must give this key" would be
+`required:`; the bare `new` rules out getting it from a keyword without a default. virtui has
+no required key; pikuri has some (`config-file.md`), so `required:` comes with pikuri.
 
 ### The RBS strategy: a `sig/*.rbs` file, not inline
 
@@ -294,7 +311,7 @@ Proposal — a macro that records metadata only, defining no accessor:
 
 ```ruby
 Ballooning = Data.define(:raise_at_percent, :shrink_at_percent, :min_actual_gib, :pinned_vms) do
-  extend Confect::Mapper::Annotations
+  extend Confect::Constrain
 
   # without RBS; under RBSTypes the type: arguments move to sig/ and only the limits stay
   constrain :raise_at_percent, :shrink_at_percent, type: 'Integer', in: 1..100
@@ -403,8 +420,5 @@ For the locations layer, from rubygems on 2026-11-01:
 
 ## Open questions
 
-- `Q_mutable_fields` — for a setter class, fields from the ivars a bare `new` sets, or from its
-  public writers? Ivars match `keeping-state.md`; writers would also pick up a writer that is
-  not meant as a setting.
 - `Q_sorbet_from_hash` — does `T::Struct.from_hash` type-check values, or assign blindly? Only
   matters if `T::Struct` comes back as a candidate.
