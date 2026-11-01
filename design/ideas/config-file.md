@@ -17,8 +17,8 @@ point (`keeping-state.md`):
 The aim is a design sound on its own merits, to be back-ported to the pikuri apps
 afterwards — not a copy of what they do today (see *pikuri, as a data point*).
 
-Superseded in part: the loader is now `settings-mapper.md` — our own mapper with types from
-RBS, annotations or defaults; the first error raises; cross-field rules in the class's own
+Superseded in part: the loader is now **Confect** (`../confect`, its `design/ideas/mapper.md`)
+— our own mapper, a gem of its own, with types from `constrain` or RBS; the first error raises; cross-field rules in the class's own
 `validate`. That drops requirements 2 and 4 below and shapes A–C. The search path, what goes in
 the file, the errors-before-the-screen rule and the open questions here still stand.
 
@@ -151,7 +151,7 @@ rubygems.org, 2026-11-01:
 Rejected: **YAML** (above). **shale** 1.2.2 — typed mapper with TOML, but 447k downloads in
 all and quiet since 2025-03. **activemodel** — drags in activesupport; "Ruby, no Rails".
 **json_schemer** — a JSON Schema is a second list of keys beside the code; reopened as a
-type source in `settings-mapper.md` (`Q_json_schema`). **representable**
+type strategy in Confect's `mapper.md`, for later. **representable**
 — keys listed again in a decorator. **virtus** — abandoned 2021. **kwalify** — dead since 2011.
 
 ## pikuri, as a data point
@@ -188,7 +188,7 @@ classes would live in a shared gem, and its sibling-tables-are-shape-only rule s
 - `Q_units` — `min_actual_gib = 8` and `veto_seconds = 60` (unit in the key, plain TOML
   integers), or `min_actual = "8 GiB"` and `veto = "60s"` (a custom dry-types constructor
   parsing units)? The first needs no parser and cannot be misread; the second reads better
-  and allows `512 MiB`. The second also needs custom types in `settings-mapper.md`, a
+  and allows `512 MiB`. The second also needs custom types in Confect's `mapper.md`, a
   conversion from the file's String to `Size` and back: a class with `.load(raw)` and `#dump`,
   or a registry (`Confect::Mapper.type('Size') { … }`) that type names resolve through. Parked there
   until this is decided.
