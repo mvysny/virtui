@@ -20,6 +20,11 @@ has pydantic, Rust serde, Java Jackson; Ruby has no equivalent of those.
 - **Cross-field rules and anything beyond simple constraints go in the class's own
   `validate`**, which the mapper calls after building the object and which raises on any
   problem. The mapper prefixes its message with the object's path.
+- **The file never names a class.** The caller names the root class and the class side (RBS,
+  annotation, default) names every nested one; no `json_class` / `!ruby/object` discriminator.
+  A user should not have to write one, and a rogue file must not instantiate an arbitrary
+  constant — the gadget class behind Psych's `safe_load` and JSON's `create_additions`. A field
+  with several shapes takes a tag the class maps to a closed set of classes.
 - **Hash in, Hash out.** The file format is the caller's: `Tomlrb.load_file`,
   `YAML.safe_load_file`, `JSON.load_file` all hand over a Hash.
 
