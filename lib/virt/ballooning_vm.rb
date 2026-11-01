@@ -38,11 +38,11 @@ module Virt
   class BallooningVM
     # @param virt_cache [Cache] the runtime cache to read VM data from and act through
     # @param vmid [String] the VM name
-    def initialize(virt_cache, vmid)
+    # @param config [Config::Ballooning] the triggers and the floor
+    def initialize(virt_cache, vmid, config: Config::Ballooning.new)
       @virt_cache = virt_cache
       @vmid = vmid
-      # 8 GiB: a healthy minimum for a desktop guest. A smaller VM floors lower; see {#floor}.
-      @min_actual = 8.GiB
+      @min_actual = config.min_actual_gib.GiB
 
       # How much to raise by, as a percentage: 30 means the actual goes to 130%. No
       # back-off gates it, so this is also a velocity — one hop per new guest sample, i.e.
@@ -64,8 +64,8 @@ module Virt
       @boot_back_off_seconds = 20
 
       @back_off = BackOffShrinkVetoer.new
-      @raise_voters = [MemLevelRaiseVoter.new, SwapOutRaiseVoter.new]
-      @shrink_voters = [MemLevelShrinkVoter.new]
+      @raise_voters = [MemLevelRaiseVoter.new(trigger_at: config.raise_at_percent), SwapOutRaiseVoter.new]
+      @shrink_voters = [MemLevelShrinkVoter.new(trigger_at: config.shrink_at_percent)]
       # The guest's own objection first: it says more than "we just did something".
       @shrink_vetoers = [SwapOutShrinkVetoer.new, @back_off]
       @inputs = @raise_voters + @shrink_voters + @shrink_vetoers

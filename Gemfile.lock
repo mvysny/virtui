@@ -90,6 +90,7 @@ GEM
       sorbet-runtime
       yard
     timecop (0.9.11)
+    tomlrb (3.0.0)
     tsort (0.2.0)
     tty-color (0.6.0)
     tty-cursor (0.7.1)
@@ -118,6 +119,7 @@ DEPENDENCIES
   simplecov (~> 0.22)
   sord (~> 7.1)
   timecop
+  tomlrb (~> 3.0)
   tty-cursor (~> 0.7.1)
   tty-logger
   tuile!
@@ -161,6 +163,7 @@ CHECKSUMS
   sorbet-runtime (0.6.13612) sha256=a2dbdac03698445fc4d5d0d172e505645c34fe21ad8ace910cf8832a6ee775f4
   sord (7.1.0) sha256=e02fd59294da520e50cea80a07fb9bc93db709c552d055871379ae8d8e87601f
   timecop (0.9.11) sha256=41284dc6e5041f2184f781ace766f942108c842f8d8c1386a26e6343decc7542
+  tomlrb (3.0.0) sha256=e7122820cbb9b940d1758eecb6d1d4ee97c582efa37f06e0100a97cb17a566f5
   tsort (0.2.0) sha256=9650a793f6859a43b6641671278f79cfead60ac714148aabe4e3f0060480089f
   tty-color (0.6.0) sha256=6f9c37ca3a4e2367fb2e6d09722762647d6f455c111f05b59f35730eeb24332a
   tty-cursor (0.7.1) sha256=79534185e6a777888d88628b14b6a1fdf5154a603f285f80b1753e1908e0bf48

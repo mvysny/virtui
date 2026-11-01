@@ -20,6 +20,15 @@ $log = TTY::Logger.new do |config|
 end
 Tuile.logger = $log
 
+# Before the screen exists, so a bad file ends on the terminal the user just launched virtui
+# from: starting on the defaults would hide that their setting is not in effect.
+begin
+  config = Config.load
+rescue Config::Error => e
+  $log.fatal(e.message)
+  exit 1
+end
+
 # Update terminal title to show "VirTUI"
 print "\e]0;VirTUI\a"
 
@@ -46,7 +55,7 @@ virt = if runner
 
 virt_cache = Virt::Cache.new(virt, System::Info.new)
 
-ballooning = Virt::Ballooning.new(virt_cache)
+ballooning = Virt::Ballooning.new(virt_cache, config: config.ballooning)
 screen = Tuile::Screen.new
 screen.on_error { |e| $log.fatal('Uncaught event loop exception', e.error) }
 # Before the layout: the panes read the theme as they are built. The screen re-resolves

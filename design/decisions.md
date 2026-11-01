@@ -768,3 +768,20 @@ or the stdlib (`Tuile::Color`) also warns, since sord sees only this project, an
 Ruby resolves it from the top level. CI fails on a stale file. The costs: `require "rbs"` adds
 ~150 ms to startup, and `rbs validate` cannot run without signatures for rexml, concurrent-ruby
 and tty-*, which only `rbs collection` downloads, so only Typemap's own parse checks the file.
+
+## D_config_file — Why a TOML file, read once from the first XDG path found, mapped by Typemap?
+
+TOML, not YAML: YAML's indentation is syntax, and its 1.1 typing turns `no`, `off` and `y`
+into booleans and `0755` into an octal number, which a hand-edited file walks straight into.
+Typemap (the gem `State` uses, `D_types_from_yard`) maps the table onto `Config::Ballooning`, a
+`Data.define`: type from the YARD tag, default in `initialize`, limits in `constrain`, the
+cross-key rule in `validate` — one class per table, no second list of keys. An unknown key
+raises: a misspelled key that silently does nothing is the classic config bug, and an older
+virtui refusing a newer file names the key. The first error raises; with a handful of keys one
+fix per run is fine. First found, not merged: "which file set this?" then has a one-word
+answer, and merging earns its rules (arrays, per-VM tables, provenance) only once two people
+configure one host. Read once, before the screen: starting on the defaults would hide that a
+setting is not in effect, and reloading would make every component re-read its slice. Units
+live in the key (`min_actual_gib = 8`), so nothing parses `"8 GiB"`. Global keys only, until a
+VM needs its own floor or trigger. Each component gets its slice as a constructor argument, so
+a spec builds a voter with any value and there is no second global beside `$log`.

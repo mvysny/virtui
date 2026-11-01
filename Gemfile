@@ -9,6 +9,8 @@ gem 'concurrent-ruby'
 gem 'rbs', '~> 4.2'
 # Parses `virsh dumpxml` (Virt::DomainConfig). A bundled gem since Ruby 3.0, so it needs this line.
 gem 'rexml', '~> 3.4'
+# Parses the user's config.toml (lib/config.rb); parse-only, as virtui never writes it.
+gem 'tomlrb', '~> 3.0'
 gem 'tty-cursor', '~> 0.7.1'
 gem 'tty-logger'
 # Unreleased tuile: FakeEventQueue's queued submit and Testing.loop (tuile#65), which the

@@ -17,10 +17,14 @@ doc-comment content has crept in.
   `lib/system/` references `UI::`; a presentation choice (a glyph, a colour) is a table in
   `lib/ui/` keyed by the data `Virt::` exposes.
 - `bin/virtui` constructs everything once and hands objects in as constructor arguments; the
-  only global is `$log`. The graph, top down: `UI::AppLayout(cache, ballooning)` →
-  `Virt::Ballooning(cache)` → `Virt::Cache(virt, System::Info)` → `Virt::Virsh(runner,
+  only global is `$log`. It loads `Config` first, before the `virsh` session and the screen; a
+  `Config::Error` is logged fatal and exits 1. The graph, top down: `UI::AppLayout(cache, ballooning)` →
+  `Virt::Ballooning(cache, config.ballooning)` → `Virt::Cache(virt, System::Info)` → `Virt::Virsh(runner,
   guest_sampler)` → `Virt::GuestSampler(Virt::GuestAgent(runner))` and
   `Virt::VirshSession`.
+- Config flows down as data: `Virt::Ballooning` hands its `Config::Ballooning` to each
+  `BallooningVM`, which hands each voter its own trigger (`trigger_at:`). Nothing below
+  `bin/virtui` sees the whole `Config`.
 - The backend is a role, not a class: `Virt::Virsh` and `Virt::VMEmulator` answer the same calls
   (`domain_data`, `guest_os`, `guest_swap`, `guest_fs_usage`, `ip_address`, `domain_config`, `set_actual`, the
   power commands), so

@@ -21,7 +21,7 @@ describe Virt::BallooningVM::MemLevelRaiseVoter do
                              0.0, 0, nil, nil, Virt::GuestOS::UNKNOWN, nil, nil, nil)
   end
 
-  def voter = Virt::BallooningVM::MemLevelRaiseVoter.new
+  def voter = Virt::BallooningVM::MemLevelRaiseVoter.new(trigger_at: 65)
 
   it 'does not vote before it has seen anything' do
     assert_nil voter.vote_reason

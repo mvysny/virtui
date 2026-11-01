@@ -14,6 +14,7 @@ require 'date'
 require 'json'
 require 'fileutils'
 require 'typemap'
+require 'tomlrb'
 
 # Core extensions: monkey-patches and top-level helpers. These don't define a
 # constant matching their path, so Zeitwerk can't manage them — load eagerly.

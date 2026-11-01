@@ -36,7 +36,8 @@ Every fact lives in exactly one of these; the others link to it.
 - **Only reads (`query`) are served by the long-lived `virsh` session; every mutating command spawns its own process** and keeps its own exit status. See `D_virsh_session`.
 - **`Virt::GuestAgent` only reads (guest files, `guest-get-fsinfo`); `guest-exec` runs only in `Virt::GuestRootGrow`, from the operator-confirmed Grow root flow, with a fixed argv — never from the loop.** See `D_guest_root_grow`.
 - **Nothing under `lib/virt/` or `lib/system/` references `UI::`.** Data flows up through `Virt::Cache`; glyphs and colors stay in `lib/ui/`.
-- **`MemLevelRaiseVoter`'s trigger stays above `MemLevelShrinkVoter`'s.** Otherwise both vote on one sample and the VM hunts. See `D_ballooning_voters`.
+- **`MemLevelRaiseVoter`'s trigger stays above `MemLevelShrinkVoter`'s.** Otherwise both vote on one sample and the VM hunts; `Config::Ballooning#validate` refuses a config that breaks it. See `D_ballooning_voters`.
+- **Config is read once, before the screen exists, and each component gets its slice as a constructor argument** — never the whole `Config`, never a global. See `D_config_file`.
 - **Durations run on the uptime clock (`Cooldown`); specs move them with `Uptime.travel`, never Timecop.** Timecop leaves `CLOCK_MONOTONIC` where it is, so a Timecop'd cooldown test passes vacuously. See `D_cooldown_monotonic`.
 - **The guest-agent reads (swap level, filesystem usage, SysRq mask) are the only reads allowed to go quiet.** A guest that cannot answer is written off and the poll goes on; every other backend failure raises. See `D_guest_agent_backoff`.
 
@@ -48,7 +49,7 @@ Every fact lives in exactly one of these; the others link to it.
 - `lib/system/` → `System::` — host CPU, RAM and disk from `/proc` and `df`, with an emulator double.
 - `lib/ui/` → `UI::` — the tuile panes, theme and tint; reads only `Virt::Cache`.
 - `lib/ui/vm_pane/` — the VM pane's menus, one `PickerDialog` per key, each handed the VM's name.
-- `lib/*.rb` — shared top-level value objects and helpers, deliberately namespace-free.
+- `lib/*.rb` — shared top-level value objects and helpers, deliberately namespace-free; `Config` (the user's `config.toml`, `lib/config/` its tables) and `State` (what virtui remembers) among them.
 - `lib/core_ext/` — the byte-unit monkey-patches; required by hand, ignored by Zeitwerk.
 - `spec/` — rspec; parser specs feed the recorded `/proc`, `domstats` and `df` fixtures beside them.
 - `design/` — the lazy docs above, the tripwire script and `design/ideas/`.

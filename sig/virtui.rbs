@@ -2742,7 +2742,9 @@ module Virt
   # Reads from {Cache} and issues memory changes through it. UI-thread-confined.
   class Ballooning
     # _@param_ `virt_cache` — the runtime cache to read VM data from and act through
-    def initialize: (Cache virt_cache) -> void
+    # 
+    # _@param_ `config` — handed to every {BallooningVM}
+    def initialize: (Cache virt_cache, ?config: Config::Ballooning) -> void
 
     # Refreshes the per-VM ballooners from {Cache} (adding any new VMs), runs one control
     # step on each, then debug-logs the outcome. Call every ~2 seconds.
@@ -3651,7 +3653,9 @@ module Virt
     # _@param_ `virt_cache` — the runtime cache to read VM data from and act through
     # 
     # _@param_ `vmid` — the VM name
-    def initialize: (Cache virt_cache, String vmid) -> void
+    # 
+    # _@param_ `config` — the triggers and the floor
+    def initialize: (Cache virt_cache, String vmid, ?config: Config::Ballooning) -> void
 
     # The lowest `actual` this VM is ever shrunk to: {#min_actual}, or half the VM's configured
     # maximum if that is less. Not {#min_actual} alone: a VM configured with less than it would
@@ -3830,7 +3834,8 @@ module Virt
     # 
     # UI-thread-confined, like its owner.
     class MemLevelRaiseVoter
-      def initialize: () -> void
+      # _@param_ `trigger_at` — guest memory use, omitting cache, in percent, at or above which this votes to raise: {Config::Ballooning#raise_at_percent}, whose `validate` keeps it above {MemLevelShrinkVoter}'s
+      def initialize: (trigger_at: Integer) -> void
 
       # _@param_ `vm_cache` — this tick's cache entry for the VM, or `nil` if the VM is unknown
       def observe: (Cache::VMCache? vm_cache) -> void
@@ -3894,7 +3899,8 @@ module Virt
     # 
     # UI-thread-confined, like its owner.
     class MemLevelShrinkVoter
-      def initialize: () -> void
+      # _@param_ `trigger_at` — guest memory use, omitting cache, in percent, at or below which this votes to lower: {Config::Ballooning#shrink_at_percent}
+      def initialize: (trigger_at: Integer) -> void
 
       # _@param_ `vm_cache` — this tick's cache entry for the VM, or `nil` if the VM is unknown
       def observe: (Cache::VMCache? vm_cache) -> void
@@ -5034,6 +5040,108 @@ class State
 
   # _@return_ — whether the log pane is shown
   attr_accessor log_pane_visible: bool
+end
+
+# The user's settings, read once at startup from the first `virtui/config.toml` on the XDG
+# config path ({.path}). Every key is optional; a missing file is the defaults:
+# 
+#     # ~/.config/virtui/config.toml
+#     [ballooning]
+#     raise_at_percent = 70
+# 
+#     config = Config.load
+#     config.ballooning.raise_at_percent   # => 70
+#     config.ballooning.shrink_at_percent  # => 55, the default
+# 
+# A key is a member of {Config} or of a nested data class, typed by its YARD `@return` through
+# `sig/virtui.rbs`, its default in `initialize`; Typemap maps the file onto them. A wrong type,
+# a value out of its limits or an unknown key raises {Config::Error} naming the file and the key.
+# 
+# @!attribute [r] ballooning
+#   @return [Config::Ballooning] the `[ballooning]` table
+class Config
+  MAPPER: Typemap::Mapper
+
+  # _@param_ `ballooning`
+  def initialize: (?ballooning: Config::Ballooning) -> void
+
+  # The first `virtui/config.toml` that exists under `$XDG_CONFIG_HOME` (default `~/.config`),
+  # then under each `$XDG_CONFIG_DIRS` entry (default `/etc/xdg`). Only the first is read, never
+  # merged. A relative entry is skipped: the XDG Base Directory spec calls it invalid.
+  # 
+  # _@param_ `env` — the environment to read
+  # 
+  # _@return_ — the file's absolute path; `nil` when there is none
+  def self.path: (?::Hash[String, String] env) -> String?
+
+  # Logs which file it read, at info.
+  # 
+  # _@param_ `env` — the environment {.path} reads
+  # 
+  # _@return_ — the settings from {.path}; the defaults where it or a key is missing
+  def self.load: (?::Hash[String, String] env) -> Config
+
+  # _@return_ — the `[ballooning]` table
+  attr_reader ballooning: Config::Ballooning
+
+  # A config file that cannot be used, its message prefixed with the file's path:
+  # 
+  #     ~/.config/virtui/config.toml: ballooning.raise_at_percent: expected Integer, got "70"
+  class Error < StandardError
+  end
+
+  # The `[ballooning]` table: when a guest grows and shrinks, and how far it may shrink.
+  # 
+  # @!attribute [r] raise_at_percent
+  #   @return [Integer] guest memory use, omitting cache, in percent, at or above which the guest
+  #     is grown ({Virt::BallooningVM::MemLevelRaiseVoter}). 65 leaves a 35% reserve, where MoM,
+  #     Hyper-V and K8s VPA all use 15-20%. Not `100 - vm.swappiness`: swappiness weights the
+  #     anon LRU against the file LRU once reclaim has *already* started and says nothing about
+  #     when it starts. A guest at 61% was measured holding 2 GiB of swap
+  #     (`design/ideas/swap-despite-ballooning.md`).
+  # @!attribute [r] shrink_at_percent
+  #   @return [Integer] guest memory use, in percent, at or below which the guest is shrunk
+  #     ({Virt::BallooningVM::MemLevelShrinkVoter}). The 10-point gap to 65 is a deadband, and
+  #     narrower than it looks: a 30% raise takes a guest reading 65% straight down to 50%, five
+  #     points under 55, so a raise is followed by a shrink once the back-off lapses
+  #     (`design/ideas/swap-despite-ballooning.md` has the arithmetic).
+  # @!attribute [r] min_actual_gib
+  #   @return [Integer] the floor no guest is shrunk below, in GiB: 8 is a healthy desktop
+  #     guest. A VM configured with less than twice this floors at half its maximum instead
+  #     ({Virt::BallooningVM#floor}).
+  class Ballooning
+    extend Typemap::Constrain
+
+    # _@param_ `raise_at_percent`
+    # 
+    # _@param_ `shrink_at_percent`
+    # 
+    # _@param_ `min_actual_gib`
+    def initialize: (?raise_at_percent: Integer, ?shrink_at_percent: Integer, ?min_actual_gib: Integer) -> void
+
+    # Typemap calls this on every load.
+    def validate: () -> void
+
+    # _@return_ — guest memory use, omitting cache, in percent, at or above which the guest
+    # is grown ({Virt::BallooningVM::MemLevelRaiseVoter}). 65 leaves a 35% reserve, where MoM,
+    # Hyper-V and K8s VPA all use 15-20%. Not `100 - vm.swappiness`: swappiness weights the
+    # anon LRU against the file LRU once reclaim has *already* started and says nothing about
+    # when it starts. A guest at 61% was measured holding 2 GiB of swap
+    # (`design/ideas/swap-despite-ballooning.md`).
+    attr_reader raise_at_percent: Integer
+
+    # _@return_ — guest memory use, in percent, at or below which the guest is shrunk
+    # ({Virt::BallooningVM::MemLevelShrinkVoter}). The 10-point gap to 65 is a deadband, and
+    # narrower than it looks: a 30% raise takes a guest reading 65% straight down to 50%, five
+    # points under 55, so a raise is followed by a shrink once the back-off lapses
+    # (`design/ideas/swap-despite-ballooning.md` has the arithmetic).
+    attr_reader shrink_at_percent: Integer
+
+    # _@return_ — the floor no guest is shrunk below, in GiB: 8 is a healthy desktop
+    # guest. A VM configured with less than twice this floors at half its maximum instead
+    # ({Virt::BallooningVM#floor}).
+    attr_reader min_actual_gib: Integer
+  end
 end
 
 # Host operating-system metrics: {System::Info} reads the host's CPU, memory and

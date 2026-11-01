@@ -84,6 +84,19 @@ describe Virt::BallooningVM do
     [cache, b]
   end
 
+  it 'takes its triggers and floor from the config' do
+    Helpers.setup_dummy_logger
+    config = Config::Ballooning.new(raise_at_percent: 70, shrink_at_percent: 40, min_actual_gib: 3)
+    cache = BallooningFakeCache.new(mem: mem_at(65), info: Virt::DomainInfo.new('vm0', 1, 16.GiB))
+    b = Virt::BallooningVM.new(cache, 'vm0', config: config)
+    assert_equal 3.GiB, b.min_actual
+    b.update
+    assert_equal 'VM reports 1.2G (65%), nothing to do; d=0', b.status.to_s
+    cache.next_sample(mem_at(70, at: now_secs + 5))
+    b.update
+    assert_includes b.status.to_s, 'usage is at or over the 70% trigger'
+  end
+
   it 'does nothing to a stopped VM' do
     virt = Virt::VMEmulator.new
     virt.add(Virt::VMEmulator::VM.simple('vm0'))

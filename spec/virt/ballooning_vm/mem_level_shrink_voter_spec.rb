@@ -21,7 +21,7 @@ describe Virt::BallooningVM::MemLevelShrinkVoter do
                              0.0, 0, nil, nil, Virt::GuestOS::UNKNOWN, nil, nil, nil)
   end
 
-  def voter = Virt::BallooningVM::MemLevelShrinkVoter.new
+  def voter = Virt::BallooningVM::MemLevelShrinkVoter.new(trigger_at: 55)
 
   it 'does not vote before it has seen anything' do
     assert_nil voter.vote_reason

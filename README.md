@@ -247,13 +247,27 @@ for reasons more memory cannot fix — a container or systemd slice with its own
 limit inside the VM — will be grown to its configured maximum and stay there. If that is
 your guest, turn ballooning off for that VM with `mb`.
 
-At the moment you need to edit virtui sources to configure this. Each decision above is a
-small class in `lib/virt/ballooning_vm/` holding its own threshold as an instance variable,
-documented next to its value: the 65% and 55% triggers in `MemLevelRaiseVoter` and
-`MemLevelShrinkVoter`, the swap rate that counts as swapping in `SwapOutRaiseVoter` and
-`SwapOutShrinkVetoer`, the quiet-period lengths in the latter and in `BackOffShrinkVetoer`.
-How far each change moves the memory — the 30% and the 10% — is set in `Virt::BallooningVM`
-(`lib/virt/ballooning_vm.rb`), which is what runs them all.
+The two triggers and the floor are set in `~/.config/virtui/config.toml`. Every key is
+optional, and these are the defaults:
+
+```toml
+[ballooning]
+raise_at_percent = 65   # grow a guest at or above this memory use, in percent
+shrink_at_percent = 55  # shrink it at or below this; must stay below raise_at_percent
+min_actual_gib = 8      # never shrink below this, in GiB; a VM with less than twice this
+                        # floors at half its configured maximum instead
+```
+
+virtui reads the first of `$XDG_CONFIG_HOME/virtui/config.toml` (`~/.config` when unset) and
+`virtui/config.toml` under each `$XDG_CONFIG_DIRS` directory (`/etc/xdg` when unset); nothing
+is merged. The file is read once, at startup. A mistake in it (a misspelled key, a wrong type,
+a value out of range) stops virtui before the screen opens, naming the file and the key.
+
+The rest is still set in source. Each decision above is a small class in
+`lib/virt/ballooning_vm/`, documented next to its value: the swap rate that counts as
+swapping in `SwapOutRaiseVoter` and `SwapOutShrinkVetoer`, the quiet-period lengths in the
+latter and in `BackOffShrinkVetoer`. How far each change moves the memory — the 30% and the
+10% — is set in `Virt::BallooningVM` (`lib/virt/ballooning_vm.rb`), which is what runs them all.
 
 ## Guest Configuration
 

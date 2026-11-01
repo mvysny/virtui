@@ -13,17 +13,11 @@ module Virt
     #
     # UI-thread-confined, like its owner.
     class MemLevelRaiseVoter
-      def initialize
-        # Guest memory usage (omitting cache), as a percentage, at or above which this votes
-        # to raise. Must stay above {MemLevelShrinkVoter}'s trigger, or the two vote at once
-        # on the same sample and the VM hunts — nothing enforces that but this line.
-        #
-        # 65 leaves a 35% reserve, where MoM, Hyper-V and K8s VPA all use 15-20%. Do not
-        # read it as `100 - vm.swappiness`, which is what it used to claim: swappiness
-        # weights the anon LRU against the file LRU once reclaim has *already* been entered
-        # and says nothing about when reclaim starts. A guest at 61% was measured holding
-        # 2 GiB of swap — see `design/ideas/swap-despite-ballooning.md`.
-        @trigger_at = 65
+      # @param trigger_at [Integer] guest memory use, omitting cache, in percent, at or above
+      #   which this votes to raise: {Config::Ballooning#raise_at_percent}, whose `validate`
+      #   keeps it above {MemLevelShrinkVoter}'s
+      def initialize(trigger_at:)
+        @trigger_at = trigger_at
 
         # {Integer | nil} the usage the latest sample reported, `nil` before the first one
         # or for a VM whose balloon reports no guest data.

@@ -12,16 +12,10 @@ module Virt
     #
     # UI-thread-confined, like its owner.
     class MemLevelShrinkVoter
-      def initialize
-        # Guest memory usage (omitting cache), as a percentage, at or below which this votes
-        # to lower. Must stay below {MemLevelRaiseVoter}'s trigger, or the two vote at once
-        # on the same sample and the VM hunts — nothing enforces that but this line.
-        #
-        # The 10-point gap to that trigger is a deadband, and it is narrower than it looks:
-        # raising by 30% takes a guest reading 65% straight down to 50%, five points *under*
-        # this trigger, so a raise is followed by a shrink as soon as the back-off lapses.
-        # See `design/ideas/swap-despite-ballooning.md` for the arithmetic.
-        @trigger_at = 55
+      # @param trigger_at [Integer] guest memory use, omitting cache, in percent, at or below
+      #   which this votes to lower: {Config::Ballooning#shrink_at_percent}
+      def initialize(trigger_at:)
+        @trigger_at = trigger_at
 
         # {Integer | nil} the usage the latest sample reported, `nil` before the first one
         # or for a VM whose balloon reports no guest data.

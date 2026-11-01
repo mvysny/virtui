@@ -8,8 +8,10 @@ module Virt
   # Reads from {Cache} and issues memory changes through it. UI-thread-confined.
   class Ballooning
     # @param virt_cache [Cache] the runtime cache to read VM data from and act through
-    def initialize(virt_cache)
+    # @param config [Config::Ballooning] handed to every {BallooningVM}
+    def initialize(virt_cache, config: Config::Ballooning.new)
       @virt_cache = virt_cache
+      @config = config
       # Hash{String => BallooningVM}, keyed by VM name
       @ballooning = {}
     end
@@ -20,7 +22,7 @@ module Virt
     # @return [void]
     def update
       @ballooning = @virt_cache.domains.to_h do |domainid|
-        [domainid, @ballooning[domainid] || BallooningVM.new(@virt_cache, domainid)]
+        [domainid, @ballooning[domainid] || BallooningVM.new(@virt_cache, domainid, config: @config)]
       end
       @ballooning.each_value(&:update)
       log_statuses
