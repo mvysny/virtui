@@ -280,8 +280,13 @@ end
   YARD on every public method. The one-line form already exists in standard Ruby:
   `attr_accessor :last_vm #: String?`.
 
-The alternative is a plain constant the mapper reads — `CONSTRAINTS = { min_actual_gib: { in:
-1.. } }` — so the class does not reference the mapper at all — `Q_annotation_shape`.
+Settled: the `constrain` macro, not a plain constant the mapper reads (`CONSTRAINTS = {
+min_actual_gib: { type: 'Integer', in: 1.. } }`). A map of maps has no type safety. The macro
+carries YARD a reader or an LLM agent follows, and it rejects an unknown option (`in_:`) the
+moment the class loads. It also works in both `Data` styles: a constant written inside a
+`X = Data.define(…) do … end` block lands in the enclosing scope, not in `X`, silently even
+under `-W`, so the constant would only work with `class X < Data.define(…)`. The macro's cost
+is that the class references the mapper.
 
 ### Later, perhaps: JSON Schema as an alternative to `constrain`
 
@@ -339,8 +344,6 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
 
 ## Open questions
 
-- `Q_annotation_shape` — the `constrain` macro (`extend Mapper::Annotations`, Rails-like) or a
-  plain `CONSTRAINTS` constant (no reference to the mapper)?
 - `Q_custom_types` — a protocol class (`.load` / `#dump`), or a registry
   (`Mapper.type('Size') { … }`) that RBS type names resolve through?
 - `Q_mutable_fields` — for a setter class, fields from the ivars a bare `new` sets, or from its
