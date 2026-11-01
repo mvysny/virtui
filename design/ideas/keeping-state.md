@@ -26,7 +26,7 @@ path.
 Still missing against the list above:
 
 - **Fields are listed by hand**, once in the constructor, once in `load`, once in `save`. That
-  waits for Confect (`../confect`, its `design/ideas/mapper.md`): once config is built on it,
+  waits for Typemap (`../typemap`, its README): once config is built on it,
   `State` becomes an accessor class with constructor defaults and a `constrain … type:` per property (or types in
   `sig/`), loaded with `mapper.load(State, JSON.load_file(path), unknown: :ignore)` and written
   from `mapper.dump(state)`.
