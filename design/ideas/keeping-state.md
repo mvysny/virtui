@@ -14,6 +14,10 @@ That decides everything below.
 
 Config, which the user does write, is the opposite on every point: `config-file.md`.
 
+On hold: the YAML proposal below still needs hand-written mapping code (`init_with`). If
+`settings-mapper.md` works out for config, state moves to it too, and YAML becomes just the file
+format, written from `Mapper.dump`.
+
 Where it stands: the working tree has a hand-rolled TOML `State` (`lib/state.rb`, `tomlrb` 2.0 +
 a `racc` Gemfile line) that lists every field in `load` and `save`. The `UI::AppLayout` wiring
 (load on build, save on every show/hide) and `spec_helper`'s per-example `XDG_STATE_HOME`

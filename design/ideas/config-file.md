@@ -17,6 +17,11 @@ point (`keeping-state.md`):
 The aim is a design sound on its own merits, to be back-ported to the pikuri apps
 afterwards — not a copy of what they do today (see *pikuri, as a data point*).
 
+Superseded in part: the loader is now `settings-mapper.md` — our own mapper with types from
+RBS, annotations or defaults; the first error raises; cross-field rules in the class's own
+`validate`. That drops requirements 2 and 4 below and shapes A–C. The search path, what goes in
+the file, the errors-before-the-screen rule and the open questions here still stand.
+
 ## What a good config loader does
 
 1. **One declaration per key**: its type, its default and the reason for the default,
