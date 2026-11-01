@@ -49,8 +49,12 @@ mapper.dump(state)                                                    # => plain
 - **Nested objects** are mapped recursively when a field's type is itself a mappable class;
   `validate` runs bottom-up, nested objects first.
 - **Dump** walks the same fields through the getters; a nested object dumps to a Hash.
-- **Custom types** (virtui's `Size` for `"8 GiB"`, a `Duration` for `"60s"`) are any class with
-  `.load(raw)` and `#dump` — `Q_custom_types`.
+- **No custom types yet.** A type tells the mapper what a field is, not how a scalar in the
+  file becomes that object: `"8 GiB"` is a String in the file and virtui's `Size` in Ruby. That
+  needs a conversion (a class with `.load(raw)` and `#dump`, or a registry), and nothing needs
+  one while settings carry their unit in the key (`min_actual_gib = 8`). Parked under
+  `config-file.md`'s `Q_units`; until then a class that is not mappable raises "unsupported
+  type", so nothing is converted quietly.
 
 ```ruby
 Ballooning = Data.define(:raise_at_percent, :shrink_at_percent, :min_actual_gib) do
@@ -201,8 +205,13 @@ file, it never validates it.
    (*declared twice*).
 4. **Resolve the names in the type.** `::Set` is absolute: `Object.const_get`. A relative `Size`
    follows Ruby's lexical lookup from the declaring namespace outward (`UI::Foo::Size`,
-   `UI::Size`, `Size`). Built-ins go to the mapper's own checks; any other class must be mappable
-   or a custom type, or it raises `unsupported type at sig/virtui.rbs:LINE`.
+   `UI::Size`, `Size`). Built-ins go to the mapper's own checks; any other class must be
+   mappable, or it raises `unsupported type at sig/virtui.rbs:LINE`. **Qualified names are
+   allowed, not required**: `Integer` and `String` are relative too, and sord writes names as
+   YARD has them (`Size`, `Tuile::Color`, `::Set`). The lookup is the one Ruby itself does in the
+   code beside it, so the mapper never resolves a name differently: a bare `Size` inside `UI`
+   means what it means there, virtui's byte `Size` or tuile's width × height `Tuile::Size`, and
+   `Tuile::Size` or `::Size` makes the choice explicit.
 5. **`constrain type:`** strings go through `RBS::Parser.parse_type` and the same lookup, from
    the class's own namespace. `BasicTypes` resolves names in its own parsed strings the same
    way.
@@ -344,8 +353,6 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
 
 ## Open questions
 
-- `Q_custom_types` — a protocol class (`.load` / `#dump`), or a registry
-  (`Mapper.type('Size') { … }`) that RBS type names resolve through?
 - `Q_mutable_fields` — for a setter class, fields from the ivars a bare `new` sets, or from its
   public writers? Ivars match `keeping-state.md`; writers would also pick up a writer that is
   not meant as a setting.

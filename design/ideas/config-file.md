@@ -188,7 +188,10 @@ classes would live in a shared gem, and its sibling-tables-are-shape-only rule s
 - `Q_units` — `min_actual_gib = 8` and `veto_seconds = 60` (unit in the key, plain TOML
   integers), or `min_actual = "8 GiB"` and `veto = "60s"` (a custom dry-types constructor
   parsing units)? The first needs no parser and cannot be misread; the second reads better
-  and allows `512 MiB`.
+  and allows `512 MiB`. The second also needs custom types in `settings-mapper.md`, a
+  conversion from the file's String to `Size` and back: a class with `.load(raw)` and `#dump`,
+  or a registry (`Mapper.type('Size') { … }`) that type names resolve through. Parked there
+  until this is decided.
 - `Q_error_quality` — spike: what does `Dry::Struct::Error` actually say for a wrong type, a
   nested one, and an unknown key under `schema schema.strict`? Decides A vs C.
 - `Q_layers` — first found (leaning) or deep merge?
