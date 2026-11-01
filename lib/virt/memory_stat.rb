@@ -43,7 +43,7 @@ module Virt
   #     advancing unless collection is armed (see {Virsh#set_mem_stats_period})
   class MemoryStat < Data.define(:actual, :unused, :available, :usable, :disk_caches,
                                  :swap_in, :swap_out, :rss, :last_updated)
-    # @return [ResourceUsage | nil] the guest memory stats or nil if unavailable.
+    # @return [ResourceUsage, nil] the guest memory stats or nil if unavailable.
     def guest_mem
       guest_data_available? ? ResourceUsage.new(available, usable) : nil
     end

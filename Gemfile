@@ -4,6 +4,9 @@ source 'https://rubygems.org'
 ruby '>= 3.3'
 
 gem 'concurrent-ruby'
+# Typemap::Mapper::RBSTypes reads State's types from sig/virtui.rbs through the rbs parser;
+# Typemap never depends on rbs itself, so the app names it.
+gem 'rbs', '~> 4.2'
 # Parses `virsh dumpxml` (Virt::DomainConfig). A bundled gem since Ruby 3.0, so it needs this line.
 gem 'rexml', '~> 3.4'
 gem 'tty-cursor', '~> 0.7.1'
@@ -18,12 +21,16 @@ gem 'tty-logger'
 # they do — a git source rather than `path: '../tuile'` so CI can resolve it too. To work against
 # the sibling checkout: `bundle config set --local local.tuile ../tuile`.
 gem 'tuile', git: 'https://github.com/mvysny/tuile.git', branch: 'master'
+# Maps State to and from its JSON file (lib/state.rb). Pre-release with no gem yet, so it rides
+# main like tuile; `bundle config set --local local.typemap ../typemap` works against the sibling.
+gem 'typemap', git: 'https://github.com/mvysny/typemap.git', branch: 'main'
 gem 'zeitwerk', '~> 2.7'
 
 group :development do
   gem 'rake', '~> 13.4'
   gem 'redcarpet' # Markdown formatting for Yard
   gem 'rubocop', require: false
+  gem 'sord', '~> 7.1', require: false # writes sig/virtui.rbs from the YARD tags: `rake sig:generate`
   gem 'yard', '~> 0.9.43'
 end
 

@@ -43,8 +43,10 @@ module Virt
     # every VM start writes its own guest off and waits the backoff out with a blank swap
     # gauge. The strike count then survives a lapse ({#backing_off?}), making a still-mute
     # guest cost one probe a minute rather than three. See design/decisions.md D_guest_agent_backoff.
+    # @return [Integer]
     FAILURES_BEFORE_BACKOFF = 3
     # @see FAILURES_BEFORE_BACKOFF
+    # @return [Integer]
     BACKOFF_SECONDS = 60
 
     # @param agent [GuestAgent] the channel each sample is read through

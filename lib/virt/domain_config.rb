@@ -89,9 +89,11 @@ module Virt
                                    :agent, :firmware, :secure_boot, :loader, :nvram, :boot, :tpm, :disks,
                                    :filesystems, :interfaces, :graphics, :video, :hostdevs, :other_devices)
     # The virtio-serial channel name `qemu-guest-agent` listens on.
+    # @return [String]
     AGENT_CHANNEL = 'org.qemu.guest_agent.0'
 
     # The devices {#other_devices} names, by element.
+    # @return [Array<String>]
     OTHER_DEVICES = %w[rng watchdog sound redirdev].freeze
 
     # `<cpu><topology>`.
@@ -333,14 +335,14 @@ module Virt
                  discard: driver&.[]('discard'))
       end
 
-      # @param type [String] `<disk type=>`
+      # @param disk_type [String] `<disk type=>`
       # @param source [REXML::Element, nil] `<disk><source>`
       # @return [String, nil]
-      def disk_source(type, source)
+      def disk_source(disk_type, source)
         return nil if source.nil?
 
         a = source.attributes
-        case type
+        case disk_type
         when 'file' then a['file']
         when 'block' then a['dev']
         when 'dir' then a['dir']
@@ -349,7 +351,7 @@ module Virt
           host = source.elements['host']
           address = host.nil? ? '' : [host.attributes['name'], host.attributes['port']].compact.join(':')
           "#{a['protocol']}://#{address}/#{a['name']}"
-        else raise ArgumentError, "unexpected disk type #{type}: #{source}"
+        else raise ArgumentError, "unexpected disk type #{disk_type}: #{source}"
         end
       end
 

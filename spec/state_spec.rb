@@ -52,7 +52,7 @@ describe State do
     it 'raises on JSON that is not an object' do
       write_state('[true]')
       e = assert_raises(RuntimeError) { State.load }
-      assert_includes e.message, 'expected a JSON object'
+      assert_includes e.message, 'expected a table'
     end
 
     it 'raises on a value that is not a Boolean' do

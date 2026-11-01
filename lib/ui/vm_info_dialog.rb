@@ -34,10 +34,11 @@ module UI
     include Tuile
 
     # Like {CpuFlagsDialog::SIZE}, a touch taller: a VM with many devices runs to 30 rows.
-    # @return [Fraction]
+    # @return [Tuile::Fraction]
     SIZE = Fraction.new(0.7, 0.8)
 
     # Width of the caption column, `Firmware` plus two spaces.
+    # @return [Integer]
     CAPTION_WIDTH = 10
 
     # @param config [Virt::DomainConfig] what the VM is defined as

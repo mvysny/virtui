@@ -753,3 +753,18 @@ automatic `destroy` when the VM is still running 10 s after O: the operator chos
 option, so they get an alert and `O` stays theirs. Why not REISUB's E and I, which might let
 systemd finish its own shutdown: Ubuntu's 176 leaves out their bit, so they do nothing there.
 Why not cancelable: a guest left after U has every filesystem read-only.
+
+## D_types_from_yard — Why does `State` take its types from a sord-generated `sig/virtui.rbs` rather than Typemap's `constrain type:`?
+
+Typemap needs a declared type per property. The YARD `@return` on each `attr_accessor` already
+states it, and the Conventions require that tag on every public symbol, so a `constrain` line
+would declare the type a second time, free to drift from the first. `rake sig` has sord turn the
+tags into `sig/virtui.rbs`, which `Typemap::Mapper::RBSTypes` reads; a field is then an accessor,
+its tag and its default, nothing more. Making the tags load-bearing means they must be right
+everywhere, so `rake sig` fails on any type sord cannot write: a missing tag (`[OMIT]`), a name it
+cannot resolve (`[WARN]`, such as a bare `Size` that only `include Tuile` resolves, which RBS
+does not see), or a parameter named after an RBS keyword (Parlour's `type`). A name from a gem
+or the stdlib (`Tuile::Color`) also warns, since sord sees only this project, and passes when
+Ruby resolves it from the top level. CI fails on a stale file. The costs: `require "rbs"` adds
+~150 ms to startup, and `rbs validate` cannot run without signatures for rexml, concurrent-ruby
+and tty-*, which only `rbs collection` downloads, so only Typemap's own parse checks the file.

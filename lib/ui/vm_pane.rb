@@ -21,14 +21,17 @@ module UI
 
     # Separates a row's guest half from its host half. The same vertical bar the pane
     # separator column uses, so the two columns read as framed rather than piped apart.
+    # @return [String]
     COLUMN_SEPARATOR = '│'
 
     # Width of a split row's caption, colon included — `    CPU:`, `   SWAP:`, `    vda:` —
     # so the guest column starts at the same place on every row.
+    # @return [Integer]
     ROW_CAPTION_WIDTH = 8
 
     # Width of the caption cell every row opens its column with, bar rows and the swap row
     # alike — what keeps their figures in one column.
+    # @return [Integer]
     LABEL_WIDTH = 11
 
     # One list row: the VM it belongs to, and how to draw it at the list's text width.
@@ -53,10 +56,12 @@ module UI
     # peak: a per-VM denominator makes the bar mean something different per row and per
     # minute, and comparing VMs down the list is what the column is for. Not a log scale
     # either — it reads as linear to anyone who does not know it isn't.
+    # @return [Integer]
     SWAP_RATE_FULL_SCALE = 20.MiB
 
     # Width of the swap row's `↕traffic` tail — the arrow plus a 5-char byte size. Fixed, so
     # every VM's gauge is the same length and the bars stay comparable down the list.
+    # @return [Integer]
     SWAP_TOTALS_WIDTH = 6
 
     # The guest-OS marker drawn between a VM's state glyph and its name, keyed by
@@ -73,6 +78,7 @@ module UI
     # here measures {GUEST_OS_WIDTH} — checked against `unicode/display_width`, not assumed:
     # the obvious ☀️ for Solaris and 🕸️ for NetWare measure **1**, being variation sequences,
     # and are why those two rows are 🌞 and 🌐.
+    # @return [Hash{Symbol => String}]
     GUEST_OS_GLYPHS = {
       linux: "\u{1F427}", # 🐧 Tux
       # 🪟 is Emoji 13 (2020), the set's one font-coverage risk: a tofu box is usually one
@@ -93,6 +99,7 @@ module UI
     # Display width every guest-OS marker is padded to. All of {GUEST_OS_GLYPHS} measure 2
     # (tuile sizes rows via `unicode/display_width`), so a narrower marker — or a blank one —
     # would pull that row's VM name a column left and cost the list its name column.
+    # @return [Integer]
     GUEST_OS_WIDTH = 2
 
     # The character after 🎈 and the {Theme} reader that colors it and the words after it,
@@ -103,6 +110,7 @@ module UI
     # In the header, not the focused VM's status bar: a capped guest must be seen at a glance,
     # without the cursor on it. `‖` rather than ⏸ for holding: ⏸ renders emoji-wide in some
     # fonts and shifts the rest of the line, and the screen promises to need no special font.
+    # @return [Hash{Symbol => Array(String, Symbol)}]
     BALLOON_GLYPHS = {
       raised: ['↑', :hint],
       lowered: ['↓', :hint],

@@ -13,12 +13,14 @@ module Virt
     # Guest memory-stat collection period armed on each running VM, in seconds. Matches our
     # ~2s poll so ballooning always sees the freshest data libvirt has; libvirt itself
     # refreshes only every ~5s regardless (see {VMCache#stale?}).
+    # @return [Integer]
     STATS_PERIOD_SECONDS = 2
 
     # How long a guest's filesystem usage is kept before it is asked again. A disk fills over
     # minutes, not ticks, so a read every 2s would be fifteen agent round-trips for one
     # figure; a read that failed is retried the next tick, and {GuestSampler#revive} lifts the
     # write-off a booting guest earns, so its disks appear a tick after its agent does.
+    # @return [Integer]
     GUEST_FS_SECONDS = 30
 
     # @return [System::MemoryStat] host memory statistics, refreshed by {#update}
@@ -113,6 +115,7 @@ module Virt
     # @param new_actual [Integer] the new `actual` memory size, in bytes
     # @raise [RuntimeError] if the VM is unknown, or `new_actual` is below 128 MiB or
     #   above the VM's `max_memory`
+    # @return [void]
     def set_actual(domain, new_actual)
       info = info(domain)
       raise "#{domain} not existing" if info.nil?

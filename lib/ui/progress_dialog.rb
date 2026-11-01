@@ -41,8 +41,8 @@ module UI
     end
 
     # Measured on every layout pass, so a SIGWINCH re-fits it; {#declared_size} is ignored.
-    # @param screen_size [Size] the screen to fit
-    # @return [Size] wide enough for the caption, at least {MIN_WIDTH}, capped at the screen
+    # @param screen_size [Tuile::Size] the screen to fit
+    # @return [Tuile::Size] wide enough for the caption, at least {MIN_WIDTH}, capped at the screen
     def declared_size_in(screen_size)
       # Two one-sided clamps: clamp(MIN_WIDTH, width) raises on a screen narrower than MIN_WIDTH.
       width = (@label.text.display_width + WIDTH_CHROME).clamp(MIN_WIDTH..).clamp(..screen_size.width)

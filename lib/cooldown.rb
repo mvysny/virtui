@@ -32,6 +32,7 @@ class Cooldown < Data.define(:deadline)
   #
   # @raise [RuntimeError] if `deadline` is not a {Numeric} — a {Time} is the likely
   #   mistake, and it is the wrong clock, not merely the wrong type
+  # @param hash [Hash{Symbol => Float}] the members, by name: `deadline:`
   def initialize(hash)
     super
     raise "deadline must be seconds on the uptime clock but was #{deadline.inspect}" unless deadline.is_a?(Numeric)
@@ -39,6 +40,7 @@ class Cooldown < Data.define(:deadline)
 
   # A cooldown that has always been over — the starting value, and what {#extended_by}
   # measures the first extension against.
+  # @return [Cooldown]
   ELAPSED = new(-Float::INFINITY).freeze
 
   class << self

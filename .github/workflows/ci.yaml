@@ -23,6 +23,9 @@ jobs:
     - name: Run tests
       run: bundle exec rake
 
+    - name: Fail if sig/virtui.rbs is out of date
+      run: git diff --exit-code sig/
+
   # The doc-layer checks alone (also part of `rake` above): bash + git, no Ruby needed.
   design-docs:
     runs-on: ubuntu-latest

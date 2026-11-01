@@ -22,6 +22,7 @@ module UI
     # LIGHT theme's `:cpu`, 5.8:1 on white) still clears {CONTRAST_FLOOR} at 0.04 and
     # sits on the line at 0.05 (design/decisions.md D_tint_toward_grey). Perceptibility on
     # washed-out displays is the open eyeball item.
+    # @return [Float]
     DELTA = 0.04
 
     # How far a hairline (`:frame` / `:pane_frame`) steps from the ground it rules on.
@@ -29,12 +30,14 @@ module UI
     # 0.2 of HSL lightness from their grounds (~1.6:1) — and, being derived, stays that
     # distance on mid grounds like One Dark `#282c34`, where the fixed `#333333` was a
     # near-invisible 1.1:1.
+    # @return [Float]
     HAIRLINE_DELTA = 0.2
 
     # The WCAG text contrast floor the {#pane_bg} guard defends. Guarded tokens are only
     # those that clear it against the *raw* background — several bar colors are tuned
     # below 4.5:1 by design (bars are non-text, where 3:1 is the WCAG line) and no tint
     # direction could satisfy them.
+    # @return [Float]
     CONTRAST_FLOOR = 4.5
 
     # The secondary-pane background: `background` stepped {DELTA} toward mid-grey, unless

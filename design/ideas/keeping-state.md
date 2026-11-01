@@ -20,16 +20,12 @@ Committed: `lib/state.rb` keeps the System and log panes' visibility as JSON in
 `$XDG_STATE_HOME/virtui/state.json` (falling back to `~/.local/state` when the variable is
 unset, empty or relative — the XDG spec calls a relative one invalid). `UI::AppLayout` loads it
 as it is built and saves it on every show or hide; `spec_helper` points `XDG_STATE_HOME` at a
-fresh tmpdir per example. A broken file, or a value that is not a Boolean, raises naming the
-path.
+fresh tmpdir per example. A broken file, or a value not of its type, raises naming the path.
+Typemap maps it (`State::MAPPER`), its types read from `sig/virtui.rbs` (`D_types_from_yard`),
+so a field is an `attr_accessor`, its YARD `@return` and its default, listed nowhere else.
 
 Still missing against the list above:
 
-- **Fields are listed by hand**, once in the constructor, once in `load`, once in `save`. That
-  waits for Typemap (`../typemap`, its README): once config is built on it,
-  `State` becomes an accessor class with constructor defaults and a `constrain … type:` per property (or types in
-  `sig/`), loaded with `mapper.load(State, JSON.load_file(path), unknown: :ignore)` and written
-  from `mapper.dump(state)`.
 - **No thread guard yet** — see *Thread guard*.
 
 **Why JSON:** in the standard library, nothing to add to the Gemfile, and none of YAML's parsing
@@ -60,7 +56,7 @@ is caught there. See `Q_update_block` for closing that gap.
 - **YAML via Psych's object mode** (`YAML.dump(state)`, revived through `init_with`) — no
   gems and nested objects for free, but it still needs hand-written `init_with` code for the
   defaults, writes the class name into the file (`--- !ruby/object:State`), needs
-  `permitted_classes` kept in step, and brings YAML's quirks. The settings mapper does the
+  `permitted_classes` kept in step, and brings YAML's quirks. Typemap does the
   mapping instead, over JSON.
 - **TOML** (`tomlrb`, the first version) — needed a gem plus a `racc` Gemfile line (tomlrb 2.0
   depends on racc without saying so), and only parses, so `save` wrote TOML by hand. TOML is

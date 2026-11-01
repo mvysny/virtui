@@ -52,13 +52,14 @@ Every fact lives in exactly one of these; the others link to it.
 - `lib/core_ext/` — the byte-unit monkey-patches; required by hand, ignored by Zeitwerk.
 - `spec/` — rspec; parser specs feed the recorded `/proc`, `domstats` and `df` fixtures beside them.
 - `design/` — the lazy docs above, the tripwire script and `design/ideas/`.
+- `sig/virtui.rbs` — generated from the YARD tags by `rake sig`, never edited by hand; `State`'s types come from it. See `D_types_from_yard`.
 
 ## Conventions
 
 - **Ruby, no Rails.** Plain classes, `Data.define` for value objects, Open3 for subprocesses via `Run`, tuile for the TUI.
 - **Zeitwerk: one constant per file, named after its path**; no `require_relative` between siblings; acronym casing (`UI`, `VMPane`) is an `inflector.inflect` entry in `lib/virtui.rb`.
 - **`# frozen_string_literal: true`** atop every Ruby file.
-- **YARD on every public module, class and method**, concrete types in every tag, `@raise` for expected exceptions; the contract and at most a one-line why-not live there, the argument in `design/`.
+- **YARD on every public module, class, method and constant**, concrete types in every tag, `@raise` for expected exceptions; the contract and at most a one-line why-not live there, the argument in `design/`. `rake sig` fails on a tag sord cannot type; a gem's class is written in full (`Tuile::Size`), never as `include Tuile` lets the code say it.
 - **Errors are loud.** Unexpected state raises with the offending data; `virsh` and `/proc` parse failures are never swallowed.
 - **Diagnostics go through `$log`**, the one allowed global; never `puts` / `warn`.
 - **Tests: rspec-core with minitest-style asserts.** `describe` / `it`, but `assert_equal` / `refute`; parsers are fed recorded fixtures, never the live host.
@@ -71,11 +72,12 @@ Every fact lives in exactly one of these; the others link to it.
 ## Commands
 
 ```bash
-bundle exec rake                  # the gate: specs, rubocop, design tripwires — what CI runs (.github/workflows/ci.yaml)
+bundle exec rake                  # the gate: specs, rubocop, sig, design tripwires — what CI runs (.github/workflows/ci.yaml)
 bundle exec rake check            # the same, spelled out
 bundle exec rake spec             # just the tests
 bundle exec rspec spec/path/to_spec.rb:LINE     # one test
 bundle exec rubocop               # just the lint
+bundle exec rake sig              # regenerate sig/virtui.rbs from YARD via sord; fails on an untyped tag
 design/verify_design_tripwires.sh # the doc-layer checks alone
 bin/virtui                        # run; demo mode when no virsh is on the PATH
 bin/test-vms.sh up|down           # build / remove the nested vt-* test VMs on this dev box

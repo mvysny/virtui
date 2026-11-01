@@ -54,17 +54,21 @@ module Virt
     end
 
     # The filesystems a grow knows the command for.
+    # @return [Array<String>]
     FSTYPES = %w[ext4 btrfs].freeze
 
     # Seconds `virsh` waits for one agent call; generous, since `guest-exec` returns at once
     # and the polls are cheap.
+    # @return [Integer]
     TIMEOUT_SECONDS = 10
 
     # How often {#grow} asks whether a command has exited.
+    # @return [Float]
     POLL_SECONDS = 0.2
 
     # How long one command may run before {#grow} stops waiting: an online `resize2fs` over a
     # large filesystem takes a while. The command runs on in the guest after that.
+    # @return [Integer]
     DEADLINE_SECONDS = 600
 
     # The plan for the guest's layout, or why there is none.

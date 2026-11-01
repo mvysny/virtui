@@ -9,8 +9,13 @@
 #     # ~/.local/state/virtui/state.json:
 #     #   { "system_pane_visible": true, "log_pane_visible": false }
 #
-# A missing file or key reads as the pane shown; an unknown key is ignored.
+# A new field is an `attr_accessor` with a YARD `@return` type and a default in {#initialize},
+# then `rake sig:generate`: Typemap maps every public accessor pair, typed from
+# `sig/virtui.rbs`. A missing file or key reads as its default; an unknown key is ignored.
 class State
+  # @return [Typemap::Mapper]
+  MAPPER = Typemap::Mapper.new(types: Typemap::Mapper::RBSTypes.new)
+
   # @return [Boolean] whether the System pane is shown
   attr_accessor :system_pane_visible
   # @return [Boolean] whether the log pane is shown
@@ -34,28 +39,14 @@ class State
   end
 
   # @return [State] the state from {.path}, the defaults where the file or a key is missing
-  # @raise [RuntimeError] if the file is not a JSON object, or a value is not a Boolean
+  # @raise [RuntimeError] if the file is not a JSON object, or a value is not of its type
   def self.load
     path = self.path
-    state = new
-    return state unless File.exist?(path)
+    return new unless File.exist?(path)
 
-    json = begin
-      JSON.load_file(path, symbolize_names: true)
-    rescue JSON::ParserError => e
-      raise "#{path}: #{e.message}"
-    end
-    raise "#{path}: expected a JSON object but was #{json.inspect}" unless json.is_a?(Hash)
-
-    boolean = lambda do |key, default|
-      value = json.fetch(key, default)
-      raise "#{path}: #{key} must be true or false but was #{value.inspect}" unless [true, false].include?(value)
-
-      value
-    end
-    state.system_pane_visible = boolean.call(:system_pane_visible, state.system_pane_visible)
-    state.log_pane_visible = boolean.call(:log_pane_visible, state.log_pane_visible)
-    state
+    MAPPER.load(State, JSON.load_file(path), unknown: :ignore)
+  rescue JSON::ParserError, Typemap::DataError => e
+    raise "#{path}: #{e.message}"
   end
 
   # Writes the state to {.path}, creating its directory. Renamed into place, so a crash
@@ -66,7 +57,7 @@ class State
     path = State.path
     FileUtils.mkdir_p(File.dirname(path))
     temp = "#{path}.tmp"
-    File.write(temp, "#{JSON.pretty_generate(system_pane_visible:, log_pane_visible:)}\n")
+    File.write(temp, "#{JSON.pretty_generate(MAPPER.dump(self))}\n")
     File.rename(temp, path)
   end
 end

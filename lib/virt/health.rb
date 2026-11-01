@@ -41,10 +41,16 @@ module Virt
     #     disk {#subject} names); `nil` when the fix is the user's to make.
     #     A Symbol, not a block: see design/decisions.md D_health_check
     Finding = Data.define(:severity, :subject, :text, :fix, :remedy) do
+      # @param severity [Symbol] see {#severity}
+      # @param subject [String] see {#subject}
+      # @param text [String] see {#text}
+      # @param fix [String, nil] see {#fix}
+      # @param remedy [Symbol, nil] see {#remedy}
       def initialize(severity:, subject:, text:, fix:, remedy: nil) = super
     end
 
     # `systemctl enable fstrim.timer` makes this symlink, and so do distro presets.
+    # @return [String]
     TRIM_TIMER = '/etc/systemd/system/timers.target.wants/fstrim.timer'
 
     # Judges a VM from its definitions and, when running, its guest.

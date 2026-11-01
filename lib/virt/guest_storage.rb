@@ -25,6 +25,7 @@ module Virt
   class GuestStorage < Data.define(:disks)
     # The partitions' `/proc/partitions` and `/sys/…/start` count in units of this many
     # bytes, whatever the disk's own logical sector size.
+    # @return [Integer]
     SECTOR = 512
 
     # The smallest {Disk#free_tail} that is room anyone left on purpose: a GPT disk always

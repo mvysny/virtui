@@ -16,14 +16,17 @@ module Virt
   class MagicSysRq
     # The `kernel.sysrq` bits the S‑U‑O/B sequence needs: sync, remount read-only, and
     # reboot/power-off (`Documentation/admin-guide/sysrq.rst`).
+    # @return [Integer]
     NEEDED_BITS = 16 | 32 | 128
 
     # Seconds between two keys. S and U are queued kernel work with no reply; 26 MB of dirty
     # pages were synced in under 0.5 s (design/research.md R_sysrq_send_key), and a sync that
     # never ends must not hold O back anyway.
+    # @return [Integer]
     STEP_SECONDS = 3
 
     # Seconds O is given to turn the domain off; it took under 1 s on vt-ubuntu.
+    # @return [Integer]
     OFF_SECONDS = 10
 
     # Why the sequence would do nothing to this guest.

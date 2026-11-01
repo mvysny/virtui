@@ -16,7 +16,7 @@ module UI
 
     # Wider than the default {Fraction::HALF}: this is prose, and a wider box means
     # fewer wrapped rows to scroll through.
-    # @return [Fraction]
+    # @return [Tuile::Fraction]
     SIZE = Fraction.new(0.7, 0.7)
 
     # @param flags [Set<String>] the host's CPU flags, from {System::Info#cpu_flags}

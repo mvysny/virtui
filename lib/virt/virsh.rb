@@ -28,11 +28,13 @@ module Virt
 
     # The metadata namespace virt-manager and `virt-install --os-variant` declare the guest
     # OS under (see {#guest_os}).
+    # @return [String]
     LIBOSINFO_URI = 'http://libosinfo.org/xmlns/libvirt/domain/1.0'
 
     # Pulls the declared id out of a `virsh metadata` reply. Deliberately prefix-blind:
     # `virsh` prints the element *without* the `libosinfo:` prefix the stored definition
     # carries, so matching `<libosinfo:os` finds nothing.
+    # @return [Regexp]
     OSINFO_ID = /<os\s+id="([^"]*)"/
 
     # @param runner [VirshSpawn, VirshSession] transport for every `virsh` invocation
@@ -499,6 +501,7 @@ module Virt
     # @param domain_name [String] VM name
     # @param new_actual [Integer] new memory size, in bytes
     # @raise [RuntimeError] if `new_actual` is below 256 MiB, or if `virsh setmem` fails
+    # @return [void]
     def set_actual(domain_name, new_actual)
       raise "#{new_actual} must be at least 256m" if new_actual < 256.MiB
 
@@ -550,6 +553,7 @@ module Virt
     #
     # @param domain_name [String] VM name
     # @raise [RuntimeError] if `virsh reboot` fails
+    # @return [void]
     def reboot(domain_name)
       @runner.sync('reboot', domain_name)
     end
@@ -558,6 +562,7 @@ module Virt
     #
     # @param domain_name [String] VM name
     # @raise [RuntimeError] if `virsh reset` fails
+    # @return [void]
     def reset(domain_name)
       @runner.sync('reset', domain_name)
     end
@@ -566,6 +571,7 @@ module Virt
     #
     # @param domain_name [String] VM name
     # @raise [RuntimeError] if `virsh destroy` fails
+    # @return [void]
     def force_off(domain_name)
       @runner.sync('destroy', domain_name)
     end

@@ -5,21 +5,27 @@ module Virt
   # without libvirt. Each VM is a {VMEmulator::VM}; see {.demo} for a ready-made fleet.
   class VMEmulator
     # What a simulated VM declares unless told otherwise (see {VMEmulator::VM#guest_os}).
+    # @return [GuestOS]
     LINUX = GuestOS.from_osinfo_id('http://ubuntu.com/ubuntu/25.10')
 
     # A ready-made non-Linux declaration, for a fleet that needs one — {.demo} gives it to
     # win11 so the UI's guest-OS marker has more than one family to draw.
+    # @return [GuestOS]
     WINDOWS = GuestOS.from_osinfo_id('http://microsoft.com/win/11')
 
     # A simulated VM's one disk, `vda`, until {#resize_volume} grows it.
+    # @return [Integer]
     DISK_CAPACITY = 128.GiB
 
     # Where a simulated Linux guest's EFI partition starts on `vda`, and its size.
+    # @return [Integer]
     EFI_START = 1.MiB
     # @see EFI_START
+    # @return [Integer]
     EFI_SIZE = 106.MiB
 
     # The simulated `default` pool's free space.
+    # @return [Integer]
     POOL_AVAILABLE = 400.GiB
 
     # @param hostinfo [CpuInfo] the host CPU topology to report
@@ -249,6 +255,7 @@ module Virt
     # @param actual [Integer] new memory size, in bytes
     # @raise [RuntimeError] if {#allow_set_actual} is `false`, or the size is out of range
     #   (see {VMEmulator::VM#memory_actual=})
+    # @return [void]
     def set_actual(vmid, actual)
       raise 'set_actual not allowed' unless allow_set_actual
 
@@ -310,42 +317,49 @@ module Virt
 
     # Starts a stopped VM.
     # @param vm [String] VM name
+    # @return [void]
     def start(vm)
       @vms[vm].start
     end
 
     # Shuts down a VM gracefully - basically asks the VM to shut off.
     # @param vm [String] VM name
+    # @return [void]
     def shutdown(vm)
       @vms[vm].shut_down
     end
 
     # Asks the VM to reboot itself gracefully.
     # @param domain_name [String] VM name
+    # @return [void]
     def reboot(domain_name)
       @vms[domain_name].force_reboot
     end
 
     # Resets the VM forcefully.
     # @param domain_name [String] VM name
+    # @return [void]
     def reset(domain_name)
       @vms[domain_name].force_reboot
     end
 
     # Forces the VM off.
     # @param domain_name [String] VM name
+    # @return [void]
     def force_off(domain_name)
       @vms[domain_name].force_off
     end
 
     # Mirrors {Virsh#sysrq_power_off}, at once: a simulated guest has no dirty pages to sync.
     # @param domain_name [String] VM name
+    # @return [void]
     def sysrq_power_off(domain_name)
       @vms[domain_name].force_off
     end
 
     # Mirrors {Virsh#sysrq_reboot}, at once.
     # @param domain_name [String] VM name
+    # @return [void]
     def sysrq_reboot(domain_name)
       @vms[domain_name].force_reboot
     end

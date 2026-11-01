@@ -31,7 +31,7 @@ module UI
     include Tuile
 
     # Like {VMInfoDialog::SIZE}, shorter: a VM with a handful of disks runs to ~15 rows.
-    # @return [Fraction]
+    # @return [Tuile::Fraction]
     SIZE = Fraction.new(0.7, 0.6)
 
     # The Fix buttons' captions, by {Virt::Health::Finding#remedy}; a remedy not here gets no

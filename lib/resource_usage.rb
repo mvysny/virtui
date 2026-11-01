@@ -11,6 +11,7 @@
 #   @return [Integer] currently unused capacity, in bytes
 class ResourceUsage < Data.define(:total, :available)
   # The empty usage (zero total, zero available); a neutral element for {#+}.
+  # @return [ResourceUsage]
   ZERO = ResourceUsage.new(0, 0)
 
   # Builds a usage from `total` capacity and bytes already `used`.

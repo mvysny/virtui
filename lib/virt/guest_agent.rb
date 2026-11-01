@@ -30,28 +30,34 @@ module Virt
   # dialog goes through a {VirshSpawn} of its own ({Virsh#guest_storage}).
   class GuestAgent
     # The guest file the swap level is read from.
+    # @return [String]
     MEMINFO_PATH = '/proc/meminfo'
 
     # The guest file holding which magic SysRq functions its keyboard may trigger.
+    # @return [String]
     SYSRQ_PATH = '/proc/sys/kernel/sysrq'
 
     # How much of a guest file to ask for in one `guest-file-read`. Comfortably over the
     # ~2 KB `/proc/meminfo` runs to, so one read gets the whole file and there is no loop: a
     # short read fails {System::MemoryStat.parse}'s key check instead of quietly reporting
     # half a file.
+    # @return [Integer]
     READ_BYTES = 16_384
 
     # Seconds `virsh` waits for one agent call — ~150x the ~13 ms a healthy call takes. The
     # ceiling that matters is {VirshSession::READ_TIMEOUT_SECONDS}: staying well under it
     # means a wedged `qemu-ga` surfaces as a `virsh` error, which leaves the session alive,
     # rather than as a read timeout, which kills and respawns the child.
+    # @return [Integer]
     TIMEOUT_SECONDS = 2
 
     # The live XML's agent-channel state, as `virsh dumpxml --xpath` prints it: ` state="connected"`.
     # A node set, not `string(…)`, which `virsh` refuses as an incorrect xpath.
+    # @return [String]
     CHANNEL_STATE_XPATH = "//devices/channel/target[@name=\"#{DomainConfig::AGENT_CHANNEL}\"]/@state".freeze
 
     # How the agent says a guest file is missing; {#exist?} answers `false` to it.
+    # @return [String]
     MISSING_FILE = 'no such file or directory'
 
     # The failures a healthy host produces on its own, matched against the error message to
@@ -67,6 +73,7 @@ module Virt
     # error *class* only, never the write-off, so a miss costs one `warn` line from whoever
     # is polling and a new libvirt phrasing cannot change what virtui does. See design/decisions.md
     # D_guest_agent_backoff.
+    # @return [Array<String>]
     EXPECTED_FAILURES = ['guest agent is not responding', 'guest agent is not configured', 'guest agent disappeared',
                          'has not been found', 'domain is not running',
                          MISSING_FILE].freeze

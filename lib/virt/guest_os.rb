@@ -45,6 +45,7 @@ module Virt
     #   not have, which fails the same way an agentless guest does.
     # - `libosinfo.org/unknown` is a real declared id meaning *unknown*, so it is deliberately
     #   **absent** here and falls through to {UNKNOWN} like an undeclared domain.
+    # @return [Hash{Symbol => Array<String>}]
     FAMILIES = {
       linux: %w[
         almalinux.org/almalinux almalinux.org/almalinux-kitten alpinelinux.org/alpinelinux
@@ -82,14 +83,17 @@ module Virt
     # {FAMILIES} inverted: the flat `vendor-host/first-segment => family` lookup
     # {.from_osinfo_id} actually reads. Grouped in the source because 12 families read better
     # than 75 near-identical `=> :linux` rows; flat here because the lookup is per-domain.
+    # @return [Hash{String => Symbol}]
     VENDORS = FAMILIES.flat_map { |family, keys| keys.map { |key| [key, family] } }.to_h.freeze
 
     # Splits an osinfo id into the `host/first-segment` key {VENDORS} holds. A regex rather
     # than `URI.parse` because this runs on whatever a definition happens to contain, and a
     # malformed id must reach {UNKNOWN} instead of raising.
+    # @return [Regexp]
     OSINFO_KEY = %r{\Ahttps?://([^/]+)/([^/?#]+)}i
 
     # What a definition that declared nothing classifies to.
+    # @return [GuestOS]
     UNKNOWN = GuestOS.new(:unknown, nil)
 
     # Classifies a declared osinfo id.

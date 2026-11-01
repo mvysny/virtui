@@ -60,22 +60,27 @@ module Virt
     # Not replaceable by a `virsh` flag, which is the first thing a reader tidying this up
     # will look for: `-q` silences the banner but not the prompt or the echo, and 12.0.0
     # has no `-f`/`--file` clean-stream mode at all.
+    # @return [Hash{String => String}]
     CHILD_ENV = { 'TERM' => 'dumb', 'COLUMNS' => '1000000' }.freeze
 
     # Bytes {.quote} refuses, because readline acts on them instead of passing them along.
+    # @return [Regexp]
     CONTROL_BYTES = /[\x00-\x1f\x7f]/
 
     # How long to wait for one reply. Generously above the 2s poll: a read still
     # outstanding after this many ticks means the child is wedged, not slow, and killing
     # it beats pinning the timer thread forever the way {Run.sync} would.
+    # @return [Float]
     READ_TIMEOUT_SECONDS = 10.0
 
     # How long the child gets to print its first prompt before the session is written off
     # as unusable.
+    # @return [Float]
     STARTUP_TIMEOUT_SECONDS = 5.0
 
     # The prompt is read from the child rather than hardcoded, so it can only be this
     # long; `virsh # ` is 8 bytes.
+    # @return [Integer]
     MAX_PROMPT_BYTES = 32
 
     # Raised when the child is unusable: the reply stream no longer lines up, or it went

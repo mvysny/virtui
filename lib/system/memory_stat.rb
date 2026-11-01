@@ -10,6 +10,7 @@ module System
   class MemoryStat < Data.define(:ram, :swap)
     # The four `/proc/meminfo` keys {.parse} needs; a file missing any of them is truncated
     # or not `/proc/meminfo` at all.
+    # @return [Array<String>]
     REQUIRED_KEYS = %w[MemTotal MemAvailable SwapTotal SwapFree].freeze
 
     # Parses the contents of a Linux `/proc/meminfo`.

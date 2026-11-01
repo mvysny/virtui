@@ -25,18 +25,23 @@ module UI
     include Tuile
 
     # The caption column, `New size` plus two spaces.
+    # @return [Integer]
     CAPTION_WIDTH = 10
 
     # Border rows plus three info rows, a blank, the field and the outcome.
+    # @return [Integer]
     HEIGHT = 8
 
     # The narrowest box: the footer has to fit.
+    # @return [Integer]
     MIN_WIDTH = 50
 
     # Whole MiB, which every partitioner aligns to and every image format can hold.
+    # @return [Integer]
     GRANULE = 1.MiB
 
     # What the alert after a resize tells the user: the guest's side is still to do.
+    # @return [String]
     GUEST_HINT = "The partitions and filesystems inside are as they were. A cloud image grows its root \
 filesystem at the next boot; otherwise start the VM and grow it with M, Grow root filesystem."
 

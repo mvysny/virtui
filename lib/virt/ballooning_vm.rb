@@ -132,6 +132,10 @@ module Virt
                  unsupported stale disabled stopped].freeze
 
       # @raise [RuntimeError] if `kind` is not one of {KINDS}
+      # @param kind [Symbol] one of {KINDS}
+      # @param text [String] see {#text}
+      # @param brief [String] see {#brief}
+      # @param memory_delta [Integer] see {#memory_delta}
       def initialize(kind:, text:, brief: '', memory_delta: 0)
         raise "unknown kind #{kind.inspect}" unless KINDS.include?(kind)
 
@@ -171,6 +175,7 @@ module Virt
     # user's manual change takes effect on the next {#update}.
     #
     # @param enabled [Boolean] `true` to enable, `false` to disable
+    # @return [void]
     def enabled=(enabled)
       @enabled = !!enabled
       @back_off.forget # This is user manual action, user wants to see effects now.

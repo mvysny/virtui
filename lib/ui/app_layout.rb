@@ -35,10 +35,12 @@ module UI
 
     # Rows of the System │ log strip: exactly the System pane's content — the chip header,
     # the CPU, RAM and disk sections — so the VM pane gets every other row.
+    # @return [Integer]
     BOTTOM_HEIGHT = 13
 
     # The System pane's share of the width, capped: its bars read fine at 60 columns, and
     # on a wide terminal every column past that is one taken from the log beside it.
+    # @return [Tuile::Component::Layout::Clamp]
     SYSTEM_WIDTH = Percent[50].clamp(..60)
 
     # @param virt_cache [Virt::Cache] the runtime cache the panes read from

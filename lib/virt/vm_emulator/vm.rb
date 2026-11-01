@@ -219,6 +219,7 @@ module Virt
       #
       # @param apps [Integer] app memory usage, in bytes
       # @raise [RuntimeError] if below {MIN_APP_MEMORY}, or if the VM is not running
+      # @return [void]
       def memory_app=(apps)
         raise "mem for apps must be at least #{MIN_APP_MEMORY}" if apps < MIN_APP_MEMORY
 
@@ -238,6 +239,7 @@ module Virt
       # @param actual [Integer] new `actual` memory, in bytes; clamped between
       #   {MIN_ACTUAL} and the VM's {DomainInfo}'s `max_memory`
       # @raise [RuntimeError] if below {MIN_ACTUAL}, above `max_memory`, or the VM is not running
+      # @return [void]
       def memory_actual=(actual)
         raise "Must be #{MIN_ACTUAL} or bigger" if actual < MIN_ACTUAL
         raise "Must be #{info.max_memory} at most" if actual > info.max_memory

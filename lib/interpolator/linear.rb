@@ -21,6 +21,7 @@ module Interpolator
     # @raise [RuntimeError] if `value_from`/`value_to` are not {Numeric} or
     #   `time_from`/`time_to` are not {Time}
     # @raise [RuntimeError] if `time_from` is later than `time_to`
+    # @param hash [Hash{Symbol => Object}] the members, by name
     def initialize(hash)
       super
       raise 'invalid value type' unless value_from.is_a?(Numeric) && value_to.is_a?(Numeric) && time_from.is_a?(Time) && time_to.is_a?(Time)
