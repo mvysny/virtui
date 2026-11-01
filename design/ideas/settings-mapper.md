@@ -73,10 +73,11 @@ end
 ## Types: three sources, first found wins
 
 1. **RBS**, when the class has it.
-2. **An annotation** on the field (*Annotations* below).
+2. **A `constrain` annotation** on the field (*Annotations* below).
 3. **The default's class**: `65` → `Integer`, `true`/`false` → `bool`, an instance of a
    mappable class → that class. It cannot tell the type of `nil`, `[]` or `{}`; such a field
-   needs 1 or 2, and the mapper raises at the first load if it has neither.
+   needs 1 or 2. If it has neither, the mapper raises when it first reads the class, not when
+   the key first shows up in a file: otherwise the gap hides until some user sets that field.
 
 ### RBS
 
@@ -133,9 +134,9 @@ Proposal — a macro that records metadata only, defining no accessor:
 Ballooning = Data.define(:raise_at_percent, :shrink_at_percent, :min_actual_gib, :pinned_vms) do
   extend Mapper::Annotations
 
-  setting :raise_at_percent, :shrink_at_percent, in: 1..100
-  setting :min_actual_gib, in: 1..
-  setting :pinned_vms, 'Array[String]'        # a type, because the default [] says nothing
+  constrain :raise_at_percent, :shrink_at_percent, in: 1..100
+  constrain :min_actual_gib, in: 1..
+  constrain :pinned_vms, 'Array[String]'      # a type, because the default [] says nothing
 
   def initialize(raise_at_percent: 65, shrink_at_percent: 55, min_actual_gib: 8, pinned_vms: []) = super
 end
@@ -147,7 +148,12 @@ end
   Array of allowed values) and `format:` (a Regexp, for strings). Everything else is
   `validate`.
 - Only fields that need one get an annotation; the rest are fully described by their default.
-- **`setting` does not define the accessor**, though Rails' `attribute` does. On a `Data` class
+- **Named `constrain`**: the line adds limits to a field the class already declares, and a type
+  is the strictest limit. Not `setting`, since every field is a setting, annotated or not.
+  Not `property`, since sorbet's `prop` and Rails' `attribute` both define the accessor. Not
+  `validate`, since that is the class's own cross-field hook, and Rails' `validate :foo`
+  registers the method `foo`.
+- **`constrain` does not define the accessor**, though Rails' `attribute` does. On a `Data` class
   the reader exists and the instance is frozen, so a generated writer would raise
   `FrozenError`. Once the macro owns the field, `default:` follows, then a generated
   `initialize`, and it has become dry-struct or `T::Struct`: a class shape the mapper imposes. A
@@ -155,15 +161,22 @@ end
   YARD on every public method. The one-line form already exists in standard Ruby:
   `attr_accessor :last_vm #: String?`.
 
-The alternative is a plain constant the mapper reads — `SETTINGS = { min_actual_gib: { in: 1.. }
-}` — so the class does not reference the mapper at all — `Q_annotation_shape`.
+The alternative is a plain constant the mapper reads — `CONSTRAINTS = { min_actual_gib: { in:
+1.. } }` — so the class does not reference the mapper at all — `Q_annotation_shape`.
 
-### Brainstormed: JSON Schema in place of RBS and annotations
+### Later, perhaps: JSON Schema as an alternative to `constrain`
+
+Settled: the mapper starts with `constrain`. A JSON Schema may come later as a second way to
+give the same types and limits; it is not the first one built.
 
 A JSON Schema file beside the `Data` classes, checked with **json_schemer** before the mapper
 runs. The classes stay as they are, with their YARD and `validate`. The mapper still turns the
 Hash into objects, nested ones included. It only stops reading types, because the schema has
 already checked them: the class of a nested object comes from the default's class (source 3).
+A nested object whose default is `nil` has no such class, so the schema must name it: a custom
+keyword (`"x-ruby-class": "Ballooning"`) or a convention mapping `$defs/Ballooning` to
+`Ballooning`. The schema ships with the app, not with the user's file, so this keeps *the file
+never names a class*.
 
 Spiked with json_schemer 2.5.0 (2026-11-01):
 
@@ -177,7 +190,7 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
 
 - **For:** it reports every error at once (requirement 2 of `config-file.md`, which this mapper
   drops). Types, ranges, enums, nullable fields, arrays and unknown keys are standard keywords,
-  so RBS, the `setting` macro and our own type-AST subset go away. TOML editors get completion
+  so RBS, `constrain` and our own type-AST subset go away. TOML editors get completion
   and checking from it: Taplo and Tombi validate TOML against a JSON Schema named in a top
   `#:schema ./virtui.schema.json` comment, or found through SchemaStore.
 - **Against:** every key is listed twice, once in the class and once in the schema; a spec
@@ -191,8 +204,6 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
   with a Ruby `Time` is unverified. A TOML-native schema exists only as a proposal:
   [toml-schema.org](https://github.com/brunoborges/toml-schema), with the schema itself written in
   TOML. toml-lang has not adopted it (toml-lang#116, #792), and no Ruby implementation is known.
-
-`Q_json_schema`.
 
 ## Compared
 
@@ -217,8 +228,8 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
 - `Q_rbs_optional` — is the `rbs` gem a hard dependency, or does the mapper use RBS only when
   it is loaded? virtui would need `gem 'rbs', '~> 4.2'` in the Gemfile either way (inline
   needs 4.x; Ruby 3.3 bundles 3.4), like `racc` today. It has a native extension.
-- `Q_annotation_shape` — the `setting` macro (`extend Mapper::Annotations`, Rails-like) or a
-  plain `SETTINGS` constant (no reference to the mapper)?
+- `Q_annotation_shape` — the `constrain` macro (`extend Mapper::Annotations`, Rails-like) or a
+  plain `CONSTRAINTS` constant (no reference to the mapper)?
 - `Q_type_conflict` — RBS says `Integer?`, the annotation says `Integer`: an error, or the
   first source wins silently?
 - `Q_custom_types` — a protocol class (`.load` / `#dump`), or a registry
@@ -228,7 +239,4 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
   not meant as a setting.
 - `Q_sorbet_from_hash` — does `T::Struct.from_hash` type-check values, or assign blindly? Only
   matters if `T::Struct` comes back as a candidate.
-- `Q_json_schema` — the types from the class (RBS, annotations, defaults), or from a JSON Schema
-  beside it? The class needs no second list of keys; the schema gives every error at once and
-  editor completion in TOML.
 - `Q_name` — a name, once it is a gem.
