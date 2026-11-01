@@ -134,20 +134,71 @@ A `Data` class is typed with YARD's `@!attribute` directive; sord turns tuile's
 class Size < Data.define(:width, :height)
 ```
 
-into `attr_reader width: Integer`. sord and YARD are dev dependencies of the project, never of
-the mapper.
+into `attr_reader width: Integer`. A `Data.define` member without `@!attribute` never reaches
+the file. sord and YARD are dev dependencies of the project, never of the mapper.
 
-**Where the mapper looks**: `sig/*.rbs` by default, the standard place, which a gem also ships
-(tuile's gemspec includes `sig/tuile.rbs`). It can be overridden on the mapper. A project with
-no `sig/` declares its types through `constrain type:` or its defaults.
+#### Producing `sig/virtui.rbs`
 
-What the mapper needs from it, read in `rbs-4.2.0`'s source:
+tuile's machinery, copied:
+
+1. **Dev gems**: `sord` (`~> 7.1`, as tuile) and `rbs`.
+2. **Rake**: `sig:generate` runs `sord gen sig/virtui.rbs --rbs --regenerate`; `sig` joins
+   `rake check`.
+3. **CI**: `git diff --exit-code sig/`.
+
+Spiked 2026-11-01, tuile's sord over virtui, written outside the repo: it exits 0 and writes a
+250 KB file, but tuile's no-warnings gate would fail it:
+
+- **88 `[OMIT]`, missing YARD types**: 77 `@return`s, mostly on constants (`UI::Tint::DELTA`),
+  and 11 `@param` types (`text:`, `severity:`, …). Real gaps; fill them.
+- **77 `[WARN]`, constants sord cannot resolve.** 72 name other gems (`Tuile::Color` ×28,
+  `REXML::Element` ×18, `Tuile::StyledString` ×7, …): sord sees only this project's YARD, and
+  writes the names out correctly anyway. 5 are virtui's own `Size` and `Fraction`, not yet looked
+  into.
+
+So virtui's gate fails on any `OMIT`, and on an unresolved name unless it lies in another gem's
+namespace. Some of virtui's 37 `Data.define` classes may still lack `@!attribute` (22 files have
+it); each shows up as a missing field in the file. **`rbs validate` waits**: it would need the
+other gems' signatures (`rbs collection` for tuile and REXML), and the mapper only parses the
+file, it never validates it.
+
+#### Reading it: `Klass#field` → a type
+
+1. **Find the files.** Start from the file that defines the class (`Module.const_source_location
+   (klass.name)`), walk up to the first directory holding `sig/`, read its `sig/**/*.rbs`. That
+   is the standard place, works for an app and for an installed gem (tuile's gemspec ships
+   `sig/tuile.rbs`), and does not depend on the directory `bin/virtui` is started from. A list
+   of paths handed to the mapper overrides it. A project with no `sig/` declares its types
+   through `constrain type:` or its defaults.
+2. **Parse and index.** Each file is parsed once per process with
+   `RBS::Parser.parse_signature`; the declarations are walked recursively and indexed by full
+   name (`UI::CpuFlagsDialog`). A class declared in several places keeps all its declarations.
+3. **Find the field.** Walk `klass.ancestors`; in each one's declarations, look for
+   `attr_reader` / `attr_accessor <field>`, or a zero-argument `def <field>: () -> T`. The first
+   hit is the RBS type. The getter is what counts, since the mapper reads fields through
+   getters; `initialize`'s keyword types are ignored. Two different types for one field raise
+   (*declared twice*).
+4. **Resolve the names in the type.** `::Set` is absolute: `Object.const_get`. A relative `Size`
+   follows Ruby's lexical lookup from the declaring namespace outward (`UI::Foo::Size`,
+   `UI::Size`, `Size`). Built-ins go to the mapper's own checks; any other class must be mappable
+   or a custom type, or it raises `unsupported type at sig/virtui.rbs:LINE`.
+5. **`constrain type:`** strings go through `RBS::Parser.parse_type` and the same lookup, from
+   the class's own namespace.
+
+Spiked 2026-11-01, steps 2–3 in 30 lines, each result with its line for the error message:
+
+```
+UI::CpuFlagsDialog#flags: ::Set[String]   virtui's generated file, line 1612
+Tuile::Size#width:        Integer         sig/tuile.rbs, line 299
+Tuile::Size#empty?:       bool            sig/tuile.rbs, line 281
+```
+
+What the mapper needs from the `rbs` gem, read in `rbs-4.2.0`'s source:
 
 - **The types, without loading the RBS environment.** `RBS::Parser.parse_signature(source)`
   parses on its own, and `RBS::Parser.parse_type("Integer?")` parses a `constrain` type string.
-  Measured: tuile's 870 KB `sig/tuile.rbs` parses in about 58 ms, and `Size`'s attribute types
-  read back as `[[:width, "Integer"], [:height, "Integer"]]`. Whether Ruby 3.3's bundled rbs 3.4
-  has the same API is unverified — `Q_rbs_optional`.
+  Measured: tuile's 870 KB `sig/tuile.rbs` parses in about 58 ms. Whether Ruby 3.3's bundled
+  rbs 3.4 has the same API is unverified — `Q_rbs_optional`.
 - **Not RBS's own runtime checker.** `RBS::Test::TypeCheck#value(val, type)` exists, but its
   constructor wants a `DefinitionBuilder`, i.e. the whole environment, core signatures
   included. The mapper interprets a small subset of the type AST itself instead:
