@@ -5,6 +5,15 @@ and back, checking types on the way. It serves both `config-file.md` (TOML, read
 validated) and `keeping-state.md` (JSON, written by the app, mutable); once config is built on
 it, state drops its hand-listed fields for it. Built here first, a gem once pikuri adopts it.
 
+**Named `confect`** (free on rubygems, 2026-11-01): to confect is to prepare something from raw
+ingredients — a raw file in, a checked Ruby object served out. Named for the config job rather
+than the mapper, since a "mapper" competes with the mappers Ruby already has and a typed config
+loader has no rival; `conf` in it says what it is without explanation. Passed over: `settle`
+(not about config), `mogok` (the valley the finest rubies come from — poetic, but needs
+explaining), `confcierge` (long, easy to misspell), `confirmed` (an everyday word, hard to
+search). Taken: `confit`, `conferred`, `confection`, `confiture`, `bedrock`, `lapidary`.
+The examples below still say `Mapper`, a placeholder until the gem's API takes shape.
+
 Why not an existing gem: none fits (see *Compared*). The Ruby config gems target Rails-style
 ENV + YAML, and the schema libraries (dry-*) bring 3–6 gems and their own class shapes. Python
 has pydantic, Rust serde, Java Jackson; Ruby has no equivalent of those.
@@ -398,8 +407,3 @@ For the locations layer, from rubygems on 2026-11-01:
   not meant as a setting.
 - `Q_sorbet_from_hash` — does `T::Struct.from_hash` type-check values, or assign blindly? Only
   matters if `T::Struct` comes back as a candidate.
-- `Q_name` — a name, once it is a gem. Named for the config job rather than the mapper: a
-  "mapper" competes with the mappers Ruby already has, a typed config loader has no rival.
-  Shortlist, free on rubygems as of 2026-11-01: **`settle`** (leaning: covers settings and
-  state, and is what strict types do to a value), `typed_config`, `conffile`. Taken: `confit`
-  (the pun — config, and food preserved like state — an abandoned 2015 YAML loader).
