@@ -3,7 +3,7 @@
 One small library that turns a parsed file (a Hash) into an instance of an ordinary Ruby class
 and back, checking types on the way. It serves both `config-file.md` (TOML, read-only,
 validated) and `keeping-state.md` (JSON, written by the app, mutable); once config is built on
-it, state drops its hand-listed fields for it. Built here first, a gem once pikuri adopts it.
+it, state drops its hand-listed properties for it. Built here first, a gem once pikuri adopts it.
 
 **Named `confect`** (free on rubygems, 2026-11-01): to confect is to prepare something from raw
 ingredients — a raw file in, a checked Ruby object served out. Named for the config job rather
@@ -16,7 +16,7 @@ The mapper is **`Confect::Mapper`**, which names what it does; the top-level `Co
 free for the higher-level config loading (*Scope*'s locations layer).
 
 Why not an existing gem: none fits (see *Compared*). The Ruby config gems target Rails-style
-ENV + YAML, and the schema libraries (dry-*) bring 3–6 gems and their own class shapes. Python
+ENV + YAML, and the schema libraries (dry-*) bring 3–6 gems and their own class forms. Python
 has pydantic, Rust serde, Java Jackson; Ruby has no equivalent of those.
 
 ## Scope: the mapper, and optionally where the files live
@@ -46,20 +46,21 @@ app asks for it.
 
 ## Settled
 
-- **The mapper defines no class and no accessor.** It works with a `Data` class and with a plain
-  class with `attr_accessor`s; mutability is the class's business, not the mapper's.
+- **The mapper defines no class and no accessor.** It works with a data class and with an accessor
+  class; mutability is the class's business, not the mapper's.
 - **Strict types, no coercion.** `"70"` is not an Integer, `"70a"` is not 70, `70.0` is not 70.
   TOML, JSON and YAML already deliver typed values, so coercion would only hide mistakes.
 - **The first error raises**, with its path: `config.toml: ballooning.raise_at_percent:
   expected Integer, got "70"`. Collecting all errors is not worth the machinery.
-- **Cross-field rules and anything beyond simple constraints go in the class's own
+- **Cross-property rules and anything beyond simple constraints go in the class's own
   `validate`**, which the mapper calls after building the object and which raises on any
   problem. The mapper prefixes its message with the object's path.
 - **The file never names a class.** The caller names the root class and the class side
   (`constrain type:` or the RBS strategy) names every nested one; no `json_class` / `!ruby/object` discriminator.
   A user should not have to write one, and a rogue file must not instantiate an arbitrary
-  constant — the gadget class behind Psych's `safe_load` and JSON's `create_additions`. A field
-  with several shapes takes a tag the class maps to a closed set of classes.
+  constant — the gadget class behind Psych's `safe_load` and JSON's `create_additions`. A
+  property that can hold one of several classes takes a tag the class maps to a closed set of
+  classes.
 - **The mapper is Hash in, Hash out.** `Tomlrb.load_file`, `YAML.safe_load_file`,
   `JSON.load_file` all hand over a Hash; reading the file by its extension is the optional
   locations layer's job (*Scope*).
@@ -73,37 +74,55 @@ mapper.dump(state)                                                    # => plain
 
 ## How the mapper reads a class
 
+Terms: a class's **properties** are what the mapper loads and dumps, one per key. A **data
+class** (`Data.define`) and an **accessor class** (mutable, built from reader + writer pairs)
+are the two shapes a class can take; elsewhere it is just "the class".
+
 - **Defaults: the class's own constructor, with no arguments.** `Klass.new` must work bare —
   an empty `initialize`, or a default for every parameter — and that instance is the default;
-  each field's default is read back through its getter. Ruby's keyword defaults *are* the
+  each property's default is read back through its getter. Ruby's keyword defaults *are* the
   declaration — nothing is repeated for the mapper.
-- **Two class shapes**, as Java's zero-argument bean:
-  - **`Data`** (immutable): the fields are its `members`; built with
-    `new(**defaults.merge(loaded))`.
-  - **A bean** (mutable): the fields are its **public reader + writer pairs**, built with a bare
-    `new`, then `field=` for each loaded key. Only methods are read, never ivars or what
-    `initialize` does: a hand-written `def foo` / `def foo=(v)` counts like an `attr_accessor`,
-    inherited and mixed-in pairs count, a reader or writer alone does not (`attr_reader :path`
-    stays out), and only names matching `/\A[a-z_]\w*=\z/` are writers (not `==`, `[]=`,
-    `<=`). The rule ActiveModel's `assign_attributes` already assumes: it `public_send`s
-    `"#{key}="`.
+- **Two shapes, one internal strategy each.** A shape lists a class's properties, reads one off
+  an instance, and builds an instance from values:
 
-  An immutable plain class with a keyword constructor has readers and no writers, so no
-  fields: immutable means `Data`.
-- **An accessor that is not a setting goes `private` or `protected`** — Ruby's own visibility
-  is the way out. Left public, it has no declared type (or, from `sig/`, an unsupported one such
-  as a proc), so the mapper raises when it first reads the class: loud, never serialized
-  quietly.
-- **No required keys.** A bare `new` means every field has a default, so a missing key is never
-  an error — right for state and for an optional config file. (So a `Data` keyword without a
-  default is not a way to make a key required: that class cannot be built bare.)
-- **Dump order is declaration order**, by each reader's `instance_method(…).source_location`:
-  Ruby promises no order for `public_instance_methods`, and `state.json` should come out stable
-  for diffs. A `Data` class dumps in `members` order.
-- **Nested objects** are mapped recursively when a field's type is itself a mappable class;
-  `validate` runs bottom-up, nested objects first.
-- **Dump** walks the same fields through the getters; a nested object dumps to a Hash.
-- **No custom types yet.** A type tells the mapper what a field is, not how a scalar in the
+  | | properties | read | build |
+  |---|---|---|---|
+  | **data class** (immutable) | `members` | the getter | `new(**defaults.merge(loaded))` |
+  | **accessor class** (mutable) | public reader + writer pairs | the getter | bare `new`, then `name=` per loaded key |
+
+  The shape is picked per class, not per mapper — one tree can mix them, an accessor-class
+  `State` holding a data-class `Window` — and by a fact, not a guess: `klass < Data`. Shapes are
+  internal, with no `shapes:` option until a third one is needed. `Struct` is the likely
+  third: its members have public readers and writers, so the accessor rule would find them, but
+  their `source_location` is `nil`, so their order must come from `members`.
+- **An accessor class's properties are its public reader + writer pairs** — the zero-argument
+  Java bean, by Ruby's own means. Only methods are read, never ivars or what `initialize` does:
+  a hand-written `def foo` / `def foo=(v)` counts like an `attr_accessor`, inherited and
+  mixed-in pairs count, a reader or writer alone does not (`attr_reader :path` stays out), and
+  only names matching `/\A[a-z_]\w*=\z/` are writers (not `==`, `[]=`, `<=`). The rule
+  ActiveModel's `assign_attributes` already assumes: it `public_send`s `"#{key}="`. An immutable
+  plain class with a keyword constructor has readers and no writers, so no properties:
+  immutable means a data class.
+- **An accessor that is not a setting is left out**: made `private` or `protected` — Ruby's
+  own visibility — or, when it must stay public (a listener the app sets from outside),
+  named with `ignore :on_change` from `Confect::Constrain`. `ignore` means what
+  `unknown: :ignore` means on the file side: the mapper skips it. Not Java's `transient`, an
+  abstraction a Rubyist has to look up. A public accessor neither hidden nor ignored has no
+  declared type (or, from `sig/`, an unsupported one such as a proc), so the mapper raises when
+  it first reads the class: loud, never serialized quietly.
+- **No required keys.** A bare `new` means every property has a default, so a missing key is
+  never an error — right for state and for an optional config file. (So a `Data` keyword
+  without a default is not a way to make a key required: that class cannot be built bare.)
+- **Dump order is declaration order.** A data class dumps in `members` order; an accessor class
+  sorts by each reader's `instance_method(…).source_location`, which an `attr_accessor` reports
+  as its own line. Ruby promises no order for `public_instance_methods` — Ruby 3.3 lists a class
+  declaring `b`, `a`, `c` as `[:b, :b=, :a=, :c, :c=, :a]` — and `state.json` should come out
+  stable for diffs. Accessors declared on one line tie; ties break by name.
+- **Nested objects**: the mapper holds its type strategy, so `load` calls itself for each nested
+  Hash whose property's type is a mappable class, handing down the path for error messages
+  (`ballooning.raise_at_percent`); `validate` runs bottom-up, nested objects first.
+- **Dump** walks the same properties through the getters; a nested object dumps to a Hash.
+- **No custom types yet.** A type tells the mapper what a property is, not how a scalar in the
   file becomes that object: `"8 GiB"` is a String in the file and virtui's `Size` in Ruby. That
   needs a conversion (a class with `.load(raw)` and `#dump`, or a registry), and nothing needs
   one while settings carry their unit in the key (`min_actual_gib = 8`). Parked under
@@ -141,7 +160,7 @@ type that `constrain` does not give:
 | **RBS** (`Confect::Mapper::RBSTypes`, opted into) | `RBS::Parser.parse_type`, translated to the subset | looked up in `sig/*.rbs` |
 
 ```ruby
-Confect::Mapper.new                                             # no RBS: every field carries constrain type:
+Confect::Mapper.new                                             # no RBS: every property carries constrain type:
 Confect::Mapper.new(types: Confect::Mapper::RBSTypes.new)       # sig/*.rbs found from the class's own file
 Confect::Mapper.new(types: Confect::Mapper::RBSTypes.new(sig: ['sig/virtui.rbs']))
 ```
@@ -156,16 +175,16 @@ Confect::Mapper.new(types: Confect::Mapper::RBSTypes.new(sig: ['sig/virtui.rbs']
   guess has consequences (a `65` default would reject `65.5` from the file, which the author may
   never have meant), and it could not type `nil`, `[]` or `{}` anyway. Without RBS, `State` then
   needs `constrain :system_pane_visible, :log_pane_visible, type: 'bool'`; with RBS it costs
-  nothing, since sord's gate demands a YARD type on every field. The default is still checked
+  nothing, since sord's gate demands a YARD type on every property. The default is still checked
   against the type.
 
 Beyond `type:`, `constrain` only narrows a type (`in:`, `format:`); it never restates it. So the
 mapper never has to judge whether `Integer` is "compatible" with `Integer?`. All of these raise
 when the mapper first reads the class, not when the key first shows up in a file, since
-otherwise the gap hides until some user sets that field:
+otherwise the gap hides until some user sets that property:
 
 - **no type**: no `constrain type:`, and the strategy has none either (`BasicTypes` never has);
-- **declared twice**: under `RBSTypes`, `sig/` has the field and `constrain` passes `type:` too,
+- **declared twice**: under `RBSTypes`, `sig/` has the property and `constrain` passes `type:` too,
   even when the two match, since a duplicate drifts sooner or later;
 - **a default the type rejects**: `String` with default `65`, or `Integer` with default `nil`;
 - **a limit the type cannot take**: `in: 1..100` on a `String`.
@@ -179,7 +198,7 @@ A wrongly non-nil type with a `nil` default raises (*a default the type rejects*
 shows up at once.
 
 **No `not_nil:` or `required:` yet.** TOML has no null, so a TOML file can only leave a key out,
-which means the default. In JSON, `not_nil:` would forbid an explicit `null` on a field whose
+which means the default. In JSON, `not_nil:` would forbid an explicit `null` on a property whose
 type and default both allow it — no known use case. "The file must give this key" would be
 `required:`; the bare `new` rules out getting it from a keyword without a default. virtui has
 no required key; pikuri has some (`config-file.md`), so `required:` comes with pikuri.
@@ -236,11 +255,11 @@ Spiked 2026-11-01, tuile's sord over virtui, written outside the repo: it exits 
 
 So virtui's gate fails on any `OMIT`, and on an unresolved name unless it lies in another gem's
 namespace. Some of virtui's 37 `Data.define` classes may still lack `@!attribute` (22 files have
-it); each shows up as a missing field in the file. **`rbs validate` waits**: it would need the
+it); each shows up as a missing property in the file. **`rbs validate` waits**: it would need the
 other gems' signatures (`rbs collection` for tuile and REXML), and the mapper only parses the
 file, it never validates it.
 
-#### Reading it: `Klass#field` → a type
+#### Reading it: `Klass#property` → a type
 
 1. **Find the files.** Start from the file that defines the class (`Module.const_source_location
    (klass.name)`), walk up to the first directory holding `sig/`, read its `sig/**/*.rbs`. That
@@ -251,10 +270,10 @@ file, it never validates it.
 2. **Parse and index.** Each file is parsed once per process with
    `RBS::Parser.parse_signature`; the declarations are walked recursively and indexed by full
    name (`UI::CpuFlagsDialog`). A class declared in several places keeps all its declarations.
-3. **Find the field.** Walk `klass.ancestors`; in each one's declarations, look for
-   `attr_reader` / `attr_accessor <field>`, or a zero-argument `def <field>: () -> T`. The first
-   hit is the RBS type. The getter is what counts, since the mapper reads fields through
-   getters; `initialize`'s keyword types are ignored. Two different types for one field raise
+3. **Find the property.** Walk `klass.ancestors`; in each one's declarations, look for
+   `attr_reader` / `attr_accessor <property>`, or a zero-argument `def <property>: () -> T`. The first
+   hit is the RBS type. The getter is what counts, since the mapper reads properties through
+   getters; `initialize`'s keyword types are ignored. Two different types for one property raise
    (*declared twice*).
 4. **Resolve the names in the type.** `::Set` is absolute: `Object.const_get`. A relative `Size`
    follows Ruby's lexical lookup from the declaring namespace outward (`UI::Foo::Size`,
@@ -327,17 +346,18 @@ end
 - **Constraints, a deliberately small set**: `in:` (a Range — `0..` is "0 or greater" — or an
   Array of allowed values) and `format:` (a Regexp, for strings). Everything else is
   `validate`.
-- Without RBS every field gets a `constrain` line, for its type at least; under `RBSTypes`
-  only a field with limits does.
-- **Named `constrain`**: the line adds limits to a field the class already declares, and a type
-  is the strictest limit. Not `setting`, since every field is a setting, annotated or not.
-  Not `property`, since sorbet's `prop` and Rails' `attribute` both define the accessor. Not
-  `validate`, since that is the class's own cross-field hook, and Rails' `validate :foo`
+- Without RBS every property gets a `constrain` line, for its type at least; under `RBSTypes`
+  only a property with limits does.
+- **Named `constrain`**: the line adds limits to a property the class already declares, and a type
+  is the strictest limit. Not `setting`, since every property is a setting, annotated or not.
+  Not a macro named `property`, since sorbet's `prop` and Rails' `attribute` both define the
+  accessor; the noun stays for what the mapper loads and dumps. Not
+  `validate`, since that is the class's own cross-property hook, and Rails' `validate :foo`
   registers the method `foo`.
 - **`constrain` does not define the accessor**, though Rails' `attribute` does. On a `Data` class
   the reader exists and the instance is frozen, so a generated writer would raise
-  `FrozenError`. Once the macro owns the field, `default:` follows, then a generated
-  `initialize`, and it has become dry-struct or `T::Struct`: a class shape the mapper imposes. A
+  `FrozenError`. Once the macro owns the property, `default:` follows, then a generated
+  `initialize`, and it has become dry-struct or `T::Struct`: a class form the mapper imposes. A
   metaprogrammed accessor is also invisible to RBS, Steep, the IDE and YARD; this project wants
   YARD on every public method. The one-line form already exists in standard Ruby:
   `attr_accessor :last_vm #: String?`.
@@ -380,7 +400,7 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
   `#:schema ./virtui.schema.json` comment, or found through SchemaStore.
 - **Against:** every key is listed twice, once in the class and once in the schema; a spec
   comparing `members` with `properties` catches drift, but cannot stop it. A JSON Schema is
-  verbose to write by hand for what one `constrain` line says. The cross-field rule and
+  verbose to write by hand for what one `constrain` line says. The cross-property rule and
   custom types (`"8 GiB"`) stay in `validate` and the mapper either way. `70.0` passes as an
   Integer, which needs a check of our own. It adds four runtime gems: hana, regexp_parser,
   simpleidn and bigdecimal.
@@ -395,13 +415,13 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
 - **sorbet-runtime `T::Struct`** (0.6.13612, 158M downloads, no runtime dependencies, released
   2026-10-31): the closest existing thing — typed fields, defaults, per-field mutability,
   nested structs, `from_hash` / `from_hash!` (the bang raises on unknown keys) and `serialize`.
-  But it *is* the class shape (`< T::Struct` or `include T::Props`), so no `Data`, no plain
+  But it *is* the class form (`< T::Struct` or `include T::Props`), so no `Data`, no plain
   class; a required prop missing from the Hash is not an error but recorded and left `nil`
   (`required_prop_missing_from_deserialize`), which config cannot accept; and it carries
   Stripe's ODM history (`dont_store`, `redaction`, `chalk-odm` warnings). Whether `from_hash`
   type-checks the values at all is unverified — `Q_sorbet_from_hash`.
 - **dry-struct / dry-validation / dry-configurable, hashie, anyway_config, shale,
-  activemodel** — weighed in `config-file.md`: each either brings its own class shape, gem
+  activemodel** — weighed in `config-file.md`: each either brings its own class form, gem
   family or lenient casting.
 
 For the locations layer, from rubygems on 2026-11-01:
