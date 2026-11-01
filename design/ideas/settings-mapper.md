@@ -20,8 +20,8 @@ has pydantic, Rust serde, Java Jackson; Ruby has no equivalent of those.
 - **Cross-field rules and anything beyond simple constraints go in the class's own
   `validate`**, which the mapper calls after building the object and which raises on any
   problem. The mapper prefixes its message with the object's path.
-- **The file never names a class.** The caller names the root class and the class side (RBS,
-  annotation, default) names every nested one; no `json_class` / `!ruby/object` discriminator.
+- **The file never names a class.** The caller names the root class and the class side
+  (`constrain type:` or the RBS strategy) names every nested one; no `json_class` / `!ruby/object` discriminator.
   A user should not have to write one, and a rogue file must not instantiate an arbitrary
   constant — the gadget class behind Psych's `safe_load` and JSON's `create_additions`. A field
   with several shapes takes a tag the class maps to a closed set of classes.
@@ -29,9 +29,10 @@ has pydantic, Rust serde, Java Jackson; Ruby has no equivalent of those.
   `YAML.safe_load_file`, `JSON.load_file` all hand over a Hash.
 
 ```ruby
-config = Mapper.load(Config, Tomlrb.load_file(path))                   # unknown keys raise
-state  = Mapper.load(State, JSON.load_file(path), unknown: :ignore)       # a newer virtui's keys are dropped
-Mapper.dump(state)                                                     # => plain Hash
+mapper = Mapper.new                                                   # the type strategy: see Types
+config = mapper.load(Config, Tomlrb.load_file(path))                  # unknown keys raise
+state  = mapper.load(State, JSON.load_file(path), unknown: :ignore)   # a newer virtui's keys are dropped
+mapper.dump(state)                                                    # => plain Hash
 ```
 
 ## How the mapper reads a class
@@ -70,25 +71,44 @@ class State
 end
 ```
 
-## Types: declared once, or read off the default
+## Types: declared once, by `constrain` or by the strategy
 
-A field's type is **declared in exactly one place**:
+The mapper takes a **type strategy**, chosen explicitly and never detected: a generic component
+takes a strategy. The strategy has two jobs, parsing a `constrain type:` string and supplying a
+type that `constrain` does not give:
 
-1. **RBS**, from the project's `sig/*.rbs`; or
-2. **`constrain type:`** on the field (*Annotations* below).
+| strategy | `constrain type:` given | no `constrain type:` |
+|---|---|---|
+| **no RBS** (`Mapper::BasicTypes`, the default) | the mapper's own small parser | raises |
+| **RBS** (`Mapper::RBSTypes`, opted into) | `RBS::Parser.parse_type`, translated to the subset | looked up in `sig/*.rbs` |
 
-Only when neither declares it is it **read off the default**: `65` → `Integer`, `true`/`false` →
-`bool`, an instance of a mappable class → that class. That cannot tell the type of `nil`, `[]`
-or `{}`, so such a field needs a declaration.
+```ruby
+Mapper.new                                     # no RBS: every field carries constrain type:
+Mapper.new(types: Mapper::RBSTypes.new)        # sig/*.rbs found from the class's own file
+Mapper.new(types: Mapper::RBSTypes.new(sig: ['sig/virtui.rbs']))
+```
+
+- **The `rbs` gem is optional.** Only `RBSTypes` requires it; choosing it without the gem raises
+  with a hint to add it. Without RBS, every type and limit is given through `constrain`.
+- **Both strategies accept the same types**, the subset under *What the mapper needs from the
+  `rbs` gem*. `RBSTypes` parses full RBS syntax and then rejects what is outside the subset
+  with "unsupported type"; `BasicTypes` rejects it while parsing. A spec feeds the same type
+  strings to both whenever `rbs` is installed, so the two parsers cannot drift.
+- **The default does not supply a type.** `65` is not read as `Integer`: with strict types the
+  guess has consequences (a `65` default would reject `65.5` from the file, which the author may
+  never have meant), and it could not type `nil`, `[]` or `{}` anyway. Without RBS, `State` then
+  needs `constrain :system_pane_visible, :log_pane_visible, type: 'bool'`; with RBS it costs
+  nothing, since sord's gate demands a YARD type on every field. The default is still checked
+  against the type.
 
 Beyond `type:`, `constrain` only narrows a type (`in:`, `format:`); it never restates it. So the
 mapper never has to judge whether `Integer` is "compatible" with `Integer?`. All of these raise
 when the mapper first reads the class, not when the key first shows up in a file, since
 otherwise the gap hides until some user sets that field:
 
-- **no type**: neither RBS nor `type:`, and a default of `nil`, `[]` or `{}`;
-- **declared twice**: RBS has the field and `constrain` passes `type:` too, even when the two
-  match, since a duplicate drifts sooner or later;
+- **no type**: no `constrain type:`, and the strategy has none either (`BasicTypes` never has);
+- **declared twice**: under `RBSTypes`, `sig/` has the field and `constrain` passes `type:` too,
+  even when the two match, since a duplicate drifts sooner or later;
 - **a default the type rejects**: `String` with default `65`, or `Integer` with default `nil`;
 - **a limit the type cannot take**: `in: 1..100` on a `String`.
 
@@ -107,12 +127,13 @@ type and default both allow it — no known use case. "The file must give this k
 missing key raises. Only a setter class whose ivar starts as `nil` would need it; nothing in
 virtui is shaped like that yet.
 
-### RBS: a `sig/*.rbs` file, not inline
+### The RBS strategy: a `sig/*.rbs` file, not inline
 
 RBS is Ruby's own type-signature language; the `rbs` gem ships with Ruby (3.4.0 bundled with
 Ruby 3.3; 4.2.0 is current, released 2026-08, 98M downloads, depends on prism, tsort, logger).
-The mapper reads only signature files: a project either keeps `sig/*.rbs` or gives its types
-through `constrain`. RBS 4.0's **inline** declarations (`attr_accessor :last_vm #: String?`)
+virtui would still need a `gem 'rbs'` line in its Gemfile, like `racc` today; it has a native
+extension. Ruby 3.3's bundled 3.4 may be enough, if its `parse_signature` matches 4.2's —
+unverified. `RBSTypes` reads only signature files. RBS 4.0's **inline** declarations (`attr_accessor :last_vm #: String?`)
 are left out. They are still marked experimental, and they are awkward for a `Data` class:
 `Ballooning = Data.define(…)` is a constant to the inline parser, not a class with attributes.
 
@@ -168,8 +189,8 @@ file, it never validates it.
    (klass.name)`), walk up to the first directory holding `sig/`, read its `sig/**/*.rbs`. That
    is the standard place, works for an app and for an installed gem (tuile's gemspec ships
    `sig/tuile.rbs`), and does not depend on the directory `bin/virtui` is started from. A list
-   of paths handed to the mapper overrides it. A project with no `sig/` declares its types
-   through `constrain type:` or its defaults.
+   of paths handed to `RBSTypes` overrides it. No `sig/` found raises: the project asked for
+   RBS.
 2. **Parse and index.** Each file is parsed once per process with
    `RBS::Parser.parse_signature`; the declarations are walked recursively and indexed by full
    name (`UI::CpuFlagsDialog`). A class declared in several places keeps all its declarations.
@@ -183,7 +204,8 @@ file, it never validates it.
    `UI::Size`, `Size`). Built-ins go to the mapper's own checks; any other class must be mappable
    or a custom type, or it raises `unsupported type at sig/virtui.rbs:LINE`.
 5. **`constrain type:`** strings go through `RBS::Parser.parse_type` and the same lookup, from
-   the class's own namespace.
+   the class's own namespace. `BasicTypes` resolves names in its own parsed strings the same
+   way.
 
 Spiked 2026-11-01, steps 2–3 in 30 lines, each result with its line for the error message:
 
@@ -197,14 +219,14 @@ What the mapper needs from the `rbs` gem, read in `rbs-4.2.0`'s source:
 
 - **The types, without loading the RBS environment.** `RBS::Parser.parse_signature(source)`
   parses on its own, and `RBS::Parser.parse_type("Integer?")` parses a `constrain` type string.
-  Measured: tuile's 870 KB `sig/tuile.rbs` parses in about 58 ms. Whether Ruby 3.3's bundled
-  rbs 3.4 has the same API is unverified — `Q_rbs_optional`.
+  Measured: tuile's 870 KB `sig/tuile.rbs` parses in about 58 ms.
 - **Not RBS's own runtime checker.** `RBS::Test::TypeCheck#value(val, type)` exists, but its
   constructor wants a `DefinitionBuilder`, i.e. the whole environment, core signatures
-  included. The mapper interprets a small subset of the type AST itself instead:
-  `Integer`, `Float`, `String`, `bool`, `T?` (nil allowed), `Array[T]`, `Hash[String, T]`,
-  literal unions (`"short" | "verbose"`, which give enums for free), and mappable classes.
-  Anything else raises "unsupported type".
+  included. The mapper translates RBS's type AST into its own type objects instead, for a
+  small subset — the same subset `BasicTypes` parses with a few dozen lines of recursive
+  descent: `Integer`, `Float`, `String`, `bool`, `T?` (nil allowed), `Array[T]`,
+  `Hash[String, T]`, literal unions (`"short" | "verbose"`, which give enums for free), and
+  mappable classes. Anything else raises "unsupported type".
 
 ### Annotations
 
@@ -229,20 +251,22 @@ Proposal — a macro that records metadata only, defining no accessor:
 Ballooning = Data.define(:raise_at_percent, :shrink_at_percent, :min_actual_gib, :pinned_vms) do
   extend Mapper::Annotations
 
-  constrain :raise_at_percent, :shrink_at_percent, in: 1..100
-  constrain :min_actual_gib, in: 1..
-  constrain :pinned_vms, type: 'Array[String]' # a type, because the default [] says nothing
+  # without RBS; under RBSTypes the type: arguments move to sig/ and only the limits stay
+  constrain :raise_at_percent, :shrink_at_percent, type: 'Integer', in: 1..100
+  constrain :min_actual_gib, type: 'Integer', in: 1..
+  constrain :pinned_vms, type: 'Array[String]'
 
   def initialize(raise_at_percent: 65, shrink_at_percent: 55, min_actual_gib: 8, pinned_vms: []) = super
 end
 ```
 
 - **`type:` is an RBS type string**, so the mapper speaks one type language whether the type
-  came from RBS or from an annotation.
+  came from RBS or from an annotation; the strategy parses it.
 - **Constraints, a deliberately small set**: `in:` (a Range — `0..` is "0 or greater" — or an
   Array of allowed values) and `format:` (a Regexp, for strings). Everything else is
   `validate`.
-- Only fields that need one get an annotation; the rest are fully described by their default.
+- Without RBS every field gets a `constrain` line, for its type at least; under `RBSTypes`
+  only a field with limits does.
 - **Named `constrain`**: the line adds limits to a field the class already declares, and a type
   is the strictest limit. Not `setting`, since every field is a setting, annotated or not.
   Not `property`, since sorbet's `prop` and Rails' `attribute` both define the accessor. Not
@@ -265,12 +289,11 @@ Settled: the mapper starts with `constrain`. A JSON Schema may come later as a s
 give the same types and limits; it is not the first one built.
 
 A JSON Schema file beside the `Data` classes, checked with **json_schemer** before the mapper
-runs. The classes stay as they are, with their YARD and `validate`. The mapper still turns the
-Hash into objects, nested ones included. It only stops reading types, because the schema has
-already checked them: the class of a nested object comes from the default's class.
-A nested object whose default is `nil` has no such class, so the schema must name it: a custom
-keyword (`"x-ruby-class": "Ballooning"`) or a convention mapping `$defs/Ballooning` to
-`Ballooning`. The schema ships with the app, not with the user's file, so this keeps *the file
+runs — a third type strategy. The classes stay as they are, with their YARD and `validate`.
+The mapper still turns the Hash into objects, nested ones included. It only stops checking
+types, because the schema has already checked them. JSON Schema has no notion of a Ruby class,
+so the schema must name the class of each nested object: a custom keyword (`"x-ruby-class":
+"Ballooning"`) or a convention mapping `$defs/Ballooning` to `Ballooning`. The schema ships with the app, not with the user's file, so this keeps *the file
 never names a class*.
 
 Spiked with json_schemer 2.5.0 (2026-11-01):
@@ -290,7 +313,7 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
   `#:schema ./virtui.schema.json` comment, or found through SchemaStore.
 - **Against:** every key is listed twice, once in the class and once in the schema; a spec
   comparing `members` with `properties` catches drift, but cannot stop it. A JSON Schema is
-  verbose to write by hand for what a keyword default already says. The cross-field rule and
+  verbose to write by hand for what one `constrain` line says. The cross-field rule and
   custom types (`"8 GiB"`) stay in `validate` and the mapper either way. `70.0` passes as an
   Integer, which needs a check of our own. It adds four runtime gems: hana, regexp_parser,
   simpleidn and bigdecimal.
@@ -316,10 +339,6 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
 
 ## Open questions
 
-- `Q_rbs_optional` — is the `rbs` gem a hard dependency, or does the mapper use RBS only when
-  it is loaded? virtui would need a `gem 'rbs'` line in the Gemfile either way, like `racc`
-  today; it has a native extension. With inline RBS dropped, Ruby 3.3's bundled rbs 3.4 may be
-  enough, if its `parse_signature` matches 4.2's.
 - `Q_annotation_shape` — the `constrain` macro (`extend Mapper::Annotations`, Rails-like) or a
   plain `CONSTRAINTS` constant (no reference to the mapper)?
 - `Q_custom_types` — a protocol class (`.load` / `#dump`), or a registry
