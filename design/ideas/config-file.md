@@ -150,7 +150,8 @@ rubygems.org, 2026-11-01:
 
 Rejected: **YAML** (above). **shale** 1.2.2 — typed mapper with TOML, but 447k downloads in
 all and quiet since 2025-03. **activemodel** — drags in activesupport; "Ruby, no Rails".
-**json_schemer** — a JSON Schema is a second list of keys beside the code. **representable**
+**json_schemer** — a JSON Schema is a second list of keys beside the code; reopened as a
+type source in `settings-mapper.md` (`Q_json_schema`). **representable**
 — keys listed again in a decorator. **virtus** — abandoned 2021. **kwalify** — dead since 2011.
 
 ## pikuri, as a data point

@@ -153,6 +153,42 @@ end
 The alternative is a plain constant the mapper reads — `SETTINGS = { min_actual_gib: { in: 1.. }
 }` — so the class does not reference the mapper at all — `Q_annotation_shape`.
 
+### Brainstormed: JSON Schema in place of RBS and annotations
+
+A JSON Schema file beside the `Data` classes, checked with **json_schemer** before the mapper
+runs. The classes stay as they are, with their YARD and `validate`. The mapper still turns the
+Hash into objects, nested ones included. It only stops reading types, because the schema has
+already checked them: the class of a nested object comes from the default's class (source 3).
+
+Spiked with json_schemer 2.5.0 (2026-11-01):
+
+```
+"70"                    → value at `/ballooning/raise_at_percent` is not an integer
+170                     → number at `/ballooning/raise_at_percent` is greater than: 100
+mode: "x"               → value at `/ballooning/mode` is not one of: ["short", "verbose"]
+rasie: 1                → object property at `/ballooning/rasie` is a disallowed additional property
+70.0                    → passes: JSON Schema's `integer` is any number with no fraction (draft-06 on)
+```
+
+- **For:** it reports every error at once (requirement 2 of `config-file.md`, which this mapper
+  drops). Types, ranges, enums, nullable fields, arrays and unknown keys are standard keywords,
+  so RBS, the `setting` macro and our own type-AST subset go away. TOML editors get completion
+  and checking from it: Taplo and Tombi validate TOML against a JSON Schema named in a top
+  `#:schema ./virtui.schema.json` comment, or found through SchemaStore.
+- **Against:** every key is listed twice, once in the class and once in the schema; a spec
+  comparing `members` with `properties` catches drift, but cannot stop it. A JSON Schema is
+  verbose to write by hand for what a keyword default already says. The cross-field rule and
+  custom types (`"8 GiB"`) stay in `validate` and the mapper either way. `70.0` passes as an
+  Integer, which needs a check of our own. It adds four runtime gems: hana, regexp_parser,
+  simpleidn and bigdecimal.
+- **TOML:** JSON Schema checks the parsed data model, not the syntax, so a `Tomlrb` Hash is
+  checked like a JSON one. TOML's date and time values have no JSON type; what json_schemer does
+  with a Ruby `Time` is unverified. A TOML-native schema exists only as a proposal:
+  [toml-schema.org](https://github.com/brunoborges/toml-schema), with the schema itself written in
+  TOML. toml-lang has not adopted it (toml-lang#116, #792), and no Ruby implementation is known.
+
+`Q_json_schema`.
+
 ## Compared
 
 - **sorbet-runtime `T::Struct`** (0.6.13612, 158M downloads, no runtime dependencies, released
@@ -187,4 +223,7 @@ The alternative is a plain constant the mapper reads — `SETTINGS = { min_actua
   not meant as a setting.
 - `Q_sorbet_from_hash` — does `T::Struct.from_hash` type-check values, or assign blindly? Only
   matters if `T::Struct` comes back as a candidate.
+- `Q_json_schema` — the types from the class (RBS, annotations, defaults), or from a JSON Schema
+  beside it? The class needs no second list of keys; the schema gives every error at once and
+  editor completion in TOML.
 - `Q_name` — a name, once it is a gem.
