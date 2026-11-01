@@ -9,6 +9,31 @@ Why not an existing gem: none fits (see *Compared*). The Ruby config gems target
 ENV + YAML, and the schema libraries (dry-*) bring 3–6 gems and their own class shapes. Python
 has pydantic, Rust serde, Java Jackson; Ruby has no equivalent of those.
 
+## Scope: the mapper, and optionally where the files live
+
+The gap is wider than the mapper: Ruby has no library that loads **typed config objects from
+Linux's standard places** either (*Compared*). Python splits that job into pydantic and
+pydantic-settings, Rust into serde, the `config` crate and `directories`; Go has viper. One
+gem, two layers:
+
+1. **The mapper, the core.** Hash ↔ object, no runtime dependencies, usable on its own; state
+   needs only this.
+2. **Locations, optional, built on the mapper**: where an app's files live. Config is read
+   from `$XDG_CONFIG_HOME`, then each `$XDG_CONFIG_DIRS` entry, then `/etc/<app>/`; state is
+   read from and written to `$XDG_STATE_HOME`; an explicit path always wins. The rules
+   (first found or merge, which directories) are `config-file.md`'s; this layer implements
+   them.
+
+**Formats by file extension, required lazily**: `.toml` → `tomlrb`, `.json` → `json`, `.yaml` →
+`psych`. The gemspec declares none of them; a missing one raises with a hint to add it. tomlrb
+only reads, which suits config (read-only) and state (JSON); writing TOML comes in only with
+`config-file.md`'s `Q_default_dump`.
+
+**Scope creep is the risk**: config libraries grow env-var and CLI overrides, deep merge,
+macOS and Windows paths, reloading on change. The first version holds to first found, XDG
+plus `/etc`, Linux only — what virtui and pikuri need — and adds each extra only when a real
+app asks for it.
+
 ## Settled
 
 - **The mapper defines no class and no accessor.** It works with a `Data` class and with a plain
@@ -25,8 +50,9 @@ has pydantic, Rust serde, Java Jackson; Ruby has no equivalent of those.
   A user should not have to write one, and a rogue file must not instantiate an arbitrary
   constant — the gadget class behind Psych's `safe_load` and JSON's `create_additions`. A field
   with several shapes takes a tag the class maps to a closed set of classes.
-- **Hash in, Hash out.** The file format is the caller's: `Tomlrb.load_file`,
-  `YAML.safe_load_file`, `JSON.load_file` all hand over a Hash.
+- **The mapper is Hash in, Hash out.** `Tomlrb.load_file`, `YAML.safe_load_file`,
+  `JSON.load_file` all hand over a Hash; reading the file by its extension is the optional
+  locations layer's job (*Scope*).
 
 ```ruby
 mapper = Mapper.new                                                   # the type strategy: see Types
@@ -351,6 +377,20 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
   activemodel** — weighed in `config-file.md`: each either brings its own class shape, gem
   family or lenient casting.
 
+For the locations layer, from rubygems on 2026-11-01:
+
+- **tty-config** (0.6.0, last released 2022-06-18, 0.9M downloads, no runtime dependencies):
+  the closest prior art — YAML, JSON, TOML, INI, a search path, env vars, read and write, built
+  for terminal tools. But Hash-based (`config.fetch('a', 'b')`), no typed objects, no XDG
+  unless the app appends the paths itself, and dormant.
+- **anyway_config** (2.9.1, 36M downloads, depends on ruby-next-core): twelve-factor, env
+  first, YAML under `config/`; shaped for Rails apps.
+- **config** (5.6.1, 60M downloads, depends on deep_merge, ostruct): multi-environment
+  `settings.yml`, Rails conventions, untyped.
+- **xdg** (10.4.0, 2.2M downloads, no runtime dependencies): the XDG Base Directory paths only,
+  no loading, no types. A dependency the locations layer could take rather than re-derive the
+  spec.
+
 ## Open questions
 
 - `Q_mutable_fields` — for a setter class, fields from the ivars a bare `new` sets, or from its
@@ -358,4 +398,8 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
   not meant as a setting.
 - `Q_sorbet_from_hash` — does `T::Struct.from_hash` type-check values, or assign blindly? Only
   matters if `T::Struct` comes back as a candidate.
-- `Q_name` — a name, once it is a gem.
+- `Q_name` — a name, once it is a gem. Named for the config job rather than the mapper: a
+  "mapper" competes with the mappers Ruby already has, a typed config loader has no rival.
+  Shortlist, free on rubygems as of 2026-11-01: **`settle`** (leaning: covers settings and
+  state, and is what strict types do to a value), `typed_config`, `conffile`. Taken: `confit`
+  (the pun — config, and food preserved like state — an abandoned 2015 YAML loader).
