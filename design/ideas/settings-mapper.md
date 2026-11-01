@@ -416,10 +416,13 @@ rasie: 1                → object property at `/ballooning/rasie` is a disallow
   2026-10-31): the closest existing thing — typed fields, defaults, per-field mutability,
   nested structs, `from_hash` / `from_hash!` (the bang raises on unknown keys) and `serialize`.
   But it *is* the class form (`< T::Struct` or `include T::Props`), so no `Data`, no plain
-  class; a required prop missing from the Hash is not an error but recorded and left `nil`
-  (`required_prop_missing_from_deserialize`), which config cannot accept; and it carries
-  Stripe's ODM history (`dont_store`, `redaction`, `chalk-odm` warnings). Whether `from_hash`
-  type-checks the values at all is unverified — `Q_sorbet_from_hash`.
+  class, and it carries Stripe's ODM history (`dont_store`, `redaction`, `chalk-odm`
+  warnings). Decisive, spiked with 0.6.13506 on 2026-11-01: **`from_hash` assigns blindly.**
+  The constructor and setters type-check (`TypeError: Can't set Ballooning.raise_at_percent
+  to "70" … need a Integer`), but `from_hash` — the one path a config file takes — puts
+  `"70"` and `70.0` into an `Integer` prop silently, against *Strict types, no coercion*. A
+  required prop missing from the Hash does raise (`Tried to deserialize a required prop from a
+  nil value`); `from_hash!` raises on an unknown key, `from_hash` keeps it in `@_extra_props`.
 - **dry-struct / dry-validation / dry-configurable, hashie, anyway_config, shale,
   activemodel** — weighed in `config-file.md`: each either brings its own class form, gem
   family or lenient casting.
@@ -440,5 +443,4 @@ For the locations layer, from rubygems on 2026-11-01:
 
 ## Open questions
 
-- `Q_sorbet_from_hash` — does `T::Struct.from_hash` type-check values, or assign blindly? Only
-  matters if `T::Struct` comes back as a candidate.
+None at the moment.
