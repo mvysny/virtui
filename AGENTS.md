@@ -96,6 +96,7 @@ See `R_virsh_repl`.
 ## Skills this project follows
 
 - **Component-oriented:** self-sufficient tuile components that read `Virt::Cache` directly, no MVC layers; the `cop` skill has the rules and `tuile` the UI-thread rendering rule.
+- **Types live in the YARD tags, sord-checked by `rake sig`; specs are rspec-core with minitest asserts** — the `ruby` skill.
 - **Doc comments carry the contract, the gotcha and a one-line why-not**; the argument goes to `design/` — the `writing-rdoc` skill.
 - **An idea is one file under `design/ideas/`, deleted once its nuggets land in the Design docs table** — the `ideas-folder` skill.
 
