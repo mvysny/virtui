@@ -14,14 +14,27 @@ That decides everything below.
 
 Config, which the user does write, is the opposite on every point: `config-file.md`.
 
-On hold: the YAML proposal below still needs hand-written mapping code (`init_with`). If
-`settings-mapper.md` works out for config, state moves to it too, and YAML becomes just the file
-format, written from `Mapper.dump`.
+## Where it stands
 
-Where it stands: the working tree has a hand-rolled TOML `State` (`lib/state.rb`, `tomlrb` 2.0 +
-a `racc` Gemfile line) that lists every field in `load` and `save`. The `UI::AppLayout` wiring
-(load on build, save on every show/hide) and `spec_helper`'s per-example `XDG_STATE_HOME`
-tmpdir stay; only `State`'s insides change.
+Committed: `lib/state.rb` keeps the System and log panes' visibility as JSON in
+`$XDG_STATE_HOME/virtui/state.json` (falling back to `~/.local/state` when the variable is
+unset, empty or relative — the XDG spec calls a relative one invalid). `UI::AppLayout` loads it
+as it is built and saves it on every show or hide; `spec_helper` points `XDG_STATE_HOME` at a
+fresh tmpdir per example. A broken file, or a value that is not a Boolean, raises naming the
+path.
+
+Still missing against the list above:
+
+- **Fields are listed by hand**, once in the constructor, once in `load`, once in `save`. That
+  waits for `settings-mapper.md`: once config is built on it, `State` becomes a plain class
+  with `attr_accessor`s and constructor defaults, loaded with
+  `Mapper.load(State, JSON.load_file(path), unknown: :ignore)` and written from
+  `Mapper.dump(state)`.
+- **No thread guard yet** — see *Thread guard*.
+
+**Why JSON:** in the standard library, nothing to add to the Gemfile, and none of YAML's parsing
+quirks (YAML 1.1 reads `no` as `false`, `0755` as octal). For a file only the app writes, that
+is all the format needs to be.
 
 ## What goes in it
 
@@ -31,66 +44,12 @@ tmpdir stay; only `State`'s insides change.
   today and lost on restart. A VM whose guest swaps for reasons memory cannot fix gets `mb`
   every run. That makes `State` reachable from `lib/virt/` — see `Q_thread_guard_home`.
 
-## Proposal — YAML via Psych's object mode (stdlib)
-
-```ruby
-class State
-  attr_accessor :system_pane_visible, :log_pane_visible
-
-  # The defaults; every instance variable set here is a saved field.
-  def initialize
-    @system_pane_visible = true
-    @log_pane_visible = true
-  end
-
-  def self.load
-    return new unless File.exist?(path)
-
-    YAML.safe_load_file(path, permitted_classes: [State])
-  end
-
-  # Psych calls this instead of setting the ivars itself, which would skip initialize and
-  # leave a field missing from the file nil.
-  def init_with(coder)
-    initialize
-    coder.map.each do |key, value|
-      name = :"@#{key}"
-      instance_variable_set(name, value) if instance_variable_defined?(name)  # else: a removed field
-    end
-  end
-
-  def save
-    Tuile::Screen.instance.check_locked
-    write_atomically(YAML.dump(self))
-  end
-end
-```
-
-```yaml
---- !ruby/object:State
-system_pane_visible: true
-log_pane_visible: false
-```
-
-- **No gems**: `tomlrb` and the `racc` line go away (unless `config-file.md` brings `tomlrb` back).
-- **Nested objects and collections cost nothing**: a nested object is revived by its own
-  class, with its own `init_with` if it has defaults. Each class in the file must be in
-  `permitted_classes`; leaving one out raises `Psych::DisallowedClass`, loudly.
-- **The class tag in the file** is acceptable: these classes live under `State::` and do not
-  get renamed. A rename would make old files unloadable.
-- **Every ivar is saved**: a cached value added to `State` lands in the file. Say so in the
-  constructor's doc.
-- Symbols need `Symbol` in `permitted_classes` too; keep values plain.
-- Path: `$XDG_STATE_HOME/virtui/state.yaml`, falling back to `~/.local/state` when the
-  variable is unset, empty or relative (the XDG spec calls a relative one invalid) — as the
-  current `State.path` does.
-
 ## Thread guard
 
 `State` is UI-thread-confined: the app mutates it freely, from the UI thread only. `save`
-checks with `Tuile::Screen#check_locked`, which raises `Tuile::Error` off the event-loop thread
-(and, before the loop starts, off the thread that built the screen). The `AppLayout` spec's
-`Screen.fake` already passes it, as `update_data`'s own `check_locked` shows.
+should check with `Tuile::Screen#check_locked`, which raises `Tuile::Error` off the event-loop
+thread (and, before the loop starts, off the thread that built the screen). The `AppLayout`
+spec's `Screen.fake` already passes it, as `update_data`'s own `check_locked` shows.
 
 The guard sits on `save`, not on each setter: a setter is one line per field and guarding each
 would bring the field list back. Every mutation is followed by a `save`, so an off-thread one
@@ -98,20 +57,24 @@ is caught there. See `Q_update_block` for closing that gap.
 
 ## Rejected
 
+- **YAML via Psych's object mode** (`YAML.dump(state)`, revived through `init_with`) — no
+  gems and nested objects for free, but it still needs hand-written `init_with` code for the
+  defaults, writes the class name into the file (`--- !ruby/object:State`), needs
+  `permitted_classes` kept in step, and brings YAML's quirks. The settings mapper does the
+  mapping instead, over JSON.
+- **TOML** (`tomlrb`, the first version) — needed a gem plus a `racc` Gemfile line (tomlrb 2.0
+  depends on racc without saying so), and only parses, so `save` wrote TOML by hand. TOML is
+  for files people edit; that is config, not state.
 - **Marshal** — binary, and its format is tied to the Ruby version and the class's shape; a
   state file unreadable after a Ruby upgrade is no better than none.
-- **Hand-rolled ivar ↔ Hash over JSON** — fine for flat primitives; nested objects are exactly
-  the per-class parsing this avoids.
 - **dry-struct** — immutable, and its validation buys nothing for a file only the app writes.
-  It is the proposal for config instead.
-- The hand-rolled TOML now in the working tree — every field listed three times.
 
 ## Open questions
 
 - `Q_bad_file` — a state file that fails to parse: log a warning and start from the defaults?
   State only holds remembered preferences, so losing it is harmless, and refusing to start
   over it is the worse failure. This is the one place "errors are loud" should yield; the log
-  line keeps it from being silent.
+  line keeps it from being silent. Today it raises.
 - `Q_update_block` — guard the mutation itself rather than the save:
   `state.update { |s| s.log_pane_visible = false }` checks the thread, yields and saves in one
   call, so a mutation can neither run off-thread nor forget its `save`. Worth it, or is
@@ -122,5 +85,5 @@ is caught there. See `Q_update_block` for closing that gap.
   `UI::`, but the backend would no longer be UI-free in spirit. Options: `Virt::Ballooning`
   reports changes through a listener and `lib/ui/` writes them to `State`; or the guard is a
   thread captured at construction rather than Tuile's.
-- `Q_save_cost` — `save` writes a file on the UI thread, on a keypress. Two lines of YAML is
+- `Q_save_cost` — `save` writes a file on the UI thread, on a keypress. A few lines of JSON is
   nothing; would only matter if state grows large or saves become frequent (a resize drag).

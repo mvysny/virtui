@@ -2,8 +2,8 @@
 
 One small library that turns a parsed file (a Hash) into an instance of an ordinary Ruby class
 and back, checking types on the way. It serves both `config-file.md` (TOML, read-only,
-validated) and `keeping-state.md` (written by the app, mutable); if it works out, state drops
-its YAML object mode for it. Built here first, a gem once pikuri adopts it.
+validated) and `keeping-state.md` (JSON, written by the app, mutable); once config is built on
+it, state drops its hand-listed fields for it. Built here first, a gem once pikuri adopts it.
 
 Why not an existing gem: none fits (see *Compared*). The Ruby config gems target Rails-style
 ENV + YAML, and the schema libraries (dry-*) bring 3–6 gems and their own class shapes. Python
@@ -25,7 +25,7 @@ has pydantic, Rust serde, Java Jackson; Ruby has no equivalent of those.
 
 ```ruby
 config = Mapper.load(Config, Tomlrb.load_file(path))                   # unknown keys raise
-state  = Mapper.load(State, YAML.safe_load_file(path), unknown: :ignore)  # a newer virtui's keys are dropped
+state  = Mapper.load(State, JSON.load_file(path), unknown: :ignore)       # a newer virtui's keys are dropped
 Mapper.dump(state)                                                     # => plain Hash
 ```
 
