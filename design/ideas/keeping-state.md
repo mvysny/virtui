@@ -27,9 +27,9 @@ Still missing against the list above:
 
 - **Fields are listed by hand**, once in the constructor, once in `load`, once in `save`. That
   waits for `settings-mapper.md`: once config is built on it, `State` becomes a plain class
-  with `attr_accessor`s and constructor defaults, loaded with
-  `Mapper.load(State, JSON.load_file(path), unknown: :ignore)` and written from
-  `Mapper.dump(state)`.
+  with `attr_accessor`s, constructor defaults and a `constrain … type:` per field (or types in
+  `sig/`), loaded with `mapper.load(State, JSON.load_file(path), unknown: :ignore)` and written
+  from `mapper.dump(state)`.
 - **No thread guard yet** — see *Thread guard*.
 
 **Why JSON:** in the standard library, nothing to add to the Gemfile, and none of YAML's parsing
