@@ -53,7 +53,9 @@ virt = if runner
          Virt::VMEmulator.demo
        end
 
-virt_cache = Virt::Cache.new(virt, System::Info.new)
+# The demo fleet runs on an emulated host too: its disk images exist nowhere, so the real host's
+# `df` on them would fail, and its 32 GiB matches the fleet's memory rather than this machine's.
+virt_cache = Virt::Cache.new(virt, runner ? System::Info.new : System::Emulator.new)
 
 ballooning = Virt::Ballooning.new(virt_cache, config: config.ballooning)
 screen = Tuile::Screen.new

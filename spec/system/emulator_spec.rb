@@ -15,8 +15,15 @@ describe System::Emulator do
     assert_nil usage.last_cpu_stat
   end
 
-  it 'disk_usage is always empty' do
-    assert_equal({}, emu.disk_usage([['/a.qcow2', 1.GiB]]))
+  it 'disk_usage puts every file on one simulated disk' do
+    disks = emu.disk_usage([['/a.qcow2', 1.GiB], ['/b.qcow2', 2.GiB]])
+    assert_equal ['nvme0n1'], disks.keys
+    assert_equal '624G/1T (60%) (3G VMs)', disks['nvme0n1'].to_s
+    assert_equal ['/a.qcow2', '/b.qcow2'], disks['nvme0n1'].qcow2_files
+  end
+
+  it 'disk_usage is empty without files' do
+    assert_equal({}, emu.disk_usage([]))
   end
 
   it 'cpu_flags reports fixed virtualization flags' do

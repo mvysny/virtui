@@ -36,7 +36,8 @@ bin/virtui
 ```
 
 With no `virsh` on the `PATH`, virtui starts in demo mode instead: a fleet of four
-simulated VMs you can start, stop and balloon, to try the UI out.
+simulated VMs on a simulated 32 GiB host, which you can start, stop and balloon, to try the
+UI out.
 
 Each running VM's header line ends with its IP address when the host knows one: from libvirt's
 DHCP leases, or for a bridged guest from the host's ARP table.

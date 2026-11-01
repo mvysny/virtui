@@ -29,6 +29,8 @@ doc-comment content has crept in.
   (`domain_data`, `guest_os`, `guest_swap`, `guest_fs_usage`, `ip_address`, `domain_config`, `set_actual`, the
   power commands), so
   demo mode and most specs run the whole stack over the emulator with nothing faked apart.
+  Demo mode pairs it with `System::Emulator` for the host: the demo's disk images exist
+  nowhere, so the real `df` on them would fail.
 - Under `Virt::Virsh` sits the *runner* seam — `query` / `sync` / `async`, a subcommand without
   the word `virsh`, splatted one argument per word — with two implementations: the long-lived
   `Virt::VirshSession` serves `query`, `Virt::VirshSpawn` runs `sync` / `async` as one process

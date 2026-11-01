@@ -21,11 +21,16 @@ module System
       CpuUsage.new(0.0, nil)
     end
 
-    # @param _qcow2_files [Array<Array(String, Integer)>] ignored; present for interface
-    #   parity with {System::Info#disk_usage}
-    # @return [Hash{String => DiskUsage}] always empty
-    def disk_usage(_qcow2_files)
-      {}
+    # Puts every file on one simulated 1 TiB disk, `nvme0n1`, 400 GiB of it free.
+    #
+    # @param qcow2_files [Array<Array(String, Integer)>] `[path, size_in_bytes]` pairs, as
+    #   {System::Info#disk_usage} takes them
+    # @return [Hash{String => DiskUsage}] `nvme0n1`'s usage; empty when `qcow2_files` is
+    def disk_usage(qcow2_files)
+      return {} if qcow2_files.empty?
+
+      empty = DiskUsage.new(ResourceUsage.new(total: 1024.GiB, available: 400.GiB), 0, [])
+      { 'nvme0n1' => qcow2_files.reduce(empty) { |disk, (path, size)| disk.add(size, path) } }
     end
 
     # @return [Set<String>] fixed virtualization-capable CPU flags (`svm`, `npt`, `pdpe1gb`)

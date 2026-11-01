@@ -5254,10 +5254,12 @@ module System
     # _@return_ — always `0.0%` usage with no backing {System::CpuStat}
     def cpu_usage: (System::CpuUsage? _prev_cpu_usage) -> System::CpuUsage
 
-    # _@param_ `_qcow2_files` — ignored; present for interface parity with {System::Info#disk_usage}
+    # Puts every file on one simulated 1 TiB disk, `nvme0n1`, 400 GiB of it free.
     # 
-    # _@return_ — always empty
-    def disk_usage: (::Array[[String, Integer]] _qcow2_files) -> ::Hash[String, DiskUsage]
+    # _@param_ `qcow2_files` — `[path, size_in_bytes]` pairs, as {System::Info#disk_usage} takes them
+    # 
+    # _@return_ — `nvme0n1`'s usage; empty when `qcow2_files` is
+    def disk_usage: (::Array[[String, Integer]] qcow2_files) -> ::Hash[String, DiskUsage]
 
     # _@return_ — fixed virtualization-capable CPU flags (`svm`, `npt`, `pdpe1gb`)
     def cpu_flags: () -> ::Set[String]
