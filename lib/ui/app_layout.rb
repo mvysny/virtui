@@ -12,6 +12,8 @@ module UI
   #
   #   q quit  p Power  v run Viewer  …                            [2]-System  [3]-Log
   #
+  # Which panes are hidden survives a restart, in {State}.
+  #
   # The panes carry no frames (design/decisions.md D_panes_are_layouts); what tells them apart is
   # the background: the VM pane — the "editor", where all interaction lives — keeps the
   # terminal's default background, while the System and log panes are tinted one step
@@ -76,6 +78,10 @@ module UI
       @focus_keys = { '1' => @vms, '2' => @system, '3' => @log }
       # The panes their digit can hide; the VM pane is where all interaction lives, so it stays.
       @hideable = [@system, @log]
+      @state = State.load
+      @system.visible = @state.system_pane_visible
+      @log.visible = @state.log_pane_visible
+      rearrange_bottom
     end
 
     # @return [VMPane] the VM list/controls pane
@@ -106,10 +112,7 @@ module UI
         return true
       end
 
-      unless pane.visible?
-        pane.visible = true
-        rearrange_bottom
-      end
+      change_visibility(pane, true) unless pane.visible?
       pane.focus
       true
     end
@@ -169,8 +172,20 @@ module UI
       # Ahead of the hide: tuile's own focus repair parks focus on the bottom strip, a layout
       # that takes no keys.
       @vms.focus
-      pane.visible = false
+      change_visibility(pane, false)
+    end
+
+    # Shows or hides the System or log pane, refitting the bottom strip, and saves the
+    # panes' visibility to {State}.
+    # @param pane [SystemPane, LogPane] the pane to show or hide
+    # @param visible [Boolean]
+    # @return [void]
+    def change_visibility(pane, visible)
+      pane.visible = visible
       rearrange_bottom
+      @state.system_pane_visible = @system.visible?
+      @state.log_pane_visible = @log.visible?
+      @state.save
     end
 
     # Fits the bottom strip to whichever of the System and log panes are visible: the

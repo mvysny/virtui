@@ -12,11 +12,23 @@ unless ENV['COVERAGE'] == '0'
   end
 end
 
+require 'tmpdir'
 require 'tty-logger'
 require 'virtui'
 
 RSpec.configure do |config|
   config.expect_with :minitest
+  # A fresh, empty {State} directory per example: hiding a pane saves, and that must neither
+  # reach the developer's own ~/.local/state nor leak into the next example's layout.
+  config.around do |example|
+    Dir.mktmpdir('virtui-state') do |dir|
+      original = ENV.fetch('XDG_STATE_HOME', nil)
+      ENV['XDG_STATE_HOME'] = dir
+      example.run
+    ensure
+      ENV['XDG_STATE_HOME'] = original
+    end
+  end
 end
 
 # Every Screen.fake starts with VirTUI's theme, so components can read custom tokens.

@@ -135,6 +135,25 @@ module Tuile
         assert layout.log.active?
       end
 
+      it 'saves the panes\' visibility on every hide and show' do
+        layout.handle_key?('3')
+        layout.handle_key?('3')
+        assert State.load.system_pane_visible
+        refute State.load.log_pane_visible
+        layout.handle_key?('3')
+        assert State.load.log_pane_visible
+      end
+
+      it 'starts with the panes the saved state hides hidden' do
+        state = State.load
+        state.system_pane_visible = false
+        state.save
+        refute layout.system.visible?
+        layout.flush_layout
+        assert_equal [0, 26, 100, 13], rect_of(layout.log)
+        assert_equal ' [2]-System ', hidden_chips
+      end
+
       it '1 1 leaves the VM pane shown and focused' do
         layout.handle_key?('1')
         assert layout.handle_key?('1')
