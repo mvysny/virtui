@@ -11,13 +11,6 @@ GIT
       unicode-display_width (>= 2.6, < 4.0)
       zeitwerk (~> 2.7)
 
-GIT
-  remote: https://github.com/mvysny/typemap.git
-  revision: 27ade301a9f6d52277a6918906743ae9d0ec9a7e
-  branch: main
-  specs:
-    typemap (0.1.0)
-
 GEM
   remote: https://rubygems.org/
   specs:
@@ -97,6 +90,7 @@ GEM
     tty-logger (0.6.0)
       pastel (~> 0.8)
     tty-screen (0.8.2)
+    typemap (0.1.0)
     unicode-display_width (3.3.0)
       unicode-emoji (~> 4.3)
     unicode-emoji (4.3.0)
@@ -123,7 +117,7 @@ DEPENDENCIES
   tty-cursor (~> 0.7.1)
   tty-logger
   tuile!
-  typemap!
+  typemap (~> 0.1.0)
   yard (~> 0.9.43)
   zeitwerk (~> 2.7)
 
@@ -170,7 +164,7 @@ CHECKSUMS
   tty-logger (0.6.0) sha256=9352d0e3ebc4f9d59b63135806e38c0d6012adc04c907dde96db33daa64e50eb
   tty-screen (0.8.2) sha256=c090652115beae764336c28802d633f204fb84da93c6a968aa5d8e319e819b50
   tuile (0.17.0)
-  typemap (0.1.0)
+  typemap (0.1.0) sha256=3a4ce25f6450a283f78a661b8e3c401bc5c8b980a64b832e6fe16f7e61d13231
   unicode-display_width (3.3.0) sha256=4b7aa66a4b11db50f6f7e98411215cd0dd10eaecb665d36eec5bcacb3fa0b613
   unicode-emoji (4.3.0) sha256=11c02fa73290378c066bb0562cd4c87d8e1b706fbbe0059ca12746a4244de8ce
   yard (0.9.45) sha256=52e211493f7cb8a3ebf7e104a25a1e73937a3103092545d34cb88fafebb3dc51

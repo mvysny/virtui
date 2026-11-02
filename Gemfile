@@ -23,9 +23,8 @@ gem 'tty-logger'
 # they do — a git source rather than `path: '../tuile'` so CI can resolve it too. To work against
 # the sibling checkout: `bundle config set --local local.tuile ../tuile`.
 gem 'tuile', git: 'https://github.com/mvysny/tuile.git', branch: 'master'
-# Maps State to and from its JSON file (lib/state.rb). Pre-release with no gem yet, so it rides
-# main like tuile; `bundle config set --local local.typemap ../typemap` works against the sibling.
-gem 'typemap', git: 'https://github.com/mvysny/typemap.git', branch: 'main'
+# Maps State to and from its JSON file (lib/state.rb) and config.toml onto Config (lib/config.rb).
+gem 'typemap', '~> 0.1.0'
 gem 'zeitwerk', '~> 2.7'
 
 group :development do

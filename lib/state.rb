@@ -44,7 +44,7 @@ class State
     path = self.path
     return new unless File.exist?(path)
 
-    MAPPER.load(State, JSON.load_file(path), unknown: :ignore)
+    MAPPER.load(State, JSON.load_file(path), source: :json, unknown: :ignore)
   rescue JSON::ParserError, Typemap::DataError => e
     raise "#{path}: #{e.message}"
   end

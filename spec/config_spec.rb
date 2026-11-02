@@ -82,19 +82,21 @@ describe Config do
       assert_equal Config::Ballooning.new(raise_at_percent: 70), Config.load(env).ballooning
     end
 
-    it 'names the file and the key of a wrong type' do
+    it 'names the file and the key of a wrong type, and the fix in TOML' do
       e = load_error("[ballooning]\nraise_at_percent = \"70\"\n")
-      assert_equal %(#{@dir}/user/virtui/config.toml: ballooning.raise_at_percent: expected Integer, got "70"), e.message
+      assert_equal %(#{@dir}/user/virtui/config.toml: ballooning.raise_at_percent: expected Integer, got "70"; remove the quotes),
+                   e.message
     end
 
     it 'rejects a value out of its limits' do
       assert_includes load_error("[ballooning]\nraise_at_percent = 170\n").message,
-                      'ballooning.raise_at_percent: 170 is not in 1..100'
-      assert_includes load_error("[ballooning]\nmin_actual_gib = 0\n").message, 'ballooning.min_actual_gib: 0 is not in 1..'
+                      'ballooning.raise_at_percent: must be 1 to 100, got 170'
+      assert_includes load_error("[ballooning]\nmin_actual_gib = 0\n").message, 'ballooning.min_actual_gib: must be at least 1, got 0'
     end
 
     it 'rejects an unknown key' do
-      assert_includes load_error("[ballooning]\nrasie_at_percent = 70\n").message, 'ballooning.rasie_at_percent: unknown key'
+      assert_includes load_error("[ballooning]\nrasie_at_percent = 70\n").message,
+                      'ballooning.rasie_at_percent: unknown key, did you mean raise_at_percent?'
       assert_includes load_error("[balooning]\n").message, 'balooning: unknown key'
     end
 

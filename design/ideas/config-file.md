@@ -21,14 +21,6 @@ the 2 s poll (`bin/virtui`, tied to libvirt's ~5 s balloon refresh), the timeout
 `VirshSession` / `GuestAgent` / `GuestRootGrow`, and layout constants in `lib/ui/`: internal
 mechanics, not user preferences.
 
-## Error messages
-
-Typemap's messages name the key path and the value, which is enough to ship. Three gaps — Ruby
-class names (`expected Config::Ballooning, got 5`), Ruby range syntax (`0 is not in 1..`), no
-"did you mean" for a misspelled key — are Typemap's to fix, filed as
-`../typemap/design/ideas/error-messages.md`. When they land, `spec/config_spec.rb`'s message
-asserts change with them.
-
 ## Back-port to pikuri
 
 `../pikuri-tui/lib/shared/config.rb` and `../pikuri-web/lib/pikuri_web/config.rb` each load

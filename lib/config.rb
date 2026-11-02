@@ -53,7 +53,7 @@ class Config < Data.define(:ballooning)
     end
 
     $log.info("Reading config from #{path}")
-    MAPPER.load(Config, Tomlrb.load_file(path))
+    MAPPER.load(Config, Tomlrb.load_file(path), source: :toml)
   rescue Tomlrb::ParseError, Typemap::DataError => e
     raise Error, "#{path}: #{e.message}"
   end
